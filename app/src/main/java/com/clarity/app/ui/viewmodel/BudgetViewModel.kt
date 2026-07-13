@@ -6,10 +6,7 @@ import com.clarity.app.data.local.database.BudgetLimitEntity
 import com.clarity.app.data.local.database.CategoryEntity
 import com.clarity.app.data.local.database.SourceEntity
 import com.clarity.app.data.local.database.TransactionEntity
-import com.clarity.app.data.local.database.BudgetLimitDao
-import com.clarity.app.data.local.database.CategoryDao
-import com.clarity.app.data.local.database.SourceDao
-import com.clarity.app.domain.repository.TransactionRepository
+import com.clarity.app.domain.repository.BudgetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,66 +19,56 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    private val transactionRepository: TransactionRepository,
-    private val budgetLimitDao: BudgetLimitDao,
-    private val categoryDao: CategoryDao,
-    private val sourceDao: SourceDao
+    private val budgetRepository: BudgetRepository
 ) : ViewModel() {
 
-    val transactions: StateFlow<List<TransactionEntity>> = transactionRepository.getAllTransactions()
+    val transactions: StateFlow<List<TransactionEntity>> = budgetRepository.getAllTransactions()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val categories: StateFlow<List<CategoryEntity>> = categoryDao.getAllCategories()
+    val categories: StateFlow<List<CategoryEntity>> = budgetRepository.getCategories()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val sources: StateFlow<List<SourceEntity>> = sourceDao.getAllSources()
+    val sources: StateFlow<List<SourceEntity>> = budgetRepository.getSources()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val totalIncome: StateFlow<Double> = transactionRepository.getTotalIncome()
-        .combine(transactionRepository.getTotalExpenses()) { income, _ ->
-            (income ?: 0.0)
-        }
+    val totalIncome: StateFlow<Double> = budgetRepository.getTotalIncome()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0.0
         )
 
-    val totalExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
-        .combine(transactionRepository.getTotalIncome()) { expenses, _ ->
-            (expenses ?: 0.0)
-        }
+    val totalExpenses: StateFlow<Double> = budgetRepository.getTotalExpenses()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0.0
         )
 
-    val balance: StateFlow<Double> = combine(
-        transactionRepository.getTotalIncome(),
-        transactionRepository.getTotalExpenses()
-    ) { income, expenses ->
-        (income ?: 0.0) - (expenses ?: 0.0)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = 0.0
-    )
+    val balance: StateFlow<Double> = budgetRepository.getTotalIncome()
+        .combine(budgetRepository.getTotalExpenses()) { income, expenses ->
+            (income ?: 0.0) - (expenses ?: 0.0)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0.0
+        )
 
     private val now = LocalDate.now()
-    val budgetLimits: StateFlow<List<BudgetLimitEntity>> = budgetLimitDao.getBudgetLimitsForMonth(
+    val budgetLimits: StateFlow<List<BudgetLimitEntity>> = budgetRepository.getBudgetLimitsForMonth(
         now.monthValue, now.year
     ).stateIn(
         scope = viewModelScope,
@@ -91,55 +78,55 @@ class BudgetViewModel @Inject constructor(
 
     fun addTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
-            transactionRepository.insertTransaction(transaction)
+            budgetRepository.insertTransaction(transaction)
         }
     }
 
     fun deleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
-            transactionRepository.deleteTransaction(transaction)
+            budgetRepository.deleteTransaction(transaction)
         }
     }
 
     fun addBudgetLimit(budgetLimit: BudgetLimitEntity) {
         viewModelScope.launch {
-            budgetLimitDao.insertBudgetLimit(budgetLimit)
+            budgetRepository.insertBudgetLimit(budgetLimit)
         }
     }
 
     fun updateBudgetLimit(budgetLimit: BudgetLimitEntity) {
         viewModelScope.launch {
-            budgetLimitDao.updateBudgetLimit(budgetLimit)
+            budgetRepository.updateBudgetLimit(budgetLimit)
         }
     }
 
     fun deleteBudgetLimit(budgetLimit: BudgetLimitEntity) {
         viewModelScope.launch {
-            budgetLimitDao.deleteBudgetLimit(budgetLimit)
+            budgetRepository.deleteBudgetLimit(budgetLimit)
         }
     }
 
     fun addCategory(name: String, isDefault: Boolean = false) {
         viewModelScope.launch {
-            categoryDao.insertCategory(CategoryEntity(name = name, isDefault = isDefault))
+            budgetRepository.insertCategory(CategoryEntity(name = name, isDefault = isDefault))
         }
     }
 
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launch {
-            categoryDao.deleteCategory(category)
+            budgetRepository.deleteCategory(category)
         }
     }
 
     fun addSource(name: String, isDefault: Boolean = false) {
         viewModelScope.launch {
-            sourceDao.insertSource(SourceEntity(name = name, isDefault = isDefault))
+            budgetRepository.insertSource(SourceEntity(name = name, isDefault = isDefault))
         }
     }
 
     fun deleteSource(source: SourceEntity) {
         viewModelScope.launch {
-            sourceDao.deleteSource(source)
+            budgetRepository.deleteSource(source)
         }
     }
 
