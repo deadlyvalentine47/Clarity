@@ -71,10 +71,24 @@ import com.clarity.app.data.local.database.SourceEntity
 import com.clarity.app.data.local.database.TransactionEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.BudgetViewModel
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+private val indianFormat = DecimalFormat(
+    "##,##,##0.00",
+    DecimalFormatSymbols(Locale("en", "IN"))
+)
+private val indianFormatNoDecimal = DecimalFormat(
+    "##,##,##0",
+    DecimalFormatSymbols(Locale("en", "IN"))
+)
+
+private fun formatIndian(amount: Double): String = indianFormat.format(amount)
+private fun formatIndianNoDecimal(amount: Double): String = indianFormatNoDecimal.format(amount)
 
 private fun getDayName(dayOfMonth: Int): String {
     val cal = Calendar.getInstance()
@@ -548,7 +562,7 @@ fun ChartsTab(
                                     )
                                 }
                                 Text(
-                                    text = "\u20B9${String.format("%.0f", amount)}",
+                                    text = "\u20B9${formatIndianNoDecimal(amount)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
@@ -604,7 +618,7 @@ fun ChartsTab(
                                         )
                                     }
                                     Text(
-                                        text = "\u20B9${String.format("%.0f", amount)}",
+                                        text = "\u20B9${formatIndianNoDecimal(amount)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
@@ -663,7 +677,7 @@ fun ChartsTab(
                                         )
                                     }
                                     Text(
-                                        text = "\u20B9${String.format("%.0f", amount)}",
+                                        text = "\u20B9${formatIndianNoDecimal(amount)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
@@ -737,7 +751,7 @@ fun OverviewTab(
                         Column {
                             Text("Income", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "\u20B9${String.format("%.2f", totalIncome)}",
+                                text = "\u20B9${formatIndian(totalIncome)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -745,7 +759,7 @@ fun OverviewTab(
                         Column {
                             Text("Expenses", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "-\u20B9${String.format("%.2f", totalExpenses)}",
+                                text = "-\u20B9${formatIndian(totalExpenses)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -753,7 +767,7 @@ fun OverviewTab(
                         Column {
                             Text("Balance", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "\u20B9${String.format("%.2f", balance)}",
+                                text = "\u20B9${formatIndian(balance)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = if (balance >= 0) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.error
@@ -784,7 +798,7 @@ fun OverviewTab(
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", todayExpenses)}",
+                            text = "\u20B9${formatIndian(todayExpenses)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -805,7 +819,7 @@ fun OverviewTab(
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", monthExpenses)}",
+                            text = "\u20B9${formatIndian(monthExpenses)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
@@ -856,7 +870,7 @@ fun OverviewTab(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", amount)}",
+                            text = "\u20B9${formatIndian(amount)}",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
@@ -1140,7 +1154,7 @@ fun TransactionsTab(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "\u20B9${String.format("%.2f", dayTotal)}",
+                                        text = "\u20B9${formatIndian(dayTotal)}",
                                         style = MaterialTheme.typography.titleSmall,
                                         color = if (dayTotal >= 0) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.error
@@ -1537,8 +1551,8 @@ fun TransactionItem(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (transaction.type == "Income") "+\u20B9${String.format("%.2f", transaction.amount)}"
-                    else "-\u20B9${String.format("%.2f", transaction.amount)}",
+                    text = if (transaction.type == "Income") "+\u20B9${formatIndian(transaction.amount)}"
+                    else "-\u20B9${formatIndian(transaction.amount)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (transaction.type == "Income") MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.error
