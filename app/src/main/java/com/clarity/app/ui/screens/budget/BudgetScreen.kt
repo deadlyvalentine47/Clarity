@@ -28,6 +28,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -170,7 +171,16 @@ fun BudgetScreen(
                     onAddCategory = { viewModel.addCategory(it) },
                     onDeleteCategory = { viewModel.deleteCategory(it) },
                     onAddSource = { viewModel.addSource(it) },
-                    onDeleteSource = { viewModel.deleteSource(it) }
+                    onDeleteSource = { viewModel.deleteSource(it) },
+                    onSetBudgetLimit = { categoryName, amount ->
+                        viewModel.addBudgetLimit(BudgetLimitEntity(
+                            category = categoryName,
+                            limitAmount = amount,
+                            month = java.time.LocalDate.now().monthValue,
+                            year = java.time.LocalDate.now().year
+                        ))
+                    },
+                    onDeleteBudgetLimit = { viewModel.deleteBudgetLimit(it) }
                 )
             }
         }
@@ -198,7 +208,9 @@ fun ManageTab(
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (CategoryEntity) -> Unit,
     onAddSource: (String) -> Unit,
-    onDeleteSource: (SourceEntity) -> Unit
+    onDeleteSource: (SourceEntity) -> Unit,
+    onSetBudgetLimit: (String, Double) -> Unit,
+    onDeleteBudgetLimit: (BudgetLimitEntity) -> Unit
 ) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddSourceDialog by remember { mutableStateOf(false) }
@@ -208,6 +220,8 @@ fun ManageTab(
     var sourcesExpanded by remember { mutableStateOf(true) }
     var categorySearch by remember { mutableStateOf("") }
     var sourceSearch by remember { mutableStateOf("") }
+    var limitCategory by remember { mutableStateOf<String?>(null) }
+    var limitToDelete by remember { mutableStateOf<BudgetLimitEntity?>(null) }
 
     val filteredCategories = categories.filter {
         it.name.contains(categorySearch, ignoreCase = true)
@@ -262,6 +276,7 @@ fun ManageTab(
             }
 
             items(filteredCategories) { category ->
+                val categoryLimit = budgetLimits.find { it.category == category.name }
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -275,21 +290,30 @@ fun ManageTab(
                                 text = category.name,
                                 style = MaterialTheme.typography.bodyLarge
                             )
-                            if (category.isDefault) {
+                            if (categoryLimit != null) {
                                 Text(
-                                    text = "Default",
+                                    text = "Limit: \u20B9${formatIndianNoDecimal(categoryLimit.limitAmount)}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
-                        if (!category.isDefault) {
-                            IconButton(onClick = { categoryToDelete = category }) {
+                        Row {
+                            IconButton(onClick = { limitCategory = category.name }) {
                                 Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Delete Category",
-                                    tint = MaterialTheme.colorScheme.error
+                                    Icons.Default.AccountBalance,
+                                    contentDescription = if (categoryLimit != null) "Edit Limit" else "Set Limit",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                            if (!category.isDefault) {
+                                IconButton(onClick = { categoryToDelete = category }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete Category",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
@@ -444,6 +468,49 @@ fun ManageTab(
                 sourceToDelete = null
             },
             onDismiss = { sourceToDelete = null }
+        )
+    }
+
+    limitCategory?.let { catName ->
+        val existingLimit = budgetLimits.find { it.category == catName }
+        var limitAmount by remember(catName) { mutableStateOf(existingLimit?.limitAmount?.toString() ?: "") }
+        AlertDialog(
+            onDismissRequest = { limitCategory = null },
+            title = { Text("Set Monthly Limit for $catName") },
+            text = {
+                OutlinedTextField(
+                    value = limitAmount,
+                    onValueChange = { limitAmount = it },
+                    label = { Text("Limit Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val amount = limitAmount.toDoubleOrNull()
+                        if (amount != null && amount > 0) {
+                            onSetBudgetLimit(catName, amount)
+                            limitCategory = null
+                        }
+                    },
+                    enabled = limitAmount.toDoubleOrNull() != null && (limitAmount.toDoubleOrNull() ?: 0.0) > 0
+                ) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { limitCategory = null }) { Text("Cancel") } }
+        )
+    }
+
+    limitToDelete?.let { limit ->
+        DeleteConfirmationDialog(
+            title = "Delete Budget Limit",
+            message = "Are you sure you want to remove the limit for \"${limit.category}\"?",
+            onConfirm = {
+                onDeleteBudgetLimit(limit)
+                limitToDelete = null
+            },
+            onDismiss = { limitToDelete = null }
         )
     }
 }
