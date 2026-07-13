@@ -203,6 +203,14 @@ object DataExporter {
 
             val appData = json.decodeFromString<AppData>(jsonString)
 
+            // Clear existing data before importing
+            database.taskDao().deleteAllTasks()
+            database.habitDao().deleteAllHabits()
+            database.noteDao().deleteAllNotes()
+            database.transactionDao().deleteAllTransactions()
+            database.goalDao().deleteAllGoals()
+            database.eventDao().deleteAllEvents()
+
             // Insert all data sequentially
             appData.tasks.forEach { exportTask ->
                 database.taskDao().insertTask(

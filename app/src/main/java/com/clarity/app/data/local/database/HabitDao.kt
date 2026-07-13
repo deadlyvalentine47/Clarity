@@ -33,6 +33,9 @@ interface HabitDao {
     @Query("DELETE FROM habits WHERE id = :habitId")
     suspend fun deleteHabitById(habitId: Long)
 
+    @Query("DELETE FROM habits")
+    suspend fun deleteAllHabits()
+
     @Query("UPDATE habits SET isArchived = 1 WHERE id = :habitId")
     suspend fun archiveHabit(habitId: Long)
 
