@@ -1,22 +1,25 @@
-# Clarity - Fix Plan (Completed)
+# Clarity — Fix Plan
 
-## Execution Order (each fix = 1 commit, all pushed to `fix/code-review-issues`)
+All commits pushed to `fix/code-review-issues`.
 
-| # | Severity | Description | Commit |
-|---|----------|-------------|--------|
-| 1 | CRITICAL | Add FileProvider for data export | `461d4ad` |
-| 2 | CRITICAL | ~~HabitDao Map param bug~~ — NOT A BUG (Room handles TypeConverters) | — |
-| 3+4 | CRITICAL | Fix PomodoroTimerManager leaks + unbounded coroutines | `720bb40` |
-| 5 | IMPORTANT | Export includes archived/completed entities | `c594b1d` |
-| 6 | IMPORTANT | Import clears data before restoring | `04a2943` |
-| 7 | IMPORTANT | ~~Calendar day-of-week~~ — NOT A BUG (formula is correct) | — |
-| 8 | IMPORTANT | BudgetViewModel uses Repository instead of raw DAOs | `7a5937a` |
-| 9 | IMPORTANT | Fix ProGuard rules (removed non-existent packages) | `8e943aa` |
-| 10-16 | MEDIUM | Code quality: redundant flows, dead flow, constants, unused file, delete dialog, error handling | `f3d7fba` |
-| 17 | MEDIUM | Tags UI in task dialog + display + search | `7775c5b` |
-| 18 | MEDIUM | Delete category/source shows reference count warning | `7775c5b` |
-| 19 | MEDIUM | Centralize notification channels in ClarityApp | `7775c5b` |
-| 20 | MEDIUM | Remove unused SCHEDULE_EXACT_ALARM permissions | `7775c5b` |
+| # | Area | Task | Effort |
+|---|------|------|--------|
+| 1 | Budget | Remove default categories from `DatabaseCallback` | Low |
+| 2 | Calendar | Expand year dropdown range | Low |
+| 3 | Budget | Indian comma format for amounts | Low |
+| 4 | Notes | Restrict category to existing only in note creation | Low |
+| 5 | Notes | Default note detail to preview mode (not edit) | Low |
+| 6 | Habits | Add archive button to habit item | Low |
+| 7 | Tasks | Add delete confirmation dialog on swipe | Low |
+| 8 | Habits | Add frequency field to add habit dialog | Low |
+| 9 | Tasks | Prevent duplicate recurring task on re-check | Medium |
+| 10 | Goals | Replace milestones textarea with +icon + popup pattern | Medium |
+| 11 | Goals | Remove progress slider, make milestones mandatory, derive progress | Medium |
+| 12 | Budget | Add monthly limit UI per category | Medium |
+| 13 | Habits | Remove date strip, keep tick, add auto-mark-failed | Medium |
+| 14 | Calendar | Add full event fields (category, color, time, reminder) to dialog | High |
+| 15 | Settings | Split export into Share / Save to Downloads | Medium |
 
-## Remaining Nice-to-Haves (not critical, user-skipped)
-- Extract hardcoded strings ("All", "Today", "High", etc.) into constants/enums
+## Execution
+
+Each task above is one commit, except where noted.
