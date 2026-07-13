@@ -789,10 +789,12 @@ fun AddNoteDialog(
                     Box {
                         OutlinedTextField(
                             value = category,
-                            onValueChange = { category = it },
+                            onValueChange = {},
                             modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
                             singleLine = true,
-                            label = { Text("Category") }
+                            label = { Text("Category") },
+                            enabled = categories.isNotEmpty()
                         )
                         if (categories.isNotEmpty()) {
                             DropdownMenu(
