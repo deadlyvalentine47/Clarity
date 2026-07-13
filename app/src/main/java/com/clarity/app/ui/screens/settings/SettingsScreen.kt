@@ -58,28 +58,56 @@ fun SettingsScreen(
         uri?.let { viewModel.importData(it) }
     }
 
+    var showExportDialog by remember { mutableStateOf(false) }
+    var exportJson by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(exportState) {
         if (exportState is ExportState.Success) {
-            try {
-                val json = (exportState as ExportState.Success).json
-                val file = File(context.cacheDir, "clarity_export.json")
-                file.writeText(json)
-                val uri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/json"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(Intent.createChooser(shareIntent, "Export Clarity Data"))
-            } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            exportJson = (exportState as ExportState.Success).json
+            showExportDialog = true
             viewModel.resetExportState()
         }
+    }
+
+    if (showExportDialog && exportJson != null) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false; exportJson = null },
+            title = { Text("Export Data") },
+            text = { Text("How would you like to export your data?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        val file = File(context.cacheDir, "clarity_export.json")
+                        file.writeText(exportJson!!)
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Clarity Data"))
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Share failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    showExportDialog = false; exportJson = null
+                }) { Text("Share") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    try {
+                        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_DOWNLOADS
+                        )
+                        val file = File(downloadsDir, "clarity_export_${System.currentTimeMillis()}.json")
+                        file.writeText(exportJson!!)
+                        android.widget.Toast.makeText(context, "Saved to Downloads", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Save failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    showExportDialog = false; exportJson = null
+                }) { Text("Save") }
+            }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
