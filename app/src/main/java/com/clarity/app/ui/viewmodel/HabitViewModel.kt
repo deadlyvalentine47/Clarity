@@ -7,6 +7,7 @@ import com.clarity.app.domain.repository.HabitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -30,6 +31,48 @@ class HabitViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    init {
+        viewModelScope.launch {
+            markMissedDays()
+        }
+    }
+
+    private suspend fun markMissedDays() {
+        val habits = activeHabits.first()
+        val today = LocalDate.now()
+        habits.forEach { habit ->
+            var updated = false
+            var cursor = today.minusDays(1)
+            for (i in 0 until 30) {
+                val dateStr = cursor.toString()
+                if (!habit.completionHistory.containsKey(dateStr)) {
+                    habitRepository.toggleHabitForDate(habit.id, dateStr, false)
+                    updated = true
+                }
+                cursor = cursor.minusDays(1)
+            }
+            if (updated) {
+                val currentStreak = calculateStreak(habit, today)
+                habitRepository.updateHabit(habit.copy(currentStreak = currentStreak))
+            }
+        }
+    }
+
+    private fun calculateStreak(habit: HabitEntity, today: LocalDate): Int {
+        var streak = 0
+        var cursor = today
+        while (true) {
+            val dateStr = cursor.toString()
+            if (habit.completionHistory[dateStr] == true) {
+                streak++
+                cursor = cursor.minusDays(1)
+            } else {
+                break
+            }
+        }
+        return streak
+    }
 
     fun addHabit(habit: HabitEntity) {
         viewModelScope.launch {

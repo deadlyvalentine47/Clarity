@@ -51,10 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.HabitEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.HabitViewModel
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -236,60 +233,6 @@ fun HabitItem(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                val startOfWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                weekDays.forEachIndexed { index, day ->
-                    val date = startOfWeek.plusDays(index.toLong())
-                    val dateStr = date.toString()
-                    val completed = habit.completionHistory[dateStr] ?: false
-                    val isToday = date == LocalDate.now()
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = day,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        completed -> MaterialTheme.colorScheme.primary
-                                        isToday -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-                                        else -> MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (completed) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (habit.currentStreak > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "🔥 ${habit.currentStreak} day streak",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
     }
 }
