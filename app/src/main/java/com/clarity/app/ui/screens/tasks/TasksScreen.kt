@@ -226,16 +226,30 @@ fun SwipeToDeleteTaskItem(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
+                showDeleteDialog = true
+                false
             } else {
                 false
             }
         }
     )
+
+    if (showDeleteDialog) {
+        DeleteConfirmationDialog(
+            title = "Delete Task",
+            message = "Are you sure you want to delete \"${task.title}\"?",
+            onConfirm = {
+                showDeleteDialog = false
+                onDelete()
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
 
     SwipeToDismissBox(
         state = dismissState,
