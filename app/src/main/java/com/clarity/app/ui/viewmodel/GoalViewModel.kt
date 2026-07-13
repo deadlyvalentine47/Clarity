@@ -33,4 +33,19 @@ class GoalViewModel @Inject constructor(
     fun deleteGoal(goal: GoalEntity) {
         viewModelScope.launch { goalRepository.deleteGoal(goal) }
     }
+
+    fun toggleMilestone(goal: GoalEntity, milestone: String, completed: Boolean) {
+        val newCompleted = if (completed) {
+            goal.completedMilestones + milestone
+        } else {
+            goal.completedMilestones - milestone
+        }
+        val newProgress = if (goal.milestones.isEmpty()) 0f
+            else newCompleted.size.toFloat() / goal.milestones.size.toFloat()
+        updateGoal(goal.copy(
+            completedMilestones = newCompleted,
+            progress = newProgress,
+            isCompleted = newCompleted.size == goal.milestones.size && goal.milestones.isNotEmpty()
+        ))
+    }
 }
