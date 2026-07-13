@@ -23,11 +23,14 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -299,7 +302,10 @@ fun AddEditHabitDialog(
 ) {
     var name by remember { mutableStateOf(habit?.name ?: "") }
     var description by remember { mutableStateOf(habit?.description ?: "") }
+    var frequency by remember { mutableStateOf(habit?.frequency ?: "Daily") }
+    var frequencyExpanded by remember { mutableStateOf(false) }
     val isEditing = habit != null
+    val frequencyOptions = listOf("Daily", "Weekly", "Monthly")
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -320,6 +326,27 @@ fun AddEditHabitDialog(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2
                 )
+                Box {
+                    OutlinedTextField(
+                        value = frequency,
+                        onValueChange = {},
+                        label = { Text("Frequency") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        readOnly = true,
+                        singleLine = true
+                    )
+                    DropdownMenu(
+                        expanded = frequencyExpanded,
+                        onDismissRequest = { frequencyExpanded = false }
+                    ) {
+                        frequencyOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { frequency = option; frequencyExpanded = false }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -327,12 +354,13 @@ fun AddEditHabitDialog(
                 onClick = {
                     if (name.isNotBlank()) {
                         if (isEditing) {
-                            onConfirm(habit!!.copy(name = name.trim(), description = description.trim()))
+                            onConfirm(habit!!.copy(name = name.trim(), description = description.trim(), frequency = frequency))
                         } else {
                             onConfirm(
                                 HabitEntity(
                                     name = name.trim(),
-                                    description = description.trim()
+                                    description = description.trim(),
+                                    frequency = frequency
                                 )
                             )
                         }
