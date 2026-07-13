@@ -13,10 +13,9 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clarity.app.R
-import com.clarity.app.data.local.database.PomodoroFocusSessionDao
 import com.clarity.app.data.local.database.PomodoroFocusSessionEntity
-import com.clarity.app.data.local.database.PomodoroSessionDao
 import com.clarity.app.data.local.database.PomodoroSessionEntity
+import com.clarity.app.domain.repository.PomodoroRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -120,8 +119,7 @@ object PomodoroTimerManager {
 
 @HiltViewModel
 class PomodoroViewModel @Inject constructor(
-    private val sessionDao: PomodoroSessionDao,
-    private val focusSessionDao: PomodoroFocusSessionDao,
+    private val pomodoroRepository: PomodoroRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -139,7 +137,7 @@ class PomodoroViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val session = focusSessionDao.getSessionById(sessionId).firstOrNull()
+            val session = pomodoroRepository.getFocusSessionById(sessionId).firstOrNull()
             session?.let { manager.syncFromSession(it) }
         }
     }
@@ -205,7 +203,7 @@ class PomodoroViewModel @Inject constructor(
         val s = manager.state
         if (s.focusSessionId <= 0) return
         viewModelScope.launch {
-            focusSessionDao.updateSession(
+            pomodoroRepository.updateFocusSession(
                 PomodoroFocusSessionEntity(
                     id = s.focusSessionId,
                     title = s.title,
@@ -234,7 +232,7 @@ class PomodoroViewModel @Inject constructor(
             )
             manager.emit()
             viewModelScope.launch {
-                sessionDao.insertSession(PomodoroSessionEntity(duration = duration, type = "Focus"))
+                pomodoroRepository.insertTimerSession(PomodoroSessionEntity(duration = duration, type = "Focus"))
             }
             showNotification("Focus session complete!", "Time for a ${manager.state.breakDurationMinutes}-minute break")
         } else {

@@ -20,8 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -196,7 +196,7 @@ fun CalendarScreen(
                     if (currentMonth == 1) { currentMonth = 12; currentYear-- }
                     else currentMonth--
                 }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Previous")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
                 }
 
                 Text(
@@ -208,7 +208,7 @@ fun CalendarScreen(
                     if (currentMonth == 12) { currentMonth = 1; currentYear++ }
                     else currentMonth++
                 }) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "Next")
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
                 }
             }
 
@@ -474,7 +474,7 @@ fun DayEventsScreen(
                 title = { Text(date.format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy"))) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )

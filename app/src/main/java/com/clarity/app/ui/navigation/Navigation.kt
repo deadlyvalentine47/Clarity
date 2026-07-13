@@ -5,14 +5,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.outlined.Note
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Note
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,12 +61,12 @@ import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Default.Home)
-    data object Tasks : Screen("tasks", "Tasks", Icons.Default.List)
+    data object Tasks : Screen("tasks", "Tasks", Icons.AutoMirrored.Filled.List)
     data object Calendar : Screen("calendar", "Calendar", Icons.Default.DateRange)
     data object Habits : Screen("habits", "Habits", Icons.Default.Notifications)
     data object Budget : Screen("budget", "Budget", Icons.Outlined.AccountBalance)
-    data object Notes : Screen("notes", "Notes", Icons.Outlined.Note)
-    data object NoteDetail : Screen("note_detail/{noteId}", "Note Detail", Icons.Outlined.Note)
+    data object Notes : Screen("notes", "Notes", Icons.AutoMirrored.Outlined.Note)
+    data object NoteDetail : Screen("note_detail/{noteId}", "Note Detail", Icons.AutoMirrored.Outlined.Note)
     data object Goals : Screen("goals", "Goals", Icons.Outlined.Flag)
     data object Pomodoro : Screen("pomodoro", "Pomodoro", Icons.Outlined.Timer)
     data object PomodoroSession : Screen("pomodoro_session/{focusSessionId}", "Pomodoro Session", Icons.Outlined.Timer)
@@ -209,7 +209,7 @@ fun ClarityNavHost() {
                                 navigationIcon = {
                                     IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                         Icon(
-                                            imageVector = Icons.Default.List,
+                                            imageVector = Icons.AutoMirrored.Filled.List,
                                             contentDescription = "Menu"
                                         )
                                     }

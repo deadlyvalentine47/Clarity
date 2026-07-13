@@ -11,24 +11,14 @@ import javax.inject.Singleton
 class HabitRepositoryImpl @Inject constructor(
     private val habitDao: HabitDao
 ) : HabitRepository {
-
     override fun getActiveHabits(): Flow<List<HabitEntity>> = habitDao.getActiveHabits()
-
     override fun getArchivedHabits(): Flow<List<HabitEntity>> = habitDao.getArchivedHabits()
-
     override fun getHabitById(habitId: Long): Flow<HabitEntity?> = habitDao.getHabitById(habitId)
-
     override suspend fun insertHabit(habit: HabitEntity): Long = habitDao.insertHabit(habit)
-
     override suspend fun updateHabit(habit: HabitEntity) = habitDao.updateHabit(habit)
-
     override suspend fun deleteHabit(habit: HabitEntity) = habitDao.deleteHabit(habit)
-
-    override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) {
+    override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) =
         habitDao.toggleHabitForDate(habitId, date, completed)
-    }
-
-    override suspend fun archiveHabit(habitId: Long) {
+    override suspend fun archiveHabit(habitId: Long) =
         habitDao.archiveHabit(habitId)
-    }
 }

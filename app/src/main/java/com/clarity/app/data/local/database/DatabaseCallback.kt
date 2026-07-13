@@ -14,7 +14,7 @@ class DatabaseCallback : RoomDatabase.Callback() {
             defaultCategories.forEach { name ->
                 db.execSQL(
                     "INSERT INTO categories (name, isDefault, createdAt) VALUES (?, 1, ?)",
-                    arrayOf(name, System.currentTimeMillis())
+                    arrayOf<Any>(name, System.currentTimeMillis())
                 )
             }
 
@@ -22,7 +22,7 @@ class DatabaseCallback : RoomDatabase.Callback() {
             defaultSources.forEach { name ->
                 db.execSQL(
                     "INSERT INTO sources (name, isDefault, createdAt) VALUES (?, 1, ?)",
-                    arrayOf(name, System.currentTimeMillis())
+                    arrayOf<Any>(name, System.currentTimeMillis())
                 )
             }
         }

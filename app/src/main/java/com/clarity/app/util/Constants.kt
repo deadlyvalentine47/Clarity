@@ -3,8 +3,8 @@ package com.clarity.app.util
 object AppConstants {
     const val WHILE_SUBSCRIBED_TIMEOUT_MS = 5000L
     const val NOTIFICATION_ID_ALARM = 9999
-    const val NOTIFICATION_ID_QUICK_NOTE = 9999
-    const val NOTIFICATION_ID_POMODORO = 9999
+    const val NOTIFICATION_ID_QUICK_NOTE = 9998
+    const val NOTIFICATION_ID_POMODORO = 9997
     const val ONE_HOUR_MILLIS = 3600000L
     const val DEFAULT_FOCUS_MINUTES = 25
     const val DEFAULT_BREAK_MINUTES = 5
