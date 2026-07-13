@@ -82,7 +82,7 @@ fun CalendarScreen(
 
     val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    val years = (today.year - 10)..(today.year + 10)
+    val years = (today.year - 100)..(today.year + 100)
 
     if (showAllEvents) {
         DayEventsScreen(
