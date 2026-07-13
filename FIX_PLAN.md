@@ -13,10 +13,10 @@
 | 8 | IMPORTANT | BudgetViewModel uses Repository instead of raw DAOs | `7a5937a` |
 | 9 | IMPORTANT | Fix ProGuard rules (removed non-existent packages) | `8e943aa` |
 | 10-16 | MEDIUM | Code quality: redundant flows, dead flow, constants, unused file, delete dialog, error handling | `f3d7fba` |
+| 17 | MEDIUM | Tags UI in task dialog + display + search | `7775c5b` |
+| 18 | MEDIUM | Delete category/source shows reference count warning | `7775c5b` |
+| 19 | MEDIUM | Centralize notification channels in ClarityApp | `7775c5b` |
+| 20 | MEDIUM | Remove unused SCHEDULE_EXACT_ALARM permissions | `7775c5b` |
 
-## Remaining Nice-to-Haves (not critical)
+## Remaining Nice-to-Haves (not critical, user-skipped)
 - Extract hardcoded strings ("All", "Today", "High", etc.) into constants/enums
-- Tags field on TaskEntity not exposed in UI
-- Delete category/source should check for references
-- Notification channels created repeatedly in receivers
-- `SCHEDULE_EXACT_ALARM` permission flow for Android 14+
