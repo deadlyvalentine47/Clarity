@@ -52,7 +52,8 @@ class TaskViewModel @Inject constructor(
         }.filter {
             if (query.isBlank()) true
             else it.title.contains(query, ignoreCase = true) ||
-                    it.description.contains(query, ignoreCase = true)
+                    it.description.contains(query, ignoreCase = true) ||
+                    it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
         }
         TaskUiState(
             tasks = filteredTasks,

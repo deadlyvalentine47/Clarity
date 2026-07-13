@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.clarity.app.data.local.database.BudgetLimitEntity
 import com.clarity.app.data.local.database.CategoryEntity
 import com.clarity.app.data.local.database.SourceEntity
 import com.clarity.app.data.local.database.TransactionEntity
@@ -98,6 +99,7 @@ fun BudgetScreen(
     val totalExpenses by viewModel.totalExpenses.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val sources by viewModel.sources.collectAsStateWithLifecycle()
+    val budgetLimits by viewModel.budgetLimits.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf("Overview") }
 
@@ -149,6 +151,8 @@ fun BudgetScreen(
                 "Manage" -> ManageTab(
                     categories = categories,
                     sources = sources,
+                    transactions = transactions,
+                    budgetLimits = budgetLimits,
                     onAddCategory = { viewModel.addCategory(it) },
                     onDeleteCategory = { viewModel.deleteCategory(it) },
                     onAddSource = { viewModel.addSource(it) },
@@ -175,6 +179,8 @@ fun BudgetScreen(
 fun ManageTab(
     categories: List<CategoryEntity>,
     sources: List<SourceEntity>,
+    transactions: List<TransactionEntity>,
+    budgetLimits: List<BudgetLimitEntity>,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (CategoryEntity) -> Unit,
     onAddSource: (String) -> Unit,
@@ -379,9 +385,27 @@ fun ManageTab(
     }
 
     categoryToDelete?.let { category ->
+        val txCount = transactions.count { it.category == category.name }
+        val budgetCount = budgetLimits.count { it.category == category.name }
+        val refCount = txCount + budgetCount
+        val message = buildString {
+            append("Are you sure you want to delete \"${category.name}\"?")
+            if (refCount > 0) {
+                append("\n\nThis category is used in $refCount ")
+                append(if (refCount == 1) "record" else "records")
+                append(" (")
+                append(
+                    listOfNotNull(
+                        if (txCount > 0) "${txCount} transaction${if (txCount != 1) "s" else ""}" else null,
+                        if (budgetCount > 0) "${budgetCount} budget limit${if (budgetCount != 1) "s" else ""}" else null
+                    ).joinToString(", ")
+                )
+                append("). Deleting it may orphan this data.")
+            }
+        }
         DeleteConfirmationDialog(
             title = "Delete Category",
-            message = "Are you sure you want to delete \"${category.name}\"?",
+            message = message,
             onConfirm = {
                 onDeleteCategory(category)
                 categoryToDelete = null
@@ -391,9 +415,16 @@ fun ManageTab(
     }
 
     sourceToDelete?.let { source ->
+        val txCount = transactions.count { it.source == source.name }
+        val message = buildString {
+            append("Are you sure you want to delete \"${source.name}\"?")
+            if (txCount > 0) {
+                append("\n\nThis source is used in $txCount transaction${if (txCount != 1) "s" else ""}. Deleting it may orphan this data.")
+            }
+        }
         DeleteConfirmationDialog(
             title = "Delete Source",
-            message = "Are you sure you want to delete \"${source.name}\"?",
+            message = message,
             onConfirm = {
                 onDeleteSource(source)
                 sourceToDelete = null

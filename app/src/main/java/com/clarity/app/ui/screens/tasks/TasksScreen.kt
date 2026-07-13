@@ -356,6 +356,17 @@ fun TaskItem(
                             )
                         }
                     }
+                    if (task.tags.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            task.tags.forEach { tag ->
+                                Text(
+                                    text = "#$tag",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
                 }
 
                 IconButton(onClick = onEdit) {
@@ -494,6 +505,7 @@ fun AddEditTaskDialog(
     var dueDate by remember { mutableStateOf(task?.dueDate) }
     var isRecurring by remember { mutableStateOf(task?.isRecurring ?: false) }
     var recurringType by remember { mutableStateOf(task?.recurringType ?: "Daily") }
+    var tagsInput by remember { mutableStateOf(task?.tags?.joinToString(", ") ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     var priorityExpanded by remember { mutableStateOf(false) }
     var recurringExpanded by remember { mutableStateOf(false) }
@@ -623,12 +635,21 @@ fun AddEditTaskDialog(
                         }
                     }
                 }
+
+                OutlinedTextField(
+                    value = tagsInput,
+                    onValueChange = { tagsInput = it },
+                    label = { Text("Tags (comma-separated)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
+                        val tags = tagsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
                         if (isEditing) {
                             onConfirm(
                                 task!!.copy(
@@ -637,6 +658,7 @@ fun AddEditTaskDialog(
                                     priority = priority,
                                     category = category.trim(),
                                     dueDate = dueDate,
+                                    tags = tags,
                                     updatedAt = System.currentTimeMillis()
                                 )
                             )
@@ -648,6 +670,7 @@ fun AddEditTaskDialog(
                                     priority = priority,
                                     category = category.trim(),
                                     dueDate = dueDate,
+                                    tags = tags,
                                     isRecurring = isRecurring,
                                     recurringType = if (isRecurring) recurringType else null
                                 )

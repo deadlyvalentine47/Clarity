@@ -1,6 +1,5 @@
 package com.clarity.app.ui.viewmodel
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
@@ -129,7 +128,6 @@ class PomodoroViewModel @Inject constructor(
     val state: StateFlow<PomodoroState> = manager.stateFlow
 
     init {
-        createNotificationChannel()
         manager.emit()
     }
 
@@ -249,21 +247,6 @@ class PomodoroViewModel @Inject constructor(
             showNotification("Break over!", "Ready for another focus session?")
         }
         saveSession()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "pomodoro", "Pomodoro Timer", NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications when Pomodoro timer completes"
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
-                setBypassDnd(true)
-            }
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
-        }
     }
 
     private fun showNotification(title: String, message: String) {
