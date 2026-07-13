@@ -11,6 +11,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.clarity.app.R
 import com.clarity.app.data.local.database.PomodoroFocusSessionDao
 import com.clarity.app.data.local.database.PomodoroFocusSessionEntity

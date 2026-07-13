@@ -19,7 +19,7 @@ interface BudgetRepository {
     suspend fun deleteCategory(category: CategoryEntity)
     suspend fun insertSource(source: SourceEntity): Long
     suspend fun deleteSource(source: SourceEntity)
-    suspend fun insertBudgetLimit(budgetLimit: BudgetLimitEntity)
+    suspend fun insertBudgetLimit(budgetLimit: BudgetLimitEntity): Long
     suspend fun updateBudgetLimit(budgetLimit: BudgetLimitEntity)
     suspend fun deleteBudgetLimit(budgetLimit: BudgetLimitEntity)
 }

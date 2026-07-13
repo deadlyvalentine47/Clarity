@@ -11,6 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -44,6 +45,7 @@ class BudgetViewModel @Inject constructor(
         )
 
     val totalIncome: StateFlow<Double> = budgetRepository.getTotalIncome()
+        .map { it ?: 0.0 }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -51,6 +53,7 @@ class BudgetViewModel @Inject constructor(
         )
 
     val totalExpenses: StateFlow<Double> = budgetRepository.getTotalExpenses()
+        .map { it ?: 0.0 }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

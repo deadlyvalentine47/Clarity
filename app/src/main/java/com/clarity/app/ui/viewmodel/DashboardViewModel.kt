@@ -38,6 +38,7 @@ class DashboardViewModel @Inject constructor(
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
     val totalExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
+        .map { it ?: 0.0 }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0.0)
 
     val pendingTaskCount: StateFlow<Int> = taskRepository.getPendingTasks()
@@ -51,5 +52,6 @@ class DashboardViewModel @Inject constructor(
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0)
 
     val monthlyExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
+        .map { it ?: 0.0 }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0.0)
 }
