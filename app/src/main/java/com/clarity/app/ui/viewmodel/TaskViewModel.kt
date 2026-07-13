@@ -7,6 +7,7 @@ import com.clarity.app.data.local.database.TaskEntity
 import com.clarity.app.domain.repository.SubtaskRepository
 import com.clarity.app.domain.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -99,20 +100,28 @@ class TaskViewModel @Inject constructor(
     fun toggleTaskCompletion(taskId: Long, isCompleted: Boolean) {
         viewModelScope.launch {
             taskRepository.toggleTaskCompletion(taskId, isCompleted)
-            
-            // If task is completed and is recurring, create next occurrence
+
             if (isCompleted) {
                 val task = uiState.value.tasks.find { it.id == taskId }
                 if (task != null && task.isRecurring && task.recurringType != null) {
                     val nextDueDate = calculateNextDueDate(task.dueDate, task.recurringType)
-                    val newTask = task.copy(
-                        id = 0,
-                        isCompleted = false,
-                        dueDate = nextDueDate,
-                        createdAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    taskRepository.insertTask(newTask)
+                    val existingTasks = taskRepository.getAllTasks().first()
+                    val alreadyExists = existingTasks.any { existingTask ->
+                        existingTask.id != taskId &&
+                        existingTask.title == task.title &&
+                        existingTask.recurringType == task.recurringType &&
+                        existingTask.dueDate == nextDueDate
+                    }
+                    if (!alreadyExists) {
+                        val newTask = task.copy(
+                            id = 0,
+                            isCompleted = false,
+                            dueDate = nextDueDate,
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        taskRepository.insertTask(newTask)
+                    }
                 }
             }
         }
