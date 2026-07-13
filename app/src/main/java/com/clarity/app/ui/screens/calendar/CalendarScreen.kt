@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,17 +22,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Schedule
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -405,50 +406,121 @@ fun AddEditEventDialog(
 ) {
     var title by remember { mutableStateOf(event?.title ?: "") }
     var description by remember { mutableStateOf(event?.description ?: "") }
+    var category by remember { mutableStateOf(event?.category ?: "") }
+    var color by remember { mutableStateOf(event?.color ?: "") }
+    var isAllDay by remember { mutableStateOf(event?.isAllDay ?: false) }
+    var startHour by remember { mutableIntStateOf(9) }
+    var startMinute by remember { mutableIntStateOf(0) }
+    var endHour by remember { mutableIntStateOf(10) }
+    var endMinute by remember { mutableIntStateOf(0) }
+    var reminderIndex by remember { mutableIntStateOf(0) }
     val isEditing = event != null
+    val colorOptions = listOf("", "Red", "Blue", "Green", "Orange", "Purple", "Pink", "Teal")
+    val reminderOptions = listOf("None", "5 min", "15 min", "30 min", "1 hour")
+    val reminderMillis = listOf(0L, 300_000L, 900_000L, 1_800_000L, 3_600_000L)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (isEditing) "Edit Event" else "Add Event") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title *") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("All Day", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = isAllDay, onCheckedChange = { isAllDay = it })
+                }
+
+                if (!isAllDay) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Start:", style = MaterialTheme.typography.bodySmall)
+                        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
+                            OutlinedTextField(
+                                value = "${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}",
+                                onValueChange = {},
+                                modifier = Modifier.width(100.dp),
+                                readOnly = true,
+                                singleLine = true
+                            )
+                        }
+                        Text("End:", style = MaterialTheme.typography.bodySmall)
+                        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
+                            OutlinedTextField(
+                                value = "${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}",
+                                onValueChange = {},
+                                modifier = Modifier.width(100.dp),
+                                readOnly = true,
+                                singleLine = true
+                            )
+                        }
+                    }
+                }
+
+                Text("Color", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    colorOptions.forEach { c ->
+                        FilterChip(
+                            selected = color == c,
+                            onClick = { color = if (color == c) "" else c },
+                            label = { Text(c.ifEmpty { "None" }, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                var reminderExpanded by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedTextField(
+                        value = reminderOptions[reminderIndex],
+                        onValueChange = {},
+                        label = { Text("Reminder") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        readOnly = true,
+                        singleLine = true
+                    )
+                    DropdownMenu(expanded = reminderExpanded, onDismissRequest = { reminderExpanded = false }) {
+                        reminderOptions.forEachIndexed { index, option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { reminderIndex = index; reminderExpanded = false }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
-                        if (isEditing) {
-                            onConfirm(
-                                event!!.copy(
-                                    title = title.trim(),
-                                    description = description.trim()
-                                )
-                            )
+                        val startMillis = if (isAllDay) {
+                            selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         } else {
-                            val startMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                            onConfirm(
-                                EventEntity(
-                                    title = title.trim(),
-                                    description = description.trim(),
-                                    startDate = startMillis,
-                                    endDate = startMillis + 3600000
-                                )
-                            )
+                            selectedDate.atTime(startHour, startMinute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        }
+                        val endMillis = if (isAllDay) {
+                            selectedDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } else {
+                            selectedDate.atTime(endHour, endMinute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        }
+                        if (isEditing) {
+                            onConfirm(event!!.copy(
+                                title = title.trim(), description = description.trim(),
+                                category = category.trim(), color = color,
+                                isAllDay = isAllDay, startDate = startMillis, endDate = endMillis,
+                                reminderTime = if (reminderIndex > 0) reminderMillis[reminderIndex] else null
+                            ))
+                        } else {
+                            onConfirm(EventEntity(
+                                title = title.trim(), description = description.trim(),
+                                category = category.trim(), color = color,
+                                isAllDay = isAllDay, startDate = startMillis, endDate = endMillis,
+                                reminderTime = if (reminderIndex > 0) reminderMillis[reminderIndex] else null
+                            ))
                         }
                     }
                 },
