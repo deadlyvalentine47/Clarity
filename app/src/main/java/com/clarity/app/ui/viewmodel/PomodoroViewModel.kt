@@ -19,10 +19,7 @@ import com.clarity.app.data.local.database.PomodoroSessionDao
 import com.clarity.app.data.local.database.PomodoroSessionEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +46,6 @@ data class PomodoroState(
 )
 
 object PomodoroTimerManager {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     var timerJob: Job? = null
     var state = PomodoroState()
     private val _state = MutableStateFlow(PomodoroState())
@@ -71,6 +67,12 @@ object PomodoroTimerManager {
         } catch (_: Exception) {}
     }
 
+    fun releaseMediaPlayer() {
+        stopAlarm()
+        timerJob?.cancel()
+        timerJob = null
+    }
+
     fun syncFromSession(session: PomodoroFocusSessionEntity) {
         if (state.focusSessionId == session.id && (state.isRunning || state.isPaused)) return
         state = PomodoroState(
@@ -88,11 +90,11 @@ object PomodoroTimerManager {
         emit()
     }
 
-    fun startTimer(onComplete: () -> Unit) {
+    fun startTimer(coroutineScope: kotlinx.coroutines.CoroutineScope, onComplete: () -> Unit) {
         timerJob?.cancel()
         state = state.copy(isRunning = true, isPaused = false)
         emit()
-        timerJob = scope.launch {
+        timerJob = coroutineScope.launch {
             while (state.timeLeftSeconds > 0) {
                 delay(1000)
                 state = state.copy(timeLeftSeconds = state.timeLeftSeconds - 1)
@@ -137,7 +139,7 @@ class PomodoroViewModel @Inject constructor(
             manager.emit()
             return
         }
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        viewModelScope.launch {
             val session = focusSessionDao.getSessionById(sessionId).firstOrNull()
             session?.let { manager.syncFromSession(it) }
         }
@@ -146,7 +148,7 @@ class PomodoroViewModel @Inject constructor(
     fun startTimer() {
         val s = manager.state
         if (s.focusDurationMinutes <= 0 || s.breakDurationMinutes <= 0) return
-        manager.startTimer(onComplete = { onTimerComplete() })
+        manager.startTimer(coroutineScope = viewModelScope, onComplete = { onTimerComplete() })
     }
 
     fun pauseTimer() {
@@ -203,7 +205,7 @@ class PomodoroViewModel @Inject constructor(
     private fun saveSession() {
         val s = manager.state
         if (s.focusSessionId <= 0) return
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        viewModelScope.launch {
             focusSessionDao.updateSession(
                 PomodoroFocusSessionEntity(
                     id = s.focusSessionId,
@@ -232,7 +234,7 @@ class PomodoroViewModel @Inject constructor(
                 timeLeftSeconds = manager.state.breakDurationMinutes * 60
             )
             manager.emit()
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            viewModelScope.launch {
                 sessionDao.insertSession(PomodoroSessionEntity(duration = duration, type = "Focus"))
             }
             showNotification("Focus session complete!", "Time for a ${manager.state.breakDurationMinutes}-minute break")
@@ -336,7 +338,8 @@ class PomodoroViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         saveSession()
+        manager.releaseMediaPlayer()
+        super.onCleared()
     }
 }
