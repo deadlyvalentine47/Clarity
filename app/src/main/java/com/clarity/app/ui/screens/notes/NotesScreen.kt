@@ -760,7 +760,6 @@ fun AddNoteDialog(
     var content by remember { mutableStateOf(note?.content ?: "") }
     var category by remember { mutableStateOf(note?.category ?: "") }
     var selectedTab by remember { mutableStateOf(0) }
-    var categoryExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -786,39 +785,17 @@ fun AddNoteDialog(
 
                 Column {
                     Text("Category (optional)", style = MaterialTheme.typography.bodyMedium)
-                    Box {
-                        OutlinedTextField(
-                            value = category,
-                            onValueChange = {},
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            singleLine = true,
-                            label = { Text("Category") },
-                            enabled = categories.isNotEmpty()
-                        )
-                        if (categories.isNotEmpty()) {
-                            DropdownMenu(
-                                expanded = categoryExpanded,
-                                onDismissRequest = { categoryExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("None") },
-                                    onClick = { category = ""; categoryExpanded = false }
-                                )
-                                categories.forEach { cat ->
-                                    DropdownMenuItem(
-                                        text = { Text(cat) },
-                                        onClick = { category = cat; categoryExpanded = false }
-                                    )
-                                }
-                            }
-                        }
-                    }
                     if (categories.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            FilterChip(
+                                selected = category.isEmpty(),
+                                onClick = { category = "" },
+                                label = { Text("None") }
+                            )
                             categories.forEach { cat ->
                                 FilterChip(
                                     selected = category == cat,
@@ -827,6 +804,12 @@ fun AddNoteDialog(
                                 )
                             }
                         }
+                    } else {
+                        Text(
+                            text = "No categories yet. Add some in Manage Categories.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

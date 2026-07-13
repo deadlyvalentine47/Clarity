@@ -5,9 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.database.HabitEntity
 import com.clarity.app.domain.repository.HabitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -31,6 +35,20 @@ class HabitViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    private val _selectedHabitId = MutableStateFlow<Long?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val selectedHabit: StateFlow<HabitEntity?> = _selectedHabitId
+        .flatMapLatest { id -> if (id != null) habitRepository.getHabitById(id) else flowOf(null) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    fun selectHabit(habitId: Long) { _selectedHabitId.value = habitId }
+    fun clearSelection() { _selectedHabitId.value = null }
 
     init {
         viewModelScope.launch {

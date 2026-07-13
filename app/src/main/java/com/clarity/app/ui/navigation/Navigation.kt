@@ -46,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.clarity.app.ui.screens.budget.BudgetScreen
 import com.clarity.app.ui.screens.calendar.CalendarScreen
+import com.clarity.app.ui.screens.habits.HabitDetailScreen
 import com.clarity.app.ui.screens.habits.HabitsScreen
 import com.clarity.app.ui.screens.home.HomeScreen
 import com.clarity.app.ui.screens.home.OnboardingScreen
@@ -71,6 +72,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Pomodoro : Screen("pomodoro", "Pomodoro", Icons.Outlined.Timer)
     data object PomodoroSession : Screen("pomodoro_session/{focusSessionId}", "Pomodoro Session", Icons.Outlined.Timer)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    data object HabitDetail : Screen("habit_detail/{habitId}", "Habit Detail", Icons.Default.Notifications)
 }
 
 val drawerItems = listOf(
@@ -146,7 +148,15 @@ fun ClarityNavHost() {
                     composable(Screen.Home.route) { HomeScreen() }
                     composable(Screen.Tasks.route) { TasksScreen() }
                     composable(Screen.Calendar.route) { CalendarScreen() }
-                    composable(Screen.Habits.route) { HabitsScreen() }
+                    composable(Screen.Habits.route) {
+                        HabitsScreen(onHabitClick = { habitId ->
+                            navController.navigate("habit_detail/$habitId")
+                        })
+                    }
+                    composable(Screen.HabitDetail.route) { backStackEntry ->
+                        val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
+                        HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                    }
                     composable(Screen.Budget.route) { BudgetScreen() }
                     composable(Screen.Notes.route) {
                         NotesScreen(onNoteClick = { noteId ->
@@ -199,7 +209,8 @@ fun ClarityNavHost() {
                 }
             ) {
                 val isDetailScreen = currentDestination?.route?.startsWith("pomodoro_session") == true ||
-                        currentDestination?.route?.startsWith("note_detail") == true
+                        currentDestination?.route?.startsWith("note_detail") == true ||
+                        currentDestination?.route?.startsWith("habit_detail") == true
 
                 Scaffold(
                     topBar = {
@@ -243,7 +254,15 @@ fun ClarityNavHost() {
                         composable(Screen.Home.route) { HomeScreen() }
                         composable(Screen.Tasks.route) { TasksScreen() }
                         composable(Screen.Calendar.route) { CalendarScreen() }
-                        composable(Screen.Habits.route) { HabitsScreen() }
+                        composable(Screen.Habits.route) {
+                            HabitsScreen(onHabitClick = { habitId ->
+                                navController.navigate("habit_detail/$habitId")
+                            })
+                        }
+                        composable(Screen.HabitDetail.route) { backStackEntry ->
+                            val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
+                            HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                        }
                         composable(Screen.Budget.route) { BudgetScreen() }
                         composable(Screen.Notes.route) {
                             NotesScreen(onNoteClick = { noteId ->

@@ -1,6 +1,7 @@
 package com.clarity.app.ui.screens.habits
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +36,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,12 +57,24 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HabitsScreen(
+    onHabitClick: (Long) -> Unit = {},
     viewModel: HabitViewModel = hiltViewModel()
 ) {
     val activeHabits by viewModel.activeHabits.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var deletingHabit by remember { mutableStateOf<HabitEntity?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var frequencyFilter by remember { mutableStateOf("All") }
+    val frequencyOptions = listOf("All", "Daily", "Weekly", "Monthly")
+
+    val filteredHabits = activeHabits.filter { habit ->
+        val matchesSearch = searchQuery.isEmpty() ||
+                habit.name.contains(searchQuery, ignoreCase = true) ||
+                habit.description.contains(searchQuery, ignoreCase = true)
+        val matchesFrequency = frequencyFilter == "All" || habit.frequency == frequencyFilter
+        matchesSearch && matchesFrequency
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -71,51 +83,68 @@ fun HabitsScreen(
             }
         }
     ) { paddingValues ->
-        if (activeHabits.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No habits yet",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Tap + to start building habits",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(
+                    text = "TODAY - ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d"))}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search habits") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    frequencyOptions.forEach { option ->
+                        FilterChip(
+                            selected = frequencyFilter == option,
+                            onClick = { frequencyFilter = option },
+                            label = { Text(option) }
+                        )
+                    }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Text(
-                        text = "TODAY - ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d"))}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
 
-                items(activeHabits, key = { it.id }) { habit ->
-                    HabitItem(
-                        habit = habit,
-                        onToggle = { viewModel.toggleHabitForToday(habit.id) },
-                        onEdit = { editingHabit = habit },
-                        onArchive = { viewModel.archiveHabit(habit.id) },
-                        onDelete = { deletingHabit = habit }
-                    )
+            if (filteredHabits.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (activeHabits.isEmpty()) "No habits yet\nTap + to start building habits"
+                            else "No habits match your filters",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+            }
+
+            items(filteredHabits, key = { it.id }) { habit ->
+                HabitItem(
+                    habit = habit,
+                    onClick = { onHabitClick(habit.id) },
+                    onToggle = { viewModel.toggleHabitForToday(habit.id) },
+                    onEdit = { editingHabit = habit },
+                    onArchive = { viewModel.archiveHabit(habit.id) },
+                    onDelete = { deletingHabit = habit }
+                )
             }
         }
     }
@@ -157,6 +186,7 @@ fun HabitsScreen(
 @Composable
 fun HabitItem(
     habit: HabitEntity,
+    onClick: () -> Unit,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -164,76 +194,62 @@ fun HabitItem(
 ) {
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
-    val weekDays = listOf("M", "T", "W", "T", "F", "S", "S")
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = habit.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = habit.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (habit.description.isNotBlank()) {
+                        Text(
+                            text = habit.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = habit.frequency,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onArchive) {
-                        Icon(
-                            Icons.Default.Archive,
-                            contentDescription = "Archive",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    IconButton(
-                        onClick = onToggle,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isCompletedToday) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
-                            tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onArchive) {
+                    Icon(Icons.Default.Archive, contentDescription = "Archive", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                }
+                IconButton(
+                    onClick = onToggle,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(
+                        if (isCompletedToday) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
+                        tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-
         }
     }
 }

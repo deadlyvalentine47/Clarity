@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -36,7 +36,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -416,10 +415,10 @@ fun AddEditEventDialog(
     var category by remember { mutableStateOf(event?.category ?: "") }
     var color by remember { mutableStateOf(event?.color ?: "") }
     var isAllDay by remember { mutableStateOf(event?.isAllDay ?: false) }
-    var startHour by remember { mutableIntStateOf(9) }
-    var startMinute by remember { mutableIntStateOf(0) }
-    var endHour by remember { mutableIntStateOf(10) }
-    var endMinute by remember { mutableIntStateOf(0) }
+    var startHourText by remember { mutableStateOf(event?.let { String.format("%02d", java.util.Calendar.getInstance().apply { timeInMillis = it.startDate }.get(java.util.Calendar.HOUR_OF_DAY)) } ?: "09") }
+    var startMinuteText by remember { mutableStateOf(event?.let { String.format("%02d", java.util.Calendar.getInstance().apply { timeInMillis = it.startDate }.get(java.util.Calendar.MINUTE)) } ?: "00") }
+    var endHourText by remember { mutableStateOf(event?.let { String.format("%02d", java.util.Calendar.getInstance().apply { timeInMillis = it.endDate }.get(java.util.Calendar.HOUR_OF_DAY)) } ?: "10") }
+    var endMinuteText by remember { mutableStateOf(event?.let { String.format("%02d", java.util.Calendar.getInstance().apply { timeInMillis = it.endDate }.get(java.util.Calendar.MINUTE)) } ?: "00") }
     var reminderIndex by remember { mutableIntStateOf(0) }
     val isEditing = event != null
     val colorOptions = listOf("", "Red", "Blue", "Green", "Orange", "Purple", "Pink", "Teal")
@@ -444,32 +443,51 @@ fun AddEditEventDialog(
                 }
 
                 if (!isAllDay) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Start:", style = MaterialTheme.typography.bodySmall)
-                        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Start:", style = MaterialTheme.typography.bodySmall)
                             OutlinedTextField(
-                                value = "${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}",
-                                onValueChange = {},
-                                modifier = Modifier.width(100.dp),
-                                readOnly = true,
-                                singleLine = true
+                                value = startHourText,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() } && (it.isEmpty() || it.toInt() in 0..23)) startHourText = it },
+                                modifier = Modifier.width(60.dp),
+                                singleLine = true,
+                                placeholder = { Text("HH") }
+                            )
+                            Text(":", style = MaterialTheme.typography.bodySmall)
+                            OutlinedTextField(
+                                value = startMinuteText,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() } && (it.isEmpty() || it.toInt() in 0..59)) startMinuteText = it },
+                                modifier = Modifier.width(60.dp),
+                                singleLine = true,
+                                placeholder = { Text("MM") }
                             )
                         }
-                        Text("End:", style = MaterialTheme.typography.bodySmall)
-                        ExposedDropdownMenuBox(expanded = false, onExpandedChange = {}) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("End:", style = MaterialTheme.typography.bodySmall)
                             OutlinedTextField(
-                                value = "${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}",
-                                onValueChange = {},
-                                modifier = Modifier.width(100.dp),
-                                readOnly = true,
-                                singleLine = true
+                                value = endHourText,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() } && (it.isEmpty() || it.toInt() in 0..23)) endHourText = it },
+                                modifier = Modifier.width(60.dp),
+                                singleLine = true,
+                                placeholder = { Text("HH") }
+                            )
+                            Text(":", style = MaterialTheme.typography.bodySmall)
+                            OutlinedTextField(
+                                value = endMinuteText,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() } && (it.isEmpty() || it.toInt() in 0..59)) endMinuteText = it },
+                                modifier = Modifier.width(60.dp),
+                                singleLine = true,
+                                placeholder = { Text("MM") }
                             )
                         }
                     }
                 }
 
                 Text("Color", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     colorOptions.forEach { c ->
                         FilterChip(
                             selected = color == c,
@@ -489,6 +507,9 @@ fun AddEditEventDialog(
                         readOnly = true,
                         singleLine = true
                     )
+                    Box(
+                        modifier = Modifier.matchParentSize().clickable { reminderExpanded = true }
+                    )
                     DropdownMenu(expanded = reminderExpanded, onDismissRequest = { reminderExpanded = false }) {
                         reminderOptions.forEachIndexed { index, option ->
                             DropdownMenuItem(
@@ -504,6 +525,10 @@ fun AddEditEventDialog(
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
+                        val startHour = startHourText.toIntOrNull() ?: 9
+                        val startMinute = startMinuteText.toIntOrNull() ?: 0
+                        val endHour = endHourText.toIntOrNull() ?: 10
+                        val endMinute = endMinuteText.toIntOrNull() ?: 0
                         val startMillis = if (isAllDay) {
                             selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         } else {
