@@ -10,14 +10,6 @@ class DatabaseCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         super.onCreate(db)
         CoroutineScope(Dispatchers.IO).launch {
-            val defaultCategories = listOf("Food", "Transport", "Travel")
-            defaultCategories.forEach { name ->
-                db.execSQL(
-                    "INSERT INTO categories (name, isDefault, createdAt) VALUES (?, 1, ?)",
-                    arrayOf<Any>(name, System.currentTimeMillis())
-                )
-            }
-
             val defaultSources = listOf("Bank Account", "Credit Card")
             defaultSources.forEach { name ->
                 db.execSQL(
