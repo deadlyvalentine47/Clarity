@@ -122,7 +122,7 @@ object DataExporter {
             )
         }
 
-        val habits = database.habitDao().getActiveHabits().first().map {
+        val habits = database.habitDao().getAllHabits().first().map {
             ExportHabit(
                 name = it.name,
                 description = it.description,
@@ -162,7 +162,7 @@ object DataExporter {
             )
         }
 
-        val goals = database.goalDao().getActiveGoals().first().map {
+        val goals = database.goalDao().getAllGoals().first().map {
             ExportGoal(
                 title = it.title,
                 description = it.description,
