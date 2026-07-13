@@ -24,9 +24,6 @@ class PomodoroSessionListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val filteredSessions: StateFlow<List<PomodoroFocusSessionEntity>> = focusSessionDao.getAllSessions()
-        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
-
     fun createSession(title: String, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
             val id = focusSessionDao.insertSession(

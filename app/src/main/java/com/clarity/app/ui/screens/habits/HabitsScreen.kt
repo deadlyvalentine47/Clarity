@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.HabitEntity
+import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.HabitViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -138,24 +139,15 @@ fun HabitsScreen(
         )
     }
 
-    if (deletingHabit != null) {
-        AlertDialog(
-            onDismissRequest = { deletingHabit = null },
-            title = { Text("Delete Habit") },
-            text = { Text("Are you sure you want to delete \"${deletingHabit!!.name}\"?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteHabit(deletingHabit!!)
-                    deletingHabit = null
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+    deletingHabit?.let { habit ->
+        DeleteConfirmationDialog(
+            title = "Delete Habit",
+            message = "Are you sure you want to delete \"${habit.name}\"?",
+            onConfirm = {
+                viewModel.deleteHabit(habit)
+                deletingHabit = null
             },
-            dismissButton = {
-                TextButton(onClick = { deletingHabit = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { deletingHabit = null }
         )
     }
 }

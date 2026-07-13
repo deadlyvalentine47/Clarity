@@ -60,20 +60,24 @@ fun SettingsScreen(
 
     LaunchedEffect(exportState) {
         if (exportState is ExportState.Success) {
-            val json = (exportState as ExportState.Success).json
-            val file = File(context.cacheDir, "clarity_export.json")
-            file.writeText(json)
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file
-            )
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "application/json"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try {
+                val json = (exportState as ExportState.Success).json
+                val file = File(context.cacheDir, "clarity_export.json")
+                file.writeText(json)
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Export Clarity Data"))
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
             }
-            context.startActivity(Intent.createChooser(shareIntent, "Export Clarity Data"))
             viewModel.resetExportState()
         }
     }

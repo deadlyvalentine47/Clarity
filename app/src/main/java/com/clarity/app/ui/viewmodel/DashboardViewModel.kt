@@ -11,7 +11,7 @@ import com.clarity.app.domain.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.ZoneId
@@ -32,27 +32,24 @@ class DashboardViewModel @Inject constructor(
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
     val upcomingTasks: StateFlow<List<TaskEntity>> = taskRepository.getPendingTasks()
-        .combine(taskRepository.getCompletedTasks()) { pending, _ -> pending }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
     val activeHabits: StateFlow<List<HabitEntity>> = habitRepository.getActiveHabits()
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
     val totalExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
-        .combine(transactionRepository.getTotalIncome()) { expenses, _ -> expenses ?: 0.0 }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0.0)
 
-    val pendingTaskCount: StateFlow<Int> = combine(
-        taskRepository.getPendingTasks(),
-        taskRepository.getCompletedTasks()
-    ) { pending, _ -> pending.size }
+    val pendingTaskCount: StateFlow<Int> = taskRepository.getPendingTasks()
+        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
+        .map { it.size }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0)
 
     val habitCount: StateFlow<Int> = habitRepository.getActiveHabits()
-        .combine(habitRepository.getArchivedHabits()) { active, _ -> active.size }
+        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
+        .map { it.size }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0)
 
     val monthlyExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
-        .combine(transactionRepository.getTotalIncome()) { expenses, _ -> expenses ?: 0.0 }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0.0)
 }
