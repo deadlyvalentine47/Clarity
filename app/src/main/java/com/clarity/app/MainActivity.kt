@@ -10,13 +10,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import com.clarity.app.data.local.datastore.UserPreferences
 import com.clarity.app.ui.navigation.ClarityNavHost
 import com.clarity.app.ui.theme.ClarityTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -29,9 +26,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val isDarkMode by userPreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = null)
+            val themeName by userPreferences.themeName.collectAsStateWithLifecycle(initialValue = "Ocean")
 
-            ClarityTheme(darkTheme = isDarkMode) {
+            ClarityTheme(themeName = themeName) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

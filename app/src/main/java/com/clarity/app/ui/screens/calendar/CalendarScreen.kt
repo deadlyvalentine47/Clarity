@@ -299,15 +299,15 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "SCHEDULED FOR ${selectedDate.format(DateTimeFormatter.ofPattern("MMM d")).uppercase()}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (dayEvents.size > 3) {
-                    TextButton(onClick = { showAllEvents = true }) {
-                        Text("View all ${dayEvents.size} events")
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SCHEDULED FOR ${selectedDate.format(DateTimeFormatter.ofPattern("MMM d")).uppercase()}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = { showAllEvents = true }) {
+                    Text("Show all events (${dayEvents.size})")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))

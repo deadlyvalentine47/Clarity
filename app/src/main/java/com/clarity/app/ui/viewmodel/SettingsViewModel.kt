@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.datastore.UserPreferences
 import com.clarity.app.data.local.database.ClarityDatabase
 import com.clarity.app.util.DataExporter
+import com.clarity.app.ui.theme.allThemes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,12 +32,14 @@ class SettingsViewModel @Inject constructor(
             initialValue = ""
         )
 
-    val isDarkMode: StateFlow<Boolean?> = userPreferences.isDarkMode
+    val selectedTheme: StateFlow<String> = userPreferences.themeName
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
+            initialValue = "Ocean"
         )
+
+    val availableThemes: List<String> = allThemes.keys.toList()
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
@@ -50,9 +53,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setDarkMode(enabled: Boolean) {
+    fun setTheme(name: String) {
         viewModelScope.launch {
-            userPreferences.setDarkMode(enabled)
+            userPreferences.setTheme(name)
         }
     }
 
