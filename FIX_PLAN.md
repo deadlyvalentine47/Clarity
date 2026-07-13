@@ -1,25 +1,20 @@
-# Clarity — Fix Plan
+# Clarity — Fix Plan (Completed)
 
-All commits pushed to `fix/code-review-issues`.
+All 15 tasks implemented and pushed to `fix/code-review-issues`.
 
-| # | Area | Task | Effort |
+| # | Area | Task | Commit |
 |---|------|------|--------|
-| 1 | Budget | Remove default categories from `DatabaseCallback` | Low |
-| 2 | Calendar | Expand year dropdown range | Low |
-| 3 | Budget | Indian comma format for amounts | Low |
-| 4 | Notes | Restrict category to existing only in note creation | Low |
-| 5 | Notes | Default note detail to preview mode (not edit) | Low |
-| 6 | Habits | Add archive button to habit item | Low |
-| 7 | Tasks | Add delete confirmation dialog on swipe | Low |
-| 8 | Habits | Add frequency field to add habit dialog | Low |
-| 9 | Tasks | Prevent duplicate recurring task on re-check | Medium |
-| 10 | Goals | Replace milestones textarea with +icon + popup pattern | Medium |
-| 11 | Goals | Remove progress slider, make milestones mandatory, derive progress | Medium |
-| 12 | Budget | Add monthly limit UI per category | Medium |
-| 13 | Habits | Remove date strip, keep tick, add auto-mark-failed | Medium |
-| 14 | Calendar | Add full event fields (category, color, time, reminder) to dialog | High |
-| 15 | Settings | Split export into Share / Save to Downloads | Medium |
-
-## Execution
-
-Each task above is one commit, except where noted.
+| 1 | Budget | Remove default categories from `DatabaseCallback` | `555144e` |
+| 2 | Calendar | Expand year dropdown range (±100 years) | `84189a3` |
+| 3 | Budget | Indian comma format for amounts (`##,##,##0.00`) | `988e3b0` |
+| 4 | Notes | Restrict category to existing selections only | `85ee10d` |
+| 5 | Notes | Preview mode — already working, no change needed | — |
+| 6 | Habits | Add archive button to habit item | `6502de0` |
+| 7 | Tasks | Add delete confirmation dialog on swipe | `54ecef0` |
+| 8 | Habits | Add frequency field to add habit dialog | `61506f1` |
+| 9 | Tasks | Prevent duplicate recurring task on re-check | `d2d12fd` |
+| 10+11 | Goals | Milestones use +icon+popup, remove slider, derive progress | `b4559b9` |
+| 12 | Budget | Add monthly limit UI per category | `7347346` |
+| 13 | Habits | Remove date strip, add auto-mark-failed for past days | `57cb3e4` |
+| 14 | Calendar | Add full event fields (category, color, time, reminder) | `5e33e36` |
+| 15 | Settings | Split export into Share / Save to Downloads | `ef29ebc` |
