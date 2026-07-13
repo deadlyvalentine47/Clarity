@@ -111,6 +111,7 @@ fun HabitsScreen(
                         habit = habit,
                         onToggle = { viewModel.toggleHabitForToday(habit.id) },
                         onEdit = { editingHabit = habit },
+                        onArchive = { viewModel.archiveHabit(habit.id) },
                         onDelete = { deletingHabit = habit }
                     )
                 }
@@ -157,7 +158,8 @@ fun HabitItem(
     habit: HabitEntity,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onArchive: () -> Unit = {}
 ) {
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
@@ -191,6 +193,14 @@ fun HabitItem(
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = "Edit",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onArchive) {
+                        Icon(
+                            Icons.Default.Archive,
+                            contentDescription = "Archive",
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
