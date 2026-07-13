@@ -24,29 +24,30 @@ com.clarity.app
 ├── ui.theme               (Color, Theme, Type)
 ├── ui.viewmodel           (10 ViewModels)
 ├── ui.components          (DeleteConfirmationDialog)
-└── util                   (BootReceiver, DataExportImport, DateUtils, NotificationHelper)
+└── util                   (BootReceiver, DataExportImport, NotificationHelper, Constants)
 ```
 
-## Known Issues (from code review)
+## Fixed Issues (branch: fix/code-review-issues)
 
-### Critical (crashes)
-1. Missing FileProvider for data export
-2. HabitDao Map<String, Boolean> param crash in @Query
-3. PomodoroTimerManager coroutine + MediaPlayer leak
-4. Unbounded coroutine scopes in PomodoroViewModel
+### Fixed - Critical
+1. **FileProvider** — Added `AndroidManifest.xml` provider + `res/xml/file_paths.xml` for data export
+2. **PomodoroTimerManager leaks** — Removed leaking object-level CoroutineScope; timer now uses ViewModel's scope; MediaPlayer/Vibrator released in onCleared
+3. **Unbounded coroutines** — All `CoroutineScope(SupervisorJob()+Dispatchers.IO).launch` replaced with `viewModelScope.launch`
 
-### Important
-5. Export only exports active/uncompleted entities
-6. Import appends instead of replacing data
-7. Calendar day-of-week calculation wrong
-8. BudgetViewModel bypasses repository layer
-9. ProGuard rules reference non-existent packages
+### Fixed - Important
+4. **Export includes all data** — Added `getAllHabits()` and `getAllGoals()` DAO queries; export now includes archived habits and completed goals
+5. **Import clears data first** — Added `deleteAll*()` DAO methods; import now clears existing data before inserting
+6. **BudgetViewModel architecture** — Created `BudgetRepository` interface/impl; ViewModel no longer directly injects DAOs
+7. **ProGuard rules** — Removed references to non-existent `data.model` and `domain.model` packages
 
-### Medium (code quality)
-10. Redundant Flow combines in ViewModels
-11. Dead filteredSessions flow in PomodoroSessionListViewModel
-12. Hardcoded string literals
-13. Magic numbers without named constants
-14. Unused DateUtils.kt
-15. HabitsScreen inconsistent delete confirmation
-16. Missing export/import I/O error handling
+### Fixed - Medium
+8. **Redundant Flow combines** — Simplified DashboardViewModel to remove unnecessary `.combine()` calls
+9. **Dead flow** — Removed unused `filteredSessions` from PomodoroSessionListViewModel
+10. **Named constants** — Created `AppConstants.kt` 
+11. **Unused DateUtils.kt** — Deleted
+12. **Inconsistent delete dialog** — HabitsScreen now uses shared `DeleteConfirmationDialog`
+13. **Export I/O error handling** — Added try-catch around file write
+
+### Reviewed - Not Bugs
+- **HabitDao Map<String,Boolean> param** — Room supports TypeConverters for @Query params; this works correctly
+- **Calendar day-of-week** — `dayOfWeek.value % 7` correctly maps DayOfWeek (1-7 Mon-Sun) to grid (0-6 Sun-Sat)
