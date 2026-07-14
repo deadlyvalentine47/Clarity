@@ -1,6 +1,7 @@
 package com.clarity.app.ui.screens.habits
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -222,7 +224,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                             completed == false -> MaterialTheme.colorScheme.error
                                             else -> MaterialTheme.colorScheme.surfaceVariant
                                         }
-                                    ),
+                                    )
+                                    .then(if (isToday) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -313,7 +316,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                                 completed == false -> MaterialTheme.colorScheme.error
                                                 else -> MaterialTheme.colorScheme.surfaceVariant
                                             }
-                                        ),
+                                        )
+                                        .then(if (isToday) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
