@@ -39,7 +39,7 @@ class TaskViewModel @Inject constructor(
         _searchQuery
     ) { tasks, filter, query ->
         val filteredTasks = when (filter) {
-            "All" -> tasks
+            "All" -> tasks.filter { !it.isCompleted }
             "Today" -> {
                 val now = System.currentTimeMillis()
                 val startOfDay = getStartOfDay(now)

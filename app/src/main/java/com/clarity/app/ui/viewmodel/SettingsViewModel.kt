@@ -39,6 +39,13 @@ class SettingsViewModel @Inject constructor(
             initialValue = "Ocean"
         )
 
+    val sectionOrder: StateFlow<List<String>> = userPreferences.sectionOrder
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = listOf("Tasks", "Events", "Habits")
+        )
+
     val availableThemes: List<String> = allThemes.keys.toList()
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
@@ -46,6 +53,18 @@ class SettingsViewModel @Inject constructor(
 
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
+
+    fun moveSection(section: String, direction: Int) {
+        val current = sectionOrder.value.toMutableList()
+        val index = current.indexOf(section)
+        val newIndex = index + direction
+        if (newIndex < 0 || newIndex >= current.size) return
+        current.removeAt(index)
+        current.add(newIndex, section)
+        viewModelScope.launch {
+            userPreferences.setSectionOrder(current)
+        }
+    }
 
     fun updateUsername(name: String) {
         viewModelScope.launch {

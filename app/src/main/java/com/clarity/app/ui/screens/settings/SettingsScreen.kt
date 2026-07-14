@@ -9,25 +9,31 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -119,15 +125,38 @@ fun SettingsScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    var profileExpanded by remember { mutableStateOf(true) }
+    var appearanceExpanded by remember { mutableStateOf(true) }
+    var homePageExpanded by remember { mutableStateOf(true) }
+    var dataExpanded by remember { mutableStateOf(true) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { profileExpanded = !profileExpanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = "PROFILE",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Icon(
+                imageVector = if (profileExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (profileExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
+        if (profileExpanded) {
+            Spacer(modifier = Modifier.height(8.dp))
             ListItem(
                 headlineContent = { Text(username.ifEmpty { "Not set" }) },
                 supportingContent = { Text("Username") },
@@ -142,16 +171,31 @@ fun SettingsScreen(
                     showEditDialog = true
                 }
             )
+        }
 
-            HorizontalDivider()
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { appearanceExpanded = !appearanceExpanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = "APPEARANCE",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Icon(
+                imageVector = if (appearanceExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (appearanceExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
+        if (appearanceExpanded) {
+            Spacer(modifier = Modifier.height(8.dp))
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -188,16 +232,80 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
 
-            HorizontalDivider()
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { homePageExpanded = !homePageExpanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "HOME PAGE",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                imageVector = if (homePageExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (homePageExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (homePageExpanded) {
+            val sectionOrder by viewModel.sectionOrder.collectAsStateWithLifecycle()
+            Spacer(modifier = Modifier.height(8.dp))
+            sectionOrder.forEachIndexed { index, section ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(section, style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(
+                            onClick = { viewModel.moveSection(section, -1) },
+                            enabled = index > 0
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                        }
+                        IconButton(
+                            onClick = { viewModel.moveSection(section, 1) },
+                            enabled = index < sectionOrder.size - 1
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowDown, "Move down")
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { dataExpanded = !dataExpanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = "DATA",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Icon(
+                imageVector = if (dataExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (dataExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
+        if (dataExpanded) {
+            Spacer(modifier = Modifier.height(8.dp))
             ListItem(
                 headlineContent = { Text("Export Data") },
                 supportingContent = {

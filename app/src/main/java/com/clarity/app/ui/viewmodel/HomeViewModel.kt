@@ -22,6 +22,13 @@ class HomeViewModel @Inject constructor(
             initialValue = ""
         )
 
+    val sectionOrder: StateFlow<List<String>> = userPreferences.sectionOrder
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = listOf("Tasks", "Events", "Habits")
+        )
+
     val isFirstLaunch: StateFlow<Boolean> = userPreferences.isFirstLaunch
         .stateIn(
             scope = viewModelScope,
@@ -32,6 +39,12 @@ class HomeViewModel @Inject constructor(
     fun setUsername(name: String) {
         viewModelScope.launch {
             userPreferences.setUsername(name)
+        }
+    }
+
+    fun setSectionOrder(order: List<String>) {
+        viewModelScope.launch {
+            userPreferences.setSectionOrder(order)
         }
     }
 }

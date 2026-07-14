@@ -59,6 +59,8 @@ fun HomeScreen(
     val pendingTaskCount by dashboardViewModel.pendingTaskCount.collectAsStateWithLifecycle()
     val habitCount by dashboardViewModel.habitCount.collectAsStateWithLifecycle()
 
+    val sectionOrder by homeViewModel.sectionOrder.collectAsStateWithLifecycle()
+
     var tasksExpanded by remember { mutableStateOf(true) }
     var habitsExpanded by remember { mutableStateOf(true) }
     var eventsExpanded by remember { mutableStateOf(true) }
@@ -104,213 +106,223 @@ fun HomeScreen(
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { tasksExpanded = !tasksExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "UPCOMING TASKS",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Go to Tasks",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigateToTasks() }
-                    )
-                    Icon(
-                        imageVector = if (tasksExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (tasksExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        if (tasksExpanded) {
-            if (todayTasks.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("No tasks for today", style = MaterialTheme.typography.bodyLarge)
-                            Text("Open the menu to add tasks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            } else {
-                items(todayTasks.take(5)) { task ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+        sectionOrder.forEach { section ->
+            when (section) {
+                "Tasks" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .clickable { tasksExpanded = !tasksExpanded },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                            val priorityColor = when (task.priority) {
-                                "High" -> MaterialTheme.colorScheme.error
-                                "Medium" -> MaterialTheme.colorScheme.tertiary
-                                else -> MaterialTheme.colorScheme.primary
-                            }
                             Text(
-                                text = task.priority,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = priorityColor,
-                                fontWeight = FontWeight.Bold
+                                text = "UPCOMING TASKS",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { habitsExpanded = !habitsExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "TODAY'S HABITS",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Go to Habits",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigateToHabits() }
-                    )
-                    Icon(
-                        imageVector = if (habitsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (habitsExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        if (habitsExpanded) {
-            if (activeHabits.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("No habits tracked", style = MaterialTheme.typography.bodyLarge)
-                            Text("Open the menu to start tracking", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            } else {
-                items(activeHabits.take(5)) { habit ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(habit.name, style = MaterialTheme.typography.bodyLarge)
-                            if (habit.currentStreak > 0) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "🔥 ${habit.currentStreak}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.tertiary
+                                    text = "Go to Tasks",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onNavigateToTasks() }
+                                )
+                                Icon(
+                                    imageVector = if (tasksExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (tasksExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
-                }
-            }
-        }
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { eventsExpanded = !eventsExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "UPCOMING EVENTS",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Go to Events",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigateToEvents() }
-                    )
-                    Icon(
-                        imageVector = if (eventsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (eventsExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        if (eventsExpanded) {
-            if (upcomingEvents.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("No upcoming events", style = MaterialTheme.typography.bodyLarge)
-                            Text("Open the menu to add events", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            } else {
-                items(upcomingEvents.take(5)) { event ->
-                    val eventDate = Instant.ofEpochMilli(event.startDate).atZone(ZoneId.systemDefault())
-                    val dateText = eventDate.format(DateTimeFormatter.ofPattern("MMM d"))
-                    val timeText = if (event.isAllDay) "All day" else eventDate.format(DateTimeFormatter.ofPattern("h:mm a"))
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(event.title, style = MaterialTheme.typography.bodyLarge)
-                                if (event.description.isNotBlank()) {
-                                    Text(
-                                        text = event.description,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
+                    if (tasksExpanded) {
+                        if (todayTasks.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No tasks for today", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Open the menu to add tasks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
-                            Column(horizontalAlignment = Alignment.End) {
+                        } else {
+                            items(todayTasks.take(5)) { task ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                        val priorityColor = when (task.priority) {
+                                            "High" -> MaterialTheme.colorScheme.error
+                                            "Medium" -> MaterialTheme.colorScheme.tertiary
+                                            else -> MaterialTheme.colorScheme.primary
+                                        }
+                                        Text(
+                                            text = task.priority,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = priorityColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Events" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { eventsExpanded = !eventsExpanded },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "UPCOMING EVENTS",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = dateText,
+                                    text = "Go to Events",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.tertiary
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onNavigateToEvents() }
                                 )
+                                Icon(
+                                    imageVector = if (eventsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (eventsExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (eventsExpanded) {
+                        if (upcomingEvents.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No upcoming events", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Open the menu to add events", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        } else {
+                            items(upcomingEvents.take(5)) { event ->
+                                val eventDate = Instant.ofEpochMilli(event.startDate).atZone(ZoneId.systemDefault())
+                                val dateText = eventDate.format(DateTimeFormatter.ofPattern("MMM d"))
+                                val timeText = if (event.isAllDay) "All day" else eventDate.format(DateTimeFormatter.ofPattern("h:mm a"))
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(event.title, style = MaterialTheme.typography.bodyLarge)
+                                            if (event.description.isNotBlank()) {
+                                                Text(
+                                                    text = event.description,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = dateText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.tertiary
+                                            )
+                                            Text(
+                                                text = timeText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Habits" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { habitsExpanded = !habitsExpanded },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "TODAY'S HABITS",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = timeText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "Go to Habits",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onNavigateToHabits() }
                                 )
+                                Icon(
+                                    imageVector = if (habitsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (habitsExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (habitsExpanded) {
+                        if (activeHabits.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No habits tracked", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Open the menu to start tracking", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        } else {
+                            items(activeHabits.take(5)) { habit ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(habit.name, style = MaterialTheme.typography.bodyLarge)
+                                        if (habit.currentStreak > 0) {
+                                            Text(
+                                                text = "🔥 ${habit.currentStreak}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.tertiary
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

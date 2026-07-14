@@ -21,6 +21,7 @@ class UserPreferences @Inject constructor(
     private object Keys {
         val USERNAME = stringPreferencesKey("username")
         val THEME_NAME = stringPreferencesKey("theme_name")
+        val SECTION_ORDER = stringPreferencesKey("section_order")
     }
 
     val username: Flow<String> = context.dataStore.data.map { preferences ->
@@ -33,6 +34,16 @@ class UserPreferences @Inject constructor(
 
     val themeName: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[Keys.THEME_NAME] ?: "Ocean"
+    }
+
+    val sectionOrder: Flow<List<String>> = context.dataStore.data.map { preferences ->
+        preferences[Keys.SECTION_ORDER]?.split(",") ?: listOf("Tasks", "Events", "Habits")
+    }
+
+    suspend fun setSectionOrder(order: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[Keys.SECTION_ORDER] = order.joinToString(",")
+        }
     }
 
     suspend fun setUsername(name: String) {
