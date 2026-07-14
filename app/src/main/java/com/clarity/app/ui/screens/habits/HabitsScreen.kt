@@ -305,6 +305,9 @@ fun AddEditHabitDialog(
                         readOnly = true,
                         singleLine = true
                     )
+                    Box(
+                        modifier = Modifier.matchParentSize().clickable { frequencyExpanded = true }
+                    )
                     DropdownMenu(
                         expanded = frequencyExpanded,
                         onDismissRequest = { frequencyExpanded = false }
