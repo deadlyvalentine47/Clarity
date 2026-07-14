@@ -22,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -60,8 +59,8 @@ fun HabitDetailScreen(
 
     val currentHabit = habit ?: return
 
-    var periodFilter by remember { mutableStateOf("Daily") }
-    val periodOptions = listOf("Daily", "Weekly", "Monthly")
+    var periodFilter by remember { mutableStateOf("Weekly") }
+    val periodOptions = listOf("Weekly", "Monthly")
 
     Scaffold(
         topBar = {
@@ -169,78 +168,6 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
     val history = habit.completionHistory
 
     when (period) {
-        "Daily" -> {
-            val startDate = if (created.isAfter(today.minusDays(90))) created else today.minusDays(90)
-            val days = (0 until today.toEpochDay().toInt() - startDate.toEpochDay().toInt() + 1)
-                .map { startDate.plusDays(it.toLong()) }
-            val totalDays = days.size
-            val doneDays = days.count { history[it.toString()] == true }
-            val hadData = days.count { history.containsKey(it.toString()) }
-            val rate = if (hadData > 0) (doneDays.toFloat() / hadData * 100).toInt() else 0
-
-            Text(
-                text = "From ${startDate.format(DateTimeFormatter.ofPattern("MMM d"))} ($doneDays/$totalDays done, ${rate}% rate)",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { if (hadData > 0) doneDays.toFloat() / hadData else 0f },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            days.reversed().chunked(7).forEach { week ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    week.forEach { date ->
-                        val completed = history[date.toString()]
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = date.dayOfWeek.name.take(1),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = date.dayOfMonth.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Box(
-                                modifier = Modifier.size(24.dp).clip(CircleShape).background(
-                                    when {
-                                        completed == true -> MaterialTheme.colorScheme.primary
-                                        completed == false -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = when {
-                                        completed == true -> "✓"
-                                        completed == false -> "✗"
-                                        else -> "·"
-                                    },
-                                    fontSize = 12.sp,
-                                    color = when {
-                                        completed == true -> MaterialTheme.colorScheme.onPrimary
-                                        completed == false -> MaterialTheme.colorScheme.onError
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
         "Weekly" -> {
             val startWeek = created.with(java.time.DayOfWeek.MONDAY)
             val endWeek = today.with(java.time.DayOfWeek.SUNDAY)
@@ -270,6 +197,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                 ) {
                     daysInWeek.forEach { date ->
                         val completed = history[date.toString()]
+                        val isToday = date == today
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -285,13 +213,16 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Box(
-                                modifier = Modifier.size(20.dp).clip(CircleShape).background(
-                                    when {
-                                        completed == true -> MaterialTheme.colorScheme.primary
-                                        completed == false -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            completed == true -> MaterialTheme.colorScheme.primary
+                                            completed == false -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.surfaceVariant
+                                        }
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -331,7 +262,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            months.forEach { month ->
+            months.forEachIndexed { index, month ->
                 val daysInMonth = month.lengthOfMonth()
                 val doneCount = (1..daysInMonth).count { history[month.withDayOfMonth(it).toString()] == true }
 
@@ -341,7 +272,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
-                val firstDayOfMonth = month.withDayOfMonth(1)
+                val firstDayOfMonth = if (index == 0) created else month.withDayOfMonth(1)
                 val lastDayOfMonth = month.withDayOfMonth(daysInMonth)
                 val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.MONDAY)
                 val lastWeekStart = lastDayOfMonth.with(java.time.DayOfWeek.MONDAY)
@@ -357,6 +288,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                     ) {
                         daysInWeek.forEach { date ->
                             val completed = history[date.toString()]
+                            val isToday = date == today
                             Column(
                                 modifier = Modifier.weight(1f),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -372,13 +304,16 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Box(
-                                    modifier = Modifier.size(20.dp).clip(CircleShape).background(
-                                        when {
-                                            completed == true -> MaterialTheme.colorScheme.primary
-                                            completed == false -> MaterialTheme.colorScheme.error
-                                            else -> MaterialTheme.colorScheme.surfaceVariant
-                                        }
-                                    ),
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when {
+                                                completed == true -> MaterialTheme.colorScheme.primary
+                                                completed == false -> MaterialTheme.colorScheme.error
+                                                else -> MaterialTheme.colorScheme.surfaceVariant
+                                            }
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
