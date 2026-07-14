@@ -1,10 +1,10 @@
 package com.clarity.app.ui.screens.habits
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -39,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.HabitEntity
@@ -193,62 +191,53 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            weeks.forEach { weekStart ->
-                val daysInWeek = (0 until 7).map { weekStart.plusDays(it.toLong()) }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                    Text(text = day, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    daysInWeek.forEach { date ->
+            weeks.forEach { weekStart ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    (0 until 7).forEach { dayOffset ->
+                        val date = weekStart.plusDays(dayOffset.toLong())
                         val isBeforeCreation = date.isBefore(created)
                         val completed = if (isBeforeCreation) null else history[date.toString()]
                         val isToday = date == today
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        completed == true -> MaterialTheme.colorScheme.primary
+                                        completed == false -> MaterialTheme.colorScheme.error
+                                        isToday -> MaterialTheme.colorScheme.primaryContainer
+                                        else -> MaterialTheme.colorScheme.surface
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = date.format(DateTimeFormatter.ofPattern("MMM d")),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = when {
+                                    isBeforeCreation -> "-"
+                                    completed == true -> "✓"
+                                    completed == false -> "✗"
+                                    else -> date.dayOfMonth.toString()
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = when {
+                                    isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    completed == true -> MaterialTheme.colorScheme.onPrimary
+                                    completed == false -> MaterialTheme.colorScheme.onError
+                                    isToday -> MaterialTheme.colorScheme.onPrimaryContainer
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
                             )
-                            Text(
-                                text = date.dayOfWeek.name.take(1),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        when {
-                                            isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                            completed == true -> MaterialTheme.colorScheme.primary
-                                            completed == false -> MaterialTheme.colorScheme.error
-                                            else -> MaterialTheme.colorScheme.surfaceVariant
-                                        }
-                                    )
-                                    .then(if (isToday && !isBeforeCreation) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = when {
-                                        isBeforeCreation -> "-"
-                                        completed == true -> "✓"
-                                        completed == false -> "✗"
-                                        else -> "·"
-                                    },
-                                    fontSize = 10.sp,
-                                    color = when {
-                                        isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        completed == true -> MaterialTheme.colorScheme.onPrimary
-                                        completed == false -> MaterialTheme.colorScheme.onError
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
                         }
                     }
                 }
@@ -285,6 +274,13 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                        Text(text = day, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+
                 val firstDayOfMonth = month.withDayOfMonth(1)
                 val lastDayOfMonth = month.withDayOfMonth(daysInMonth)
                 val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.SUNDAY)
@@ -292,62 +288,49 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
                 var currentWeekStart = firstWeekStart
                 while (!currentWeekStart.isAfter(lastWeekStart)) {
-                    val daysInWeek = (0 until 7).map { currentWeekStart.plusDays(it.toLong()) }
-                        .filter { !it.isBefore(firstDayOfMonth) && !it.isAfter(lastDayOfMonth) }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        daysInWeek.forEach { date ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        (0 until 7).forEach { dayOffset ->
+                            val date = currentWeekStart.plusDays(dayOffset.toLong())
                             val isBeforeCreation = date.isBefore(created)
-                            val completed = if (isBeforeCreation) null else history[date.toString()]
+                            val isCurrentMonth = !date.isBefore(firstDayOfMonth) && !date.isAfter(lastDayOfMonth)
+                            val completed = if (isBeforeCreation || !isCurrentMonth) null else history[date.toString()]
                             val isToday = date == today
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            !isCurrentMonth -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                                            isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                            completed == true -> MaterialTheme.colorScheme.primary
+                                            completed == false -> MaterialTheme.colorScheme.error
+                                            isToday -> MaterialTheme.colorScheme.primaryContainer
+                                            else -> MaterialTheme.colorScheme.surface
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = date.format(DateTimeFormatter.ofPattern("MMM d")),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = when {
+                                        !isCurrentMonth -> ""
+                                        isBeforeCreation -> "-"
+                                        completed == true -> "✓"
+                                        completed == false -> "✗"
+                                        else -> date.dayOfMonth.toString()
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = when {
+                                        !isCurrentMonth -> MaterialTheme.colorScheme.surface
+                                        isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        completed == true -> MaterialTheme.colorScheme.onPrimary
+                                        completed == false -> MaterialTheme.colorScheme.onError
+                                        isToday -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    }
                                 )
-                                Text(
-                                    text = date.dayOfWeek.name.take(1),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            when {
-                                                isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                                completed == true -> MaterialTheme.colorScheme.primary
-                                                completed == false -> MaterialTheme.colorScheme.error
-                                                else -> MaterialTheme.colorScheme.surfaceVariant
-                                            }
-                                        )
-                                        .then(if (isToday && !isBeforeCreation) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = when {
-                                            isBeforeCreation -> "-"
-                                            completed == true -> "✓"
-                                            completed == false -> "✗"
-                                            else -> "·"
-                                        },
-                                        fontSize = 10.sp,
-                                        color = when {
-                                            isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            completed == true -> MaterialTheme.colorScheme.onPrimary
-                                            completed == false -> MaterialTheme.colorScheme.onError
-                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
-                                    )
-                                }
                             }
                         }
                     }
