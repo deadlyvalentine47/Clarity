@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SourceEntity::class,
         NoteCategoryEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -50,13 +50,17 @@ abstract class ClarityDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE habits ADD COLUMN alternateDays INTEGER DEFAULT NULL")
         }
 
+        val MIGRATION_7_8 = Migration(7, 8) { db ->
+            db.execSQL("ALTER TABLE habits ADD COLUMN selectedDays TEXT DEFAULT NULL")
+        }
+
         fun create(context: Context): ClarityDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
                 ClarityDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback())
                 .build()

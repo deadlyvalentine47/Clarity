@@ -22,4 +22,7 @@ interface PomodoroSessionDao {
 
     @Delete
     suspend fun deleteSession(session: PomodoroSessionEntity)
+
+    @Query("DELETE FROM pomodoro_sessions")
+    suspend fun deleteAllSessions()
 }

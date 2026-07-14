@@ -55,8 +55,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.HabitEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.HabitViewModel
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,15 +72,30 @@ fun HabitsScreen(
     var editingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var deletingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
-    var frequencyFilter by remember { mutableStateOf("All") }
-    val frequencyOptions = listOf("All", "Daily", "Weekly", "Monthly", "Alternate")
+    var listFilter by remember { mutableStateOf("Today") }
+    val filterOptions = listOf("Today", "All")
 
     val filteredHabits = activeHabits.filter { habit ->
         val matchesSearch = searchQuery.isEmpty() ||
                 habit.name.contains(searchQuery, ignoreCase = true) ||
                 habit.description.contains(searchQuery, ignoreCase = true)
-        val matchesFrequency = frequencyFilter == "All" || habit.frequency == frequencyFilter
-        matchesSearch && matchesFrequency
+        val matchesFilter = when (listFilter) {
+            "Today" -> {
+                val today = LocalDate.now()
+                when {
+                    habit.frequency == "Alternate" && habit.alternateDays != null -> {
+                        val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                        ChronoUnit.DAYS.between(created, today) % (habit.alternateDays + 1) == 0L
+                    }
+                    habit.frequency == "Custom" && habit.selectedDays != null -> {
+                        today.dayOfWeek.value in habit.selectedDays
+                    }
+                    else -> true
+                }
+            }
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
 
     Scaffold(
@@ -117,10 +135,10 @@ fun HabitsScreen(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    frequencyOptions.forEach { option ->
+                    filterOptions.forEach { option ->
                         FilterChip(
-                            selected = frequencyFilter == option,
-                            onClick = { frequencyFilter = option },
+                            selected = listFilter == option,
+                            onClick = { listFilter = option },
                             label = { Text(option) }
                         )
                     }
@@ -227,9 +245,15 @@ fun HabitItem(
                         )
                     }
                     Text(
-                        text = if (habit.frequency == "Alternate" && habit.alternateDays != null)
-                            "Alternate · Every ${habit.alternateDays + 1} days"
-                        else habit.frequency,
+                        text = when {
+                            habit.frequency == "Alternate" && habit.alternateDays != null ->
+                                "Alternate · Every ${habit.alternateDays + 1} days"
+                            habit.frequency == "Custom" && habit.selectedDays != null -> {
+                                val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                                "Custom · ${habit.selectedDays.map { dayNames[it - 1] }.joinToString(", ")}"
+                            }
+                            else -> habit.frequency
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -274,8 +298,10 @@ fun AddEditHabitDialog(
     var frequency by remember { mutableStateOf(habit?.frequency ?: "Daily") }
     var frequencyExpanded by remember { mutableStateOf(false) }
     var alternateDaysText by remember { mutableStateOf(habit?.alternateDays?.toString() ?: "") }
+    var selectedDays by remember { mutableStateOf(habit?.selectedDays ?: emptyList<Int>()) }
     val isEditing = habit != null
-    val frequencyOptions = listOf("Daily", "Weekly", "Monthly", "Alternate")
+    val frequencyOptions = listOf("Daily", "Weekly", "Monthly", "Alternate", "Custom")
+    val dayLabels = listOf("Mon" to 1, "Tue" to 2, "Wed" to 3, "Thu" to 4, "Fri" to 5, "Sat" to 6, "Sun" to 7)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -330,6 +356,30 @@ fun AddEditHabitDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+                if (frequency == "Custom") {
+                    Text(
+                        text = "Select days",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        dayLabels.forEach { (label, dayValue) ->
+                            val isSelected = selectedDays.contains(dayValue)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedDays = if (isSelected) selectedDays - dayValue
+                                    else selectedDays + dayValue
+                                },
+                                label = { Text(label) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -338,12 +388,15 @@ fun AddEditHabitDialog(
                     if (name.isNotBlank()) {
                         val alternateDays = if (frequency == "Alternate") alternateDaysText.toIntOrNull() else null
                         if (frequency == "Alternate" && (alternateDays == null || alternateDays < 1)) return@TextButton
+                        val customSelectedDays: List<Int>? = if (frequency == "Custom") selectedDays.sorted() else null
+                        if (frequency == "Custom" && (customSelectedDays == null || customSelectedDays.isEmpty())) return@TextButton
                         if (isEditing) {
                             onConfirm(habit!!.copy(
                                 name = name.trim(),
                                 description = description.trim(),
                                 frequency = frequency,
-                                alternateDays = alternateDays
+                                alternateDays = alternateDays,
+                                selectedDays = customSelectedDays
                             ))
                         } else {
                             onConfirm(
@@ -351,7 +404,8 @@ fun AddEditHabitDialog(
                                     name = name.trim(),
                                     description = description.trim(),
                                     frequency = frequency,
-                                    alternateDays = alternateDays
+                                    alternateDays = alternateDays,
+                                    selectedDays = customSelectedDays
                                 )
                             )
                         }

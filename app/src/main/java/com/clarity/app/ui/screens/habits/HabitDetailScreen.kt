@@ -46,6 +46,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,8 +129,14 @@ private fun HabitInfoCard(habit: HabitEntity) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatItem(label = "Frequency", value = if (habit.frequency == "Alternate" && habit.alternateDays != null)
-                    "Every ${habit.alternateDays + 1} days" else habit.frequency)
+                StatItem(label = "Frequency", value = when {
+                    habit.frequency == "Alternate" && habit.alternateDays != null -> "Every ${habit.alternateDays + 1} days"
+                    habit.frequency == "Custom" && habit.selectedDays != null -> {
+                        val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                        habit.selectedDays.map { dayNames[it - 1] }.joinToString(", ")
+                    }
+                    else -> habit.frequency
+                })
                 StatItem(label = "Streak", value = "${habit.currentStreak} days")
                 StatItem(label = "Best", value = "${habit.bestStreak} days")
             }
@@ -167,6 +174,19 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
     val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
     val history = habit.completionHistory
 
+    val isScheduledDay: (LocalDate) -> Boolean = { date ->
+        when {
+            habit.frequency == "Alternate" && habit.alternateDays != null -> {
+                val daysSinceCreated = ChronoUnit.DAYS.between(created, date)
+                daysSinceCreated % (habit.alternateDays + 1) == 0L
+            }
+            habit.frequency == "Custom" && habit.selectedDays != null -> {
+                date.dayOfWeek.value in habit.selectedDays
+            }
+            else -> true
+        }
+    }
+
     when (period) {
         "Weekly" -> {
             val startWeek = created.minusDays((created.dayOfWeek.value % 7).toLong())
@@ -181,6 +201,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                 (0 until 7).all { dayOffset ->
                     val date = weekStart.plusDays(dayOffset.toLong())
                     if (date.isBefore(created)) true
+                    else if (!isScheduledDay(date)) true
                     else history[date.toString()] == true
                 }
             }
@@ -203,7 +224,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                     (0 until 7).forEach { dayOffset ->
                         val date = weekStart.plusDays(dayOffset.toLong())
                         val isBeforeCreation = date.isBefore(created)
-                        val completed = if (isBeforeCreation) null else history[date.toString()]
+                        val isSkipped = !isBeforeCreation && !isScheduledDay(date)
+                        val completed = if (isBeforeCreation || isSkipped) null else history[date.toString()]
                         val isToday = date == today
 
                         Box(
@@ -213,7 +235,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                 .clip(CircleShape)
                                 .background(
                                     when {
-                                        isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                         completed == true -> MaterialTheme.colorScheme.primary
                                         completed == false -> MaterialTheme.colorScheme.error
                                         isToday -> MaterialTheme.colorScheme.primaryContainer
@@ -224,14 +246,14 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                         ) {
                             Text(
                                 text = when {
-                                    isBeforeCreation -> "-"
+                                    isBeforeCreation || isSkipped -> "-"
                                     completed == true -> "✓"
                                     completed == false -> "✗"
                                     else -> date.dayOfMonth.toString()
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = when {
-                                    isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     completed == true -> MaterialTheme.colorScheme.onPrimary
                                     completed == false -> MaterialTheme.colorScheme.onError
                                     isToday -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -255,6 +277,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                 (1..daysInMonth).all { day ->
                     val date = month.withDayOfMonth(day)
                     if (date.isBefore(created)) true
+                    else if (!isScheduledDay(date)) true
                     else history[date.toString()] == true
                 }
             }
@@ -293,7 +316,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                             val date = currentWeekStart.plusDays(dayOffset.toLong())
                             val isBeforeCreation = date.isBefore(created)
                             val isCurrentMonth = !date.isBefore(firstDayOfMonth) && !date.isAfter(lastDayOfMonth)
-                            val completed = if (isBeforeCreation || !isCurrentMonth) null else history[date.toString()]
+                            val isSkipped = isCurrentMonth && !isBeforeCreation && !isScheduledDay(date)
+                            val completed = if (isBeforeCreation || !isCurrentMonth || isSkipped) null else history[date.toString()]
                             val isToday = date == today
 
                             Box(
@@ -304,7 +328,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                     .background(
                                         when {
                                             !isCurrentMonth -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
-                                            isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                            isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                             completed == true -> MaterialTheme.colorScheme.primary
                                             completed == false -> MaterialTheme.colorScheme.error
                                             isToday -> MaterialTheme.colorScheme.primaryContainer
@@ -316,7 +340,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                 Text(
                                     text = when {
                                         !isCurrentMonth -> ""
-                                        isBeforeCreation -> "-"
+                                        isBeforeCreation || isSkipped -> "-"
                                         completed == true -> "✓"
                                         completed == false -> "✗"
                                         else -> date.dayOfMonth.toString()
@@ -324,7 +348,7 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = when {
                                         !isCurrentMonth -> MaterialTheme.colorScheme.surface
-                                        isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         completed == true -> MaterialTheme.colorScheme.onPrimary
                                         completed == false -> MaterialTheme.colorScheme.onError
                                         isToday -> MaterialTheme.colorScheme.onPrimaryContainer

@@ -26,4 +26,10 @@ interface BudgetLimitDao {
 
     @Query("DELETE FROM budget_limits WHERE id = :budgetLimitId")
     suspend fun deleteBudgetLimitById(budgetLimitId: Long)
+
+    @Query("SELECT * FROM budget_limits ORDER BY year DESC, month DESC")
+    suspend fun getAllBudgetLimits(): List<BudgetLimitEntity>
+
+    @Query("DELETE FROM budget_limits")
+    suspend fun deleteAllBudgetLimits()
 }

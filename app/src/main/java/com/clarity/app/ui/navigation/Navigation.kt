@@ -145,7 +145,13 @@ fun ClarityNavHost() {
                     navController = navController,
                     startDestination = Screen.Home.route
                 ) {
-                    composable(Screen.Home.route) { HomeScreen() }
+                    composable(Screen.Home.route) {
+                        HomeScreen(
+                            onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
+                            onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
+                            onNavigateToEvents = { navController.navigate(Screen.Calendar.route) }
+                        )
+                    }
                     composable(Screen.Tasks.route) { TasksScreen() }
                     composable(Screen.Calendar.route) { CalendarScreen() }
                     composable(Screen.Habits.route) {
@@ -251,7 +257,13 @@ fun ClarityNavHost() {
                         startDestination = Screen.Home.route,
                         modifier = if (isDetailScreen) Modifier else Modifier.padding(innerPadding)
                     ) {
-                        composable(Screen.Home.route) { HomeScreen() }
+                        composable(Screen.Home.route) {
+                            HomeScreen(
+                                onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
+                                onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
+                                onNavigateToEvents = { navController.navigate(Screen.Calendar.route) }
+                            )
+                        }
                         composable(Screen.Tasks.route) { TasksScreen() }
                         composable(Screen.Calendar.route) { CalendarScreen() }
                         composable(Screen.Habits.route) {

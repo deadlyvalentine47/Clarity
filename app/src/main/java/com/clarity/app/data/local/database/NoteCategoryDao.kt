@@ -19,4 +19,7 @@ interface NoteCategoryDao {
 
     @Query("DELETE FROM note_categories WHERE id = :categoryId")
     suspend fun deleteCategoryById(categoryId: Long)
+
+    @Query("DELETE FROM note_categories")
+    suspend fun deleteAllCategories()
 }

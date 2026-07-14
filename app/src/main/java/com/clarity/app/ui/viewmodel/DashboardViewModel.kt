@@ -2,9 +2,11 @@ package com.clarity.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.clarity.app.data.local.database.EventEntity
 import com.clarity.app.data.local.database.HabitEntity
 import com.clarity.app.data.local.database.TaskEntity
 import com.clarity.app.data.local.database.TransactionEntity
+import com.clarity.app.domain.repository.EventRepository
 import com.clarity.app.domain.repository.HabitRepository
 import com.clarity.app.domain.repository.TaskRepository
 import com.clarity.app.domain.repository.TransactionRepository
@@ -21,7 +23,8 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     taskRepository: TaskRepository,
     habitRepository: HabitRepository,
-    transactionRepository: TransactionRepository
+    transactionRepository: TransactionRepository,
+    eventRepository: EventRepository
 ) : ViewModel() {
 
     private val today = LocalDate.now()
@@ -54,4 +57,12 @@ class DashboardViewModel @Inject constructor(
     val monthlyExpenses: StateFlow<Double> = transactionRepository.getTotalExpenses()
         .map { it ?: 0.0 }
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0.0)
+
+    val upcomingEvents: StateFlow<List<EventEntity>> = eventRepository.getAllEvents()
+        .map { events -> events.filter { it.startDate >= startOfDay }.sortedBy { it.startDate } }
+        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
+
+    val upcomingEventCount: StateFlow<Int> = upcomingEvents
+        .map { it.size }
+        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = 0)
 }

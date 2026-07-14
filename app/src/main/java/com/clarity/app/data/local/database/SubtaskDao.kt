@@ -32,4 +32,10 @@ interface SubtaskDao {
 
     @Query("UPDATE subtasks SET isCompleted = :isCompleted WHERE id = :subtaskId")
     suspend fun toggleSubtaskCompletion(subtaskId: Long, isCompleted: Boolean)
+
+    @Query("SELECT * FROM subtasks ORDER BY createdAt ASC")
+    suspend fun getAllSubtasks(): List<SubtaskEntity>
+
+    @Query("DELETE FROM subtasks")
+    suspend fun deleteAllSubtasks()
 }

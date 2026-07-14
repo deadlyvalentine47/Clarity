@@ -26,4 +26,7 @@ interface PomodoroFocusSessionDao {
 
     @Delete
     suspend fun deleteSession(session: PomodoroFocusSessionEntity)
+
+    @Query("DELETE FROM pomodoro_focus_sessions")
+    suspend fun deleteAllSessions()
 }

@@ -20,6 +20,16 @@ class Converters {
     }
 
     @TypeConverter
+    fun fromIntList(value: List<Int>): String = json.encodeToString(value)
+
+    @TypeConverter
+    fun toIntList(value: String): List<Int> = try {
+        json.decodeFromString(value)
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    @TypeConverter
     fun fromMap(value: Map<String, Boolean>): String = json.encodeToString(value)
 
     @TypeConverter

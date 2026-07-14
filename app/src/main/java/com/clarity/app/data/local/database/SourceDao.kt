@@ -22,4 +22,7 @@ interface SourceDao {
 
     @Query("DELETE FROM sources WHERE id = :sourceId")
     suspend fun deleteSourceById(sourceId: Long)
+
+    @Query("DELETE FROM sources")
+    suspend fun deleteAllSources()
 }

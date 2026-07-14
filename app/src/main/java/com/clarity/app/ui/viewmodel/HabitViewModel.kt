@@ -67,12 +67,9 @@ class HabitViewModel @Inject constructor(
             var updated = false
             var cursor = today.minusDays(1)
             for (i in 0 until 30) {
-                if (habit.frequency == "Alternate" && habit.alternateDays != null) {
-                    val daysSinceCreated = ChronoUnit.DAYS.between(created, cursor)
-                    if (daysSinceCreated % (habit.alternateDays + 1) != 0L) {
-                        cursor = cursor.minusDays(1)
-                        continue
-                    }
+                if (!isScheduledDay(habit, cursor, created)) {
+                    cursor = cursor.minusDays(1)
+                    continue
                 }
                 val dateStr = cursor.toString()
                 if (!habit.completionHistory.containsKey(dateStr)) {
@@ -88,17 +85,27 @@ class HabitViewModel @Inject constructor(
         }
     }
 
+    private fun isScheduledDay(habit: HabitEntity, date: LocalDate, created: LocalDate): Boolean {
+        return when {
+            habit.frequency == "Alternate" && habit.alternateDays != null -> {
+                val daysSinceCreated = ChronoUnit.DAYS.between(created, date)
+                daysSinceCreated % (habit.alternateDays + 1) == 0L
+            }
+            habit.frequency == "Custom" && habit.selectedDays != null -> {
+                date.dayOfWeek.value in habit.selectedDays
+            }
+            else -> true
+        }
+    }
+
     private fun calculateStreak(habit: HabitEntity, today: LocalDate): Int {
         val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
         var streak = 0
         var cursor = today
         while (true) {
-            if (habit.frequency == "Alternate" && habit.alternateDays != null) {
-                val daysSinceCreated = ChronoUnit.DAYS.between(created, cursor)
-                if (daysSinceCreated % (habit.alternateDays + 1) != 0L) {
-                    cursor = cursor.minusDays(1)
-                    continue
-                }
+            if (!isScheduledDay(habit, cursor, created)) {
+                cursor = cursor.minusDays(1)
+                continue
             }
             val dateStr = cursor.toString()
             if (habit.completionHistory[dateStr] == true) {
