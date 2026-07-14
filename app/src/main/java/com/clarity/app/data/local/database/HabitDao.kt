@@ -49,16 +49,24 @@ interface HabitDao {
         val habit = getHabitByIdOnce(habitId) ?: return
         val newHistory = habit.completionHistory.toMutableMap()
         newHistory[date] = completed
-        val streak = calculateStreak(newHistory)
+        val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.createdAt)
         updateHabitCompletion(habitId, newHistory, streak)
     }
 
-    private fun calculateStreak(history: Map<String, Boolean>): Int {
+    private fun calculateStreak(history: Map<String, Boolean>, frequency: String = "Daily", alternateDays: Int? = null, createdAt: Long = System.currentTimeMillis()): Int {
         var streak = 0
         val today = java.time.LocalDate.now()
         var currentDate = today
+        val created = java.time.Instant.ofEpochMilli(createdAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
 
         while (true) {
+            if (frequency == "Alternate" && alternateDays != null) {
+                val daysSinceCreated = java.time.temporal.ChronoUnit.DAYS.between(created, currentDate)
+                if (daysSinceCreated % (alternateDays + 1) != 0L) {
+                    currentDate = currentDate.minusDays(1)
+                    continue
+                }
+            }
             val dateStr = currentDate.toString()
             if (history[dateStr] == true) {
                 streak++

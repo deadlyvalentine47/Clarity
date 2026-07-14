@@ -9,7 +9,8 @@ data class HabitEntity(
     val id: Long = 0,
     val name: String,
     val description: String = "",
-    val frequency: String = "Daily", // Daily, Weekly, Monthly
+    val frequency: String = "Daily", // Daily, Weekly, Monthly, Alternate
+    val alternateDays: Int? = null, // used when frequency == "Alternate"
     val targetCount: Int = 1,
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,

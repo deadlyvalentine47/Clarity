@@ -22,7 +22,7 @@ import androidx.room.TypeConverters
         SourceEntity::class,
         NoteCategoryEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

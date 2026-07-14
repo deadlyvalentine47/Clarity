@@ -46,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.HabitEntity
@@ -66,7 +68,7 @@ fun HabitsScreen(
     var deletingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var frequencyFilter by remember { mutableStateOf("All") }
-    val frequencyOptions = listOf("All", "Daily", "Weekly", "Monthly")
+    val frequencyOptions = listOf("All", "Daily", "Weekly", "Monthly", "Alternate")
 
     val filteredHabits = activeHabits.filter { habit ->
         val matchesSearch = searchQuery.isEmpty() ||
@@ -220,7 +222,9 @@ fun HabitItem(
                         )
                     }
                     Text(
-                        text = habit.frequency,
+                        text = if (habit.frequency == "Alternate" && habit.alternateDays != null)
+                            "Alternate · Every ${habit.alternateDays + 1} days"
+                        else habit.frequency,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -264,8 +268,9 @@ fun AddEditHabitDialog(
     var description by remember { mutableStateOf(habit?.description ?: "") }
     var frequency by remember { mutableStateOf(habit?.frequency ?: "Daily") }
     var frequencyExpanded by remember { mutableStateOf(false) }
+    var alternateDaysText by remember { mutableStateOf(habit?.alternateDays?.toString() ?: "") }
     val isEditing = habit != null
-    val frequencyOptions = listOf("Daily", "Weekly", "Monthly")
+    val frequencyOptions = listOf("Daily", "Weekly", "Monthly", "Alternate")
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -307,20 +312,38 @@ fun AddEditHabitDialog(
                         }
                     }
                 }
+                if (frequency == "Alternate") {
+                    OutlinedTextField(
+                        value = alternateDaysText,
+                        onValueChange = { alternateDaysText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Skip days between (1 = every other day)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (name.isNotBlank()) {
+                        val alternateDays = if (frequency == "Alternate") alternateDaysText.toIntOrNull() else null
+                        if (frequency == "Alternate" && (alternateDays == null || alternateDays < 1)) return@TextButton
                         if (isEditing) {
-                            onConfirm(habit!!.copy(name = name.trim(), description = description.trim(), frequency = frequency))
+                            onConfirm(habit!!.copy(
+                                name = name.trim(),
+                                description = description.trim(),
+                                frequency = frequency,
+                                alternateDays = alternateDays
+                            ))
                         } else {
                             onConfirm(
                                 HabitEntity(
                                     name = name.trim(),
                                     description = description.trim(),
-                                    frequency = frequency
+                                    frequency = frequency,
+                                    alternateDays = alternateDays
                                 )
                             )
                         }

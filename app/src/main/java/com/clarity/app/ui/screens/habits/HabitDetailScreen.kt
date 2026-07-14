@@ -129,7 +129,8 @@ private fun HabitInfoCard(habit: HabitEntity) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatItem(label = "Frequency", value = habit.frequency)
+                StatItem(label = "Frequency", value = if (habit.frequency == "Alternate" && habit.alternateDays != null)
+                    "Every ${habit.alternateDays + 1} days" else habit.frequency)
                 StatItem(label = "Streak", value = "${habit.currentStreak} days")
                 StatItem(label = "Best", value = "${habit.bestStreak} days")
             }

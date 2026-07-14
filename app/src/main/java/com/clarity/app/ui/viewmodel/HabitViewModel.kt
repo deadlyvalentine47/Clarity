@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 @HiltViewModel
@@ -60,9 +63,17 @@ class HabitViewModel @Inject constructor(
         val habits = activeHabits.first()
         val today = LocalDate.now()
         habits.forEach { habit ->
+            val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
             var updated = false
             var cursor = today.minusDays(1)
             for (i in 0 until 30) {
+                if (habit.frequency == "Alternate" && habit.alternateDays != null) {
+                    val daysSinceCreated = ChronoUnit.DAYS.between(created, cursor)
+                    if (daysSinceCreated % (habit.alternateDays + 1) != 0L) {
+                        cursor = cursor.minusDays(1)
+                        continue
+                    }
+                }
                 val dateStr = cursor.toString()
                 if (!habit.completionHistory.containsKey(dateStr)) {
                     habitRepository.toggleHabitForDate(habit.id, dateStr, false)
@@ -78,9 +89,17 @@ class HabitViewModel @Inject constructor(
     }
 
     private fun calculateStreak(habit: HabitEntity, today: LocalDate): Int {
+        val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
         var streak = 0
         var cursor = today
         while (true) {
+            if (habit.frequency == "Alternate" && habit.alternateDays != null) {
+                val daysSinceCreated = ChronoUnit.DAYS.between(created, cursor)
+                if (daysSinceCreated % (habit.alternateDays + 1) != 0L) {
+                    cursor = cursor.minusDays(1)
+                    continue
+                }
+            }
             val dateStr = cursor.toString()
             if (habit.completionHistory[dateStr] == true) {
                 streak++
