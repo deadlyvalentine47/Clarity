@@ -171,8 +171,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
     when (period) {
         "Weekly" -> {
-            val startWeek = created.with(java.time.DayOfWeek.MONDAY)
-            val endWeek = today.with(java.time.DayOfWeek.SUNDAY)
+            val startWeek = created.with(java.time.DayOfWeek.SUNDAY)
+            val endWeek = today.with(java.time.DayOfWeek.SATURDAY)
             val totalWeeks = ((today.toEpochDay() - startWeek.toEpochDay()) / 7).toInt() + 1
 
             val weeks = (0 until totalWeeks).map { weekOffset ->
@@ -180,7 +180,11 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
             }
 
             val completedWeeks = weeks.count { weekStart ->
-                (0 until 7).all { history[weekStart.plusDays(it.toLong()).toString()] == true }
+                (0 until 7).all { dayOffset ->
+                    val date = weekStart.plusDays(dayOffset.toLong())
+                    if (date.isBefore(created)) true
+                    else history[date.toString()] == true
+                }
             }
 
             Text(
@@ -191,14 +195,14 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
             weeks.forEach { weekStart ->
                 val daysInWeek = (0 until 7).map { weekStart.plusDays(it.toLong()) }
-                val doneCount = daysInWeek.count { history[it.toString()] == true }
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     daysInWeek.forEach { date ->
-                        val completed = history[date.toString()]
+                        val isBeforeCreation = date.isBefore(created)
+                        val completed = if (isBeforeCreation) null else history[date.toString()]
                         val isToday = date == today
                         Column(
                             modifier = Modifier.weight(1f),
@@ -220,22 +224,25 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                     .clip(CircleShape)
                                     .background(
                                         when {
+                                            isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                             completed == true -> MaterialTheme.colorScheme.primary
                                             completed == false -> MaterialTheme.colorScheme.error
                                             else -> MaterialTheme.colorScheme.surfaceVariant
                                         }
                                     )
-                                    .then(if (isToday) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
+                                    .then(if (isToday && !isBeforeCreation) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = when {
+                                        isBeforeCreation -> "-"
                                         completed == true -> "✓"
                                         completed == false -> "✗"
                                         else -> "·"
                                     },
                                     fontSize = 10.sp,
                                     color = when {
+                                        isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         completed == true -> MaterialTheme.colorScheme.onPrimary
                                         completed == false -> MaterialTheme.colorScheme.onError
                                         else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -256,7 +263,11 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
             val perfectMonths = months.count { month ->
                 val daysInMonth = month.lengthOfMonth()
-                (1..daysInMonth).all { history[month.withDayOfMonth(it).toString()] == true }
+                (1..daysInMonth).all { day ->
+                    val date = month.withDayOfMonth(day)
+                    if (date.isBefore(created)) true
+                    else history[date.toString()] == true
+                }
             }
 
             Text(
@@ -265,9 +276,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            months.forEachIndexed { index, month ->
+            months.forEach { month ->
                 val daysInMonth = month.lengthOfMonth()
-                val doneCount = (1..daysInMonth).count { history[month.withDayOfMonth(it).toString()] == true }
 
                 Text(
                     text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
@@ -275,10 +285,10 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
-                val firstDayOfMonth = if (index == 0) created else month.withDayOfMonth(1)
+                val firstDayOfMonth = month.withDayOfMonth(1)
                 val lastDayOfMonth = month.withDayOfMonth(daysInMonth)
-                val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.MONDAY)
-                val lastWeekStart = lastDayOfMonth.with(java.time.DayOfWeek.MONDAY)
+                val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.SUNDAY)
+                val lastWeekStart = lastDayOfMonth.with(java.time.DayOfWeek.SUNDAY)
 
                 var currentWeekStart = firstWeekStart
                 while (!currentWeekStart.isAfter(lastWeekStart)) {
@@ -290,7 +300,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         daysInWeek.forEach { date ->
-                            val completed = history[date.toString()]
+                            val isBeforeCreation = date.isBefore(created)
+                            val completed = if (isBeforeCreation) null else history[date.toString()]
                             val isToday = date == today
                             Column(
                                 modifier = Modifier.weight(1f),
@@ -312,22 +323,25 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                         .clip(CircleShape)
                                         .background(
                                             when {
+                                                isBeforeCreation -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                                 completed == true -> MaterialTheme.colorScheme.primary
                                                 completed == false -> MaterialTheme.colorScheme.error
                                                 else -> MaterialTheme.colorScheme.surfaceVariant
                                             }
                                         )
-                                        .then(if (isToday) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
+                                        .then(if (isToday && !isBeforeCreation) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = when {
+                                            isBeforeCreation -> "-"
                                             completed == true -> "✓"
                                             completed == false -> "✗"
                                             else -> "·"
                                         },
                                         fontSize = 10.sp,
                                         color = when {
+                                            isBeforeCreation -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                             completed == true -> MaterialTheme.colorScheme.onPrimary
                                             completed == false -> MaterialTheme.colorScheme.onError
                                             else -> MaterialTheme.colorScheme.onSurfaceVariant
