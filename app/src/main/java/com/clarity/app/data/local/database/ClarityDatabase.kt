@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -44,12 +46,17 @@ abstract class ClarityDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "clarity.db"
 
+        val MIGRATION_6_7 = Migration(6, 7) { db ->
+            db.execSQL("ALTER TABLE habits ADD COLUMN alternateDays INTEGER DEFAULT NULL")
+        }
+
         fun create(context: Context): ClarityDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
                 ClarityDatabase::class.java,
                 DATABASE_NAME
             )
+                .addMigrations(MIGRATION_6_7)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback())
                 .build()
