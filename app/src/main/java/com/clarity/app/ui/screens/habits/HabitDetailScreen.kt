@@ -244,43 +244,46 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
         "Weekly" -> {
             val startWeek = created.with(java.time.DayOfWeek.MONDAY)
             val endWeek = today.with(java.time.DayOfWeek.SUNDAY)
-            val totalWeeks =
-                ((today.toEpochDay() - startWeek.toEpochDay()) / 7).toInt() + 1
+            val totalWeeks = ((today.toEpochDay() - startWeek.toEpochDay()) / 7).toInt() + 1
 
             val weeks = (0 until totalWeeks).map { weekOffset ->
-                val s = startWeek.plusWeeks(weekOffset.toLong())
-                val e = s.plusDays(6)
-                s to e
+                startWeek.plusWeeks(weekOffset.toLong())
             }
 
-            val completedWeeks = weeks.count { (s, e) ->
-                (0 until 7).all { history[s.plusDays(it.toLong()).toString()] == true }
+            val completedWeeks = weeks.count { weekStart ->
+                (0 until 7).all { history[weekStart.plusDays(it.toLong()).toString()] == true }
             }
 
             Text(
-                text = "$totalWeeks weeks (${completedWeeks} perfect weeks)",
+                text = "$totalWeeks weeks ($completedWeeks perfect weeks)",
                 style = MaterialTheme.typography.titleSmall
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            weeks.forEach { (start, end) ->
-                val daysInWeek = (0 until 7).map { start.plusDays(it.toLong()) }
+            weeks.forEach { weekStart ->
+                val daysInWeek = (0 until 7).map { weekStart.plusDays(it.toLong()) }
                 val doneCount = daysInWeek.count { history[it.toString()] == true }
-                val daysWithData = daysInWeek.count { history.containsKey(it.toString()) }
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = "${start.format(DateTimeFormatter.ofPattern("MMM d"))}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.width(60.dp)
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        daysInWeek.forEach { date ->
-                            val completed = history[date.toString()]
+                    daysInWeek.forEach { date ->
+                        val completed = history[date.toString()]
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = date.format(DateTimeFormatter.ofPattern("MMM d")),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = date.dayOfWeek.name.take(1),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Box(
                                 modifier = Modifier.size(20.dp).clip(CircleShape).background(
                                     when {
@@ -307,20 +310,13 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                             }
                         }
                     }
-                    Text(
-                        text = if (daysWithData > 0) "$doneCount/$daysWithData" else "—",
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.width(40.dp)
-                    )
                 }
             }
         }
         "Monthly" -> {
             val startMonth = created.withDayOfMonth(1)
             val endMonth = today.withDayOfMonth(1)
-            val totalMonths =
-                ((endMonth.year - startMonth.year) * 12 + endMonth.monthValue - startMonth.monthValue).toLong() + 1
+            val totalMonths = ((endMonth.year - startMonth.year) * 12 + endMonth.monthValue - startMonth.monthValue).toLong() + 1
 
             val months = (0 until totalMonths.toInt()).map { startMonth.plusMonths(it.toLong()) }
 
@@ -330,45 +326,82 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
             }
 
             Text(
-                text = "$totalMonths months (${perfectMonths} perfect months)",
+                text = "$totalMonths months ($perfectMonths perfect months)",
                 style = MaterialTheme.typography.titleSmall
             )
             Spacer(modifier = Modifier.height(8.dp))
 
             months.forEach { month ->
                 val daysInMonth = month.lengthOfMonth()
-                val doneCount = (1..daysInMonth).count {
-                    history[month.withDayOfMonth(it).toString()] == true
-                }
-                val daysWithData = (1..daysInMonth).count {
-                    history.containsKey(month.withDayOfMonth(it).toString())
+                val doneCount = (1..daysInMonth).count { history[month.withDayOfMonth(it).toString()] == true }
+
+                Text(
+                    text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+
+                val firstDayOfMonth = month.withDayOfMonth(1)
+                val lastDayOfMonth = month.withDayOfMonth(daysInMonth)
+                val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.MONDAY)
+                val lastWeekStart = lastDayOfMonth.with(java.time.DayOfWeek.MONDAY)
+
+                var currentWeekStart = firstWeekStart
+                while (!currentWeekStart.isAfter(lastWeekStart)) {
+                    val daysInWeek = (0 until 7).map { currentWeekStart.plusDays(it.toLong()) }
+                        .filter { !it.isBefore(firstDayOfMonth) && !it.isAfter(lastDayOfMonth) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        daysInWeek.forEach { date ->
+                            val completed = history[date.toString()]
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = date.format(DateTimeFormatter.ofPattern("MMM d")),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = date.dayOfWeek.name.take(1),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Box(
+                                    modifier = Modifier.size(20.dp).clip(CircleShape).background(
+                                        when {
+                                            completed == true -> MaterialTheme.colorScheme.primary
+                                            completed == false -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.surfaceVariant
+                                        }
+                                    ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = when {
+                                            completed == true -> "✓"
+                                            completed == false -> "✗"
+                                            else -> "·"
+                                        },
+                                        fontSize = 10.sp,
+                                        color = when {
+                                            completed == true -> MaterialTheme.colorScheme.onPrimary
+                                            completed == false -> MaterialTheme.colorScheme.onError
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    currentWeekStart = currentWeekStart.plusWeeks(1)
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = month.format(DateTimeFormatter.ofPattern("MMM yyyy")),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.width(80.dp)
-                    )
-
-                    LinearProgressIndicator(
-                        progress = {
-                            if (daysWithData > 0) doneCount.toFloat() / daysWithData else 0f
-                        },
-                        modifier = Modifier.weight(1f).height(8.dp).padding(horizontal = 8.dp),
-                    )
-
-                    Text(
-                        text = if (daysWithData > 0) "$doneCount/$daysWithData" else "—",
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.width(50.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
