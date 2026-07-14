@@ -169,9 +169,9 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
     when (period) {
         "Weekly" -> {
-            val startWeek = created.with(java.time.DayOfWeek.SUNDAY)
-            val endWeek = today.with(java.time.DayOfWeek.SATURDAY)
-            val totalWeeks = ((today.toEpochDay() - startWeek.toEpochDay()) / 7).toInt() + 1
+            val startWeek = created.minusDays((created.dayOfWeek.value % 7).toLong())
+            val todayWeekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
+            val totalWeeks = ((todayWeekStart.toEpochDay() - startWeek.toEpochDay()) / 7).toInt() + 1
 
             val weeks = (0 until totalWeeks).map { weekOffset ->
                 startWeek.plusWeeks(weekOffset.toLong())
@@ -283,8 +283,8 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
 
                 val firstDayOfMonth = month.withDayOfMonth(1)
                 val lastDayOfMonth = month.withDayOfMonth(daysInMonth)
-                val firstWeekStart = firstDayOfMonth.with(java.time.DayOfWeek.SUNDAY)
-                val lastWeekStart = lastDayOfMonth.with(java.time.DayOfWeek.SUNDAY)
+                val firstWeekStart = firstDayOfMonth.minusDays((firstDayOfMonth.dayOfWeek.value % 7).toLong())
+                val lastWeekStart = lastDayOfMonth.minusDays((lastDayOfMonth.dayOfWeek.value % 7).toLong())
 
                 var currentWeekStart = firstWeekStart
                 while (!currentWeekStart.isAfter(lastWeekStart)) {
