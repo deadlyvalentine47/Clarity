@@ -64,7 +64,6 @@ class HabitViewModel @Inject constructor(
         val today = LocalDate.now()
         habits.forEach { habit ->
             val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
-            var updated = false
             var cursor = today.minusDays(1)
             for (i in 0 until 30) {
                 if (!isScheduledDay(habit, cursor, created)) {
@@ -74,13 +73,8 @@ class HabitViewModel @Inject constructor(
                 val dateStr = cursor.toString()
                 if (!habit.completionHistory.containsKey(dateStr)) {
                     habitRepository.toggleHabitForDate(habit.id, dateStr, false)
-                    updated = true
                 }
                 cursor = cursor.minusDays(1)
-            }
-            if (updated) {
-                val currentStreak = calculateStreak(habit, today)
-                habitRepository.updateHabit(habit.copy(currentStreak = currentStreak))
             }
         }
     }
@@ -96,26 +90,6 @@ class HabitViewModel @Inject constructor(
             }
             else -> true
         }
-    }
-
-    private fun calculateStreak(habit: HabitEntity, today: LocalDate): Int {
-        val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
-        var streak = 0
-        var cursor = today
-        while (true) {
-            if (!isScheduledDay(habit, cursor, created)) {
-                cursor = cursor.minusDays(1)
-                continue
-            }
-            val dateStr = cursor.toString()
-            if (habit.completionHistory[dateStr] == true) {
-                streak++
-                cursor = cursor.minusDays(1)
-            } else {
-                break
-            }
-        }
-        return streak
     }
 
     fun addHabit(habit: HabitEntity) {
