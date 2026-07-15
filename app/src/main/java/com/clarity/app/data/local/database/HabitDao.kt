@@ -59,24 +59,13 @@ interface HabitDao {
         val created = java.time.Instant.ofEpochMilli(createdAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
 
         val todayStr = today.toString()
-        val todayInHistory = history.containsKey(todayStr)
-        val todayScheduled = when {
-            frequency == "Alternate" && alternateDays != null -> {
-                java.time.temporal.ChronoUnit.DAYS.between(created, today) % (alternateDays + 1) == 0L
-            }
-            frequency == "Custom" && selectedDays != null -> {
-                today.dayOfWeek.value in selectedDays
-            }
-            else -> true
-        }
+        val todayCompleted = history[todayStr] == true
 
-        if (todayInHistory && history[todayStr] == false && todayScheduled) {
-            return 0
-        }
-
-        var currentDate = if (todayInHistory) today else today.minusDays(1)
+        var currentDate = if (todayCompleted) today else today.minusDays(1)
 
         while (true) {
+            if (currentDate.isBefore(created)) break
+
             val isScheduled = when {
                 frequency == "Alternate" && alternateDays != null -> {
                     val daysSinceCreated = java.time.temporal.ChronoUnit.DAYS.between(created, currentDate)
