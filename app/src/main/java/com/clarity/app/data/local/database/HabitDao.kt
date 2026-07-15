@@ -48,7 +48,12 @@ interface HabitDao {
     suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) {
         val habit = getHabitByIdOnce(habitId) ?: return
         val newHistory = habit.completionHistory.toMutableMap()
-        newHistory[date] = completed
+        val today = java.time.LocalDate.now().toString()
+        if (!completed && date == today) {
+            newHistory.remove(date)
+        } else {
+            newHistory[date] = completed
+        }
         val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
         updateHabitCompletion(habitId, newHistory, streak)
     }
