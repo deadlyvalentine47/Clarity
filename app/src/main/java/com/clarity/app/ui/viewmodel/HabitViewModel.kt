@@ -60,7 +60,7 @@ class HabitViewModel @Inject constructor(
     }
 
     private suspend fun markMissedDays() {
-        val habits = activeHabits.first()
+        val habits = habitRepository.getActiveHabits().first()
         val today = LocalDate.now()
         habits.forEach { habit ->
             val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()

@@ -36,8 +36,10 @@ import com.clarity.app.ui.viewmodel.DashboardViewModel
 import com.clarity.app.ui.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -53,6 +55,8 @@ fun HomeScreen(
 ) {
     val username by homeViewModel.username.collectAsStateWithLifecycle()
     val todayTasks by dashboardViewModel.todayTasks.collectAsStateWithLifecycle()
+    val overdueTasks by dashboardViewModel.overdueTasks.collectAsStateWithLifecycle()
+    val upcomingTasks by dashboardViewModel.upcomingTasks.collectAsStateWithLifecycle()
     val activeHabits by dashboardViewModel.activeHabits.collectAsStateWithLifecycle()
     val upcomingEvents by dashboardViewModel.upcomingEvents.collectAsStateWithLifecycle()
     val monthlyExpenses by dashboardViewModel.monthlyExpenses.collectAsStateWithLifecycle()
@@ -62,8 +66,34 @@ fun HomeScreen(
     val sectionOrder by homeViewModel.sectionOrder.collectAsStateWithLifecycle()
 
     var tasksExpanded by remember { mutableStateOf(true) }
+    var todayTasksExpanded by remember { mutableStateOf(true) }
+    var overdueTasksExpanded by remember { mutableStateOf(true) }
+    var upcomingTasksExpanded by remember { mutableStateOf(true) }
     var habitsExpanded by remember { mutableStateOf(true) }
     var eventsExpanded by remember { mutableStateOf(true) }
+
+    val endOfToday = remember { 
+        LocalDate.now().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+    val filteredUpcomingTasks = remember(upcomingTasks) {
+        upcomingTasks.filter { it.dueDate != null && it.dueDate > endOfToday }
+    }
+
+    val todayHabits = remember(activeHabits) {
+        val today = LocalDate.now()
+        activeHabits.filter { habit ->
+            when {
+                habit.frequency == "Alternate" && habit.alternateDays != null -> {
+                    val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                    ChronoUnit.DAYS.between(created, today) % (habit.alternateDays + 1) == 0L
+                }
+                habit.frequency == "Custom" && habit.selectedDays != null -> {
+                    today.dayOfWeek.value in habit.selectedDays
+                }
+                else -> true
+            }
+        }
+    }
 
     val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     val currentDate = dateFormat.format(Date())
@@ -119,7 +149,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "UPCOMING TASKS",
+                                text = "Tasks",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -141,36 +171,175 @@ fun HomeScreen(
                     }
 
                     if (tasksExpanded) {
-                        if (todayTasks.isEmpty()) {
-                            item {
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("No tasks for today", style = MaterialTheme.typography.bodyLarge)
-                                        Text("Open the menu to add tasks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { overdueTasksExpanded = !overdueTasksExpanded }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "OVERDUE (${overdueTasks.size})",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Icon(
+                                    imageVector = if (overdueTasksExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (overdueTasksExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        if (overdueTasksExpanded) {
+                            if (overdueTasks.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "No overdue tasks",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+                            } else {
+                                items(overdueTasks.take(5)) { task ->
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                            val priorityColor = when (task.priority) {
+                                                "High" -> MaterialTheme.colorScheme.error
+                                                "Medium" -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
+                                            }
+                                            Text(
+                                                text = task.priority,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = priorityColor,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            items(todayTasks.take(5)) { task ->
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(task.title, style = MaterialTheme.typography.bodyLarge)
-                                        val priorityColor = when (task.priority) {
-                                            "High" -> MaterialTheme.colorScheme.error
-                                            "Medium" -> MaterialTheme.colorScheme.tertiary
-                                            else -> MaterialTheme.colorScheme.primary
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { todayTasksExpanded = !todayTasksExpanded }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "TODAY (${todayTasks.size})",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Icon(
+                                    imageVector = if (todayTasksExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (todayTasksExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        if (todayTasksExpanded) {
+                            if (todayTasks.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "No tasks for today",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+                            } else {
+                                items(todayTasks.take(5)) { task ->
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                            val priorityColor = when (task.priority) {
+                                                "High" -> MaterialTheme.colorScheme.error
+                                                "Medium" -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
+                                            }
+                                            Text(
+                                                text = task.priority,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = priorityColor,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
-                                        Text(
-                                            text = task.priority,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = priorityColor,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { upcomingTasksExpanded = !upcomingTasksExpanded }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "UPCOMING (${filteredUpcomingTasks.size})",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                                Icon(
+                                    imageVector = if (upcomingTasksExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (upcomingTasksExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        if (upcomingTasksExpanded) {
+                            if (filteredUpcomingTasks.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "No upcoming tasks",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+                            } else {
+                                items(filteredUpcomingTasks.take(5)) { task ->
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                            val priorityColor = when (task.priority) {
+                                                "High" -> MaterialTheme.colorScheme.error
+                                                "Medium" -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
+                                            }
+                                            Text(
+                                                text = task.priority,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = priorityColor,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -295,17 +464,19 @@ fun HomeScreen(
                     }
 
                     if (habitsExpanded) {
-                        if (activeHabits.isEmpty()) {
+                        if (todayHabits.isEmpty()) {
                             item {
                                 Card(modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("No habits tracked", style = MaterialTheme.typography.bodyLarge)
+                                        Text("No habits for today", style = MaterialTheme.typography.bodyLarge)
                                         Text("Open the menu to start tracking", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
                         } else {
-                            items(activeHabits.take(5)) { habit ->
+                            items(todayHabits.take(5)) { habit ->
+                                val today = LocalDate.now().toString()
+                                val isCompletedToday = habit.completionHistory[today] ?: false
                                 Card(modifier = Modifier.fillMaxWidth()) {
                                     Row(
                                         modifier = Modifier
@@ -313,14 +484,19 @@ fun HomeScreen(
                                             .padding(12.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(habit.name, style = MaterialTheme.typography.bodyLarge)
-                                        if (habit.currentStreak > 0) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(habit.name, style = MaterialTheme.typography.bodyLarge)
                                             Text(
-                                                text = "🔥 ${habit.currentStreak}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.tertiary
+                                                text = if (isCompletedToday) "✓ Done" else "Pending",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isCompletedToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
+                                        Text(
+                                            text = "🔥 ${habit.currentStreak}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.tertiary
+                                        )
                                     }
                                 }
                             }

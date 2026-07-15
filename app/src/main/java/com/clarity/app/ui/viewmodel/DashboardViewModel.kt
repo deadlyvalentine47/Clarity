@@ -34,6 +34,9 @@ class DashboardViewModel @Inject constructor(
     val todayTasks: StateFlow<List<TaskEntity>> = taskRepository.getTodayTasks(startOfDay, endOfDay)
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
+    val overdueTasks: StateFlow<List<TaskEntity>> = taskRepository.getOverdueTasks()
+        .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
+
     val upcomingTasks: StateFlow<List<TaskEntity>> = taskRepository.getPendingTasks()
         .stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 

@@ -219,6 +219,8 @@ fun HabitItem(
 ) {
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
+    val yesterday = LocalDate.now().minusDays(1).toString()
+    val wasMissedYesterday = habit.completionHistory[yesterday] == false
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -257,6 +259,14 @@ fun HabitItem(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (wasMissedYesterday) {
+                        Text(
+                            text = "✗ Yesterday",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 IconButton(onClick = onEdit) {
