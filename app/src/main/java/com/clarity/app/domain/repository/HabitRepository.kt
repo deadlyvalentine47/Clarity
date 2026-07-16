@@ -11,5 +11,6 @@ interface HabitRepository {
     suspend fun updateHabit(habit: HabitEntity)
     suspend fun deleteHabit(habit: HabitEntity)
     suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean)
-    suspend fun archiveHabit(habitId: Long)
+    suspend fun archiveHabit(habitId: Long, archivedAt: Long = System.currentTimeMillis())
+    suspend fun unarchiveHabit(habitId: Long)
 }

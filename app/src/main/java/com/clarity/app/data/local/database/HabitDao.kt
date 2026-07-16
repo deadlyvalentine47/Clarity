@@ -36,8 +36,11 @@ interface HabitDao {
     @Query("DELETE FROM habits")
     suspend fun deleteAllHabits()
 
-    @Query("UPDATE habits SET isArchived = 1 WHERE id = :habitId")
-    suspend fun archiveHabit(habitId: Long)
+    @Query("UPDATE habits SET isArchived = 1, archivedAt = :archivedAt WHERE id = :habitId")
+    suspend fun archiveHabit(habitId: Long, archivedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE habits SET isArchived = 0 WHERE id = :habitId")
+    suspend fun unarchiveHabit(habitId: Long)
 
     @Query("SELECT * FROM habits WHERE id = :habitId")
     suspend fun getHabitByIdOnce(habitId: Long): HabitEntity?

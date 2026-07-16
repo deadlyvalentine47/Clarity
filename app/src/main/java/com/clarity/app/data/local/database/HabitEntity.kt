@@ -20,5 +20,6 @@ data class HabitEntity(
     val completionHistory: Map<String, Boolean> = emptyMap(), // date to completed
     val reminderTime: Long? = null,
     val isArchived: Boolean = false,
+    val archivedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

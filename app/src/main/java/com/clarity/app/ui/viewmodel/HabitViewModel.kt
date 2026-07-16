@@ -106,8 +106,9 @@ class HabitViewModel @Inject constructor(
 
     fun toggleHabitForToday(habitId: Long) {
         viewModelScope.launch {
-            val today = LocalDate.now().toString()
             val habit = activeHabits.value.find { it.id == habitId } ?: return@launch
+            if (habit.isArchived) return@launch
+            val today = LocalDate.now().toString()
             val currentCompleted = habit.completionHistory[today] ?: false
             habitRepository.toggleHabitForDate(habitId, today, !currentCompleted)
         }
@@ -115,7 +116,13 @@ class HabitViewModel @Inject constructor(
 
     fun archiveHabit(habitId: Long) {
         viewModelScope.launch {
-            habitRepository.archiveHabit(habitId)
+            habitRepository.archiveHabit(habitId, System.currentTimeMillis())
+        }
+    }
+
+    fun unarchiveHabit(habitId: Long) {
+        viewModelScope.launch {
+            habitRepository.unarchiveHabit(habitId)
         }
     }
 

@@ -19,6 +19,9 @@ class HabitRepositoryImpl @Inject constructor(
     override suspend fun deleteHabit(habit: HabitEntity) = habitDao.deleteHabit(habit)
     override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) =
         habitDao.toggleHabitForDate(habitId, date, completed)
-    override suspend fun archiveHabit(habitId: Long) =
-        habitDao.archiveHabit(habitId)
+    override suspend fun archiveHabit(habitId: Long, archivedAt: Long) =
+        habitDao.archiveHabit(habitId, archivedAt)
+
+    override suspend fun unarchiveHabit(habitId: Long) =
+        habitDao.unarchiveHabit(habitId)
 }

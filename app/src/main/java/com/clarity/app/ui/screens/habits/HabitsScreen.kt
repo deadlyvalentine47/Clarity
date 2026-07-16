@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -69,14 +70,16 @@ fun HabitsScreen(
     viewModel: HabitViewModel = hiltViewModel()
 ) {
     val activeHabits by viewModel.activeHabits.collectAsStateWithLifecycle()
+    val archivedHabits by viewModel.archivedHabits.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<HabitEntity?>(null) }
+    var archivingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var deletingHabit by remember { mutableStateOf<HabitEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var listFilter by remember { mutableStateOf("Today") }
-    val filterOptions = listOf("Today", "All")
+    val filterOptions = listOf("Today", "All", "Archived")
 
-    val filteredHabits = activeHabits.filter { habit ->
+    val filteredHabits = (if (listFilter == "Archived") archivedHabits else activeHabits).filter { habit ->
         val matchesSearch = searchQuery.isEmpty() ||
                 habit.name.contains(searchQuery, ignoreCase = true) ||
                 habit.description.contains(searchQuery, ignoreCase = true)
@@ -154,8 +157,11 @@ fun HabitsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (activeHabits.isEmpty()) "No habits yet\nTap + to start building habits"
-                            else "No habits match your filters",
+                            text = when {
+                                listFilter == "Archived" -> "No archived habits"
+                                activeHabits.isEmpty() -> "No habits yet\nTap + to start building habits"
+                                else -> "No habits match your filters"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -169,8 +175,9 @@ fun HabitsScreen(
                     onClick = { onHabitClick(habit.id) },
                     onToggle = { viewModel.toggleHabitForToday(habit.id) },
                     onEdit = { editingHabit = habit },
-                    onArchive = { viewModel.archiveHabit(habit.id) },
-                    onDelete = { deletingHabit = habit }
+                    onArchive = { archivingHabit = habit },
+                    onDelete = { deletingHabit = habit },
+                    onUnarchive = if (listFilter == "Archived") {{ viewModel.unarchiveHabit(habit.id) }} else null
                 )
             }
         }
@@ -208,6 +215,27 @@ fun HabitsScreen(
             onDismiss = { deletingHabit = null }
         )
     }
+
+    archivingHabit?.let { habit ->
+        AlertDialog(
+            onDismissRequest = { archivingHabit = null },
+            title = { Text("Archive Habit") },
+            text = { Text("Are you sure you want to archive \"${habit.name}\"?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.archiveHabit(habit.id)
+                    archivingHabit = null
+                }) {
+                    Text("Archive")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archivingHabit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -217,7 +245,8 @@ fun HabitItem(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onArchive: () -> Unit = {}
+    onArchive: () -> Unit = {},
+    onUnarchive: (() -> Unit)? = null
 ) {
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
@@ -274,25 +303,33 @@ fun HabitItem(
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = onArchive) {
-                    Icon(Icons.Default.Archive, contentDescription = "Archive", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (onUnarchive != null) {
+                    IconButton(onClick = onUnarchive) {
+                        Icon(Icons.Default.Unarchive, contentDescription = "Unarchive", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    IconButton(onClick = onArchive) {
+                        Icon(Icons.Default.Archive, contentDescription = "Archive", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
                 }
-                IconButton(
-                    onClick = onToggle,
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(
-                        if (isCompletedToday) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
-                        tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (onUnarchive == null) {
+                    IconButton(
+                        onClick = onToggle,
+                        modifier = Modifier.size(40.dp).clip(CircleShape).background(
+                            if (isCompletedToday) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
+                            tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
