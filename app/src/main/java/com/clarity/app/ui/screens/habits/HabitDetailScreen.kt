@@ -141,6 +141,14 @@ private fun HabitInfoCard(habit: HabitEntity) {
                 StatItem(label = "Best", value = "${habit.bestStreak} days")
             }
 
+            if (habit.deadlineHour != null && habit.deadlineMinute != null) {
+                Text(
+                    text = "Deadline: ${String.format("%02d:%02d", habit.deadlineHour, habit.deadlineMinute)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(

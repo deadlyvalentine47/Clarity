@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -76,6 +77,21 @@ class HabitViewModel @Inject constructor(
                 }
                 cursor = cursor.minusDays(1)
             }
+
+            checkDeadline(habit, today)
+        }
+    }
+
+    private suspend fun checkDeadline(habit: HabitEntity, date: LocalDate) {
+        if (habit.deadlineHour == null || habit.deadlineMinute == null) return
+        val dateStr = date.toString()
+        if (habit.completionHistory[dateStr] == true) return
+        val now = LocalTime.now()
+        val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
+        if (now.isAfter(deadline)) {
+            if (!habit.completionHistory.containsKey(dateStr)) {
+                habitRepository.toggleHabitForDate(habit.id, dateStr, false)
+            }
         }
     }
 
@@ -110,6 +126,11 @@ class HabitViewModel @Inject constructor(
             if (habit.isArchived) return@launch
             val today = LocalDate.now().toString()
             val currentCompleted = habit.completionHistory[today] ?: false
+            if (!currentCompleted && habit.deadlineHour != null && habit.deadlineMinute != null) {
+                val now = LocalTime.now()
+                val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
+                if (now.isAfter(deadline)) return@launch
+            }
             habitRepository.toggleHabitForDate(habitId, today, !currentCompleted)
         }
     }

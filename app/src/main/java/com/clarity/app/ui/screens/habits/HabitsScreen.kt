@@ -298,6 +298,13 @@ fun HabitItem(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    if (habit.deadlineHour != null && habit.deadlineMinute != null) {
+                        Text(
+                            text = "Deadline: ${String.format("%02d:%02d", habit.deadlineHour, habit.deadlineMinute)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 IconButton(onClick = onEdit) {
@@ -348,6 +355,9 @@ fun AddEditHabitDialog(
     var frequencyExpanded by remember { mutableStateOf(false) }
     var alternateDaysText by remember { mutableStateOf(habit?.alternateDays?.toString() ?: "") }
     var selectedDays by remember { mutableStateOf(habit?.selectedDays ?: emptyList<Int>()) }
+    var deadlineEnabled by remember { mutableStateOf(habit?.deadlineHour != null) }
+    var deadlineHourText by remember { mutableStateOf(habit?.deadlineHour?.toString() ?: "") }
+    var deadlineMinuteText by remember { mutableStateOf(habit?.deadlineMinute?.toString() ?: "") }
     val isEditing = habit != null
     val frequencyOptions = listOf("Daily", "Weekly", "Monthly", "Alternate", "Custom")
     val dayLabels = listOf("Mon" to 1, "Tue" to 2, "Wed" to 3, "Thu" to 4, "Fri" to 5, "Sat" to 6, "Sun" to 7)
@@ -405,6 +415,42 @@ fun AddEditHabitDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Deadline", style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Switch(
+                        checked = deadlineEnabled,
+                        onCheckedChange = { deadlineEnabled = it }
+                    )
+                }
+                if (deadlineEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = deadlineHourText,
+                            onValueChange = { deadlineHourText = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Hour") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        Text(":", style = MaterialTheme.typography.titleMedium)
+                        OutlinedTextField(
+                            value = deadlineMinuteText,
+                            onValueChange = { deadlineMinuteText = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Min") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                }
                 if (frequency == "Custom") {
                     Text(
                         text = "Select days",
@@ -439,13 +485,18 @@ fun AddEditHabitDialog(
                         if (frequency == "Alternate" && (alternateDays == null || alternateDays < 1)) return@TextButton
                         val customSelectedDays: List<Int>? = if (frequency == "Custom") selectedDays.sorted() else null
                         if (frequency == "Custom" && (customSelectedDays == null || customSelectedDays.isEmpty())) return@TextButton
+                        val deadlineHour = if (deadlineEnabled) deadlineHourText.toIntOrNull()?.let { if (it in 0..23) it else null } else null
+                        val deadlineMinute = if (deadlineEnabled) deadlineMinuteText.toIntOrNull()?.let { if (it in 0..59) it else null } else null
+                        if (deadlineEnabled && (deadlineHour == null || deadlineMinute == null)) return@TextButton
                         if (isEditing) {
                             onConfirm(habit!!.copy(
                                 name = name.trim(),
                                 description = description.trim(),
                                 frequency = frequency,
                                 alternateDays = alternateDays,
-                                selectedDays = customSelectedDays
+                                selectedDays = customSelectedDays,
+                                deadlineHour = deadlineHour,
+                                deadlineMinute = deadlineMinute
                             ))
                         } else {
                             onConfirm(
@@ -454,7 +505,9 @@ fun AddEditHabitDialog(
                                     description = description.trim(),
                                     frequency = frequency,
                                     alternateDays = alternateDays,
-                                    selectedDays = customSelectedDays
+                                    selectedDays = customSelectedDays,
+                                    deadlineHour = deadlineHour,
+                                    deadlineMinute = deadlineMinute
                                 )
                             )
                         }

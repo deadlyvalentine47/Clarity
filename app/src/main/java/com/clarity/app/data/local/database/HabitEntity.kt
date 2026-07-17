@@ -21,5 +21,7 @@ data class HabitEntity(
     val reminderTime: Long? = null,
     val isArchived: Boolean = false,
     val archivedAt: Long? = null,
+    val deadlineHour: Int? = null,
+    val deadlineMinute: Int? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
