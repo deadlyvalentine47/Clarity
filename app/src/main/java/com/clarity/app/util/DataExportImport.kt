@@ -26,7 +26,10 @@ data class AppData(
     val budgetLimits: List<ExportBudgetLimit> = emptyList(),
     val subtasks: List<ExportSubtask> = emptyList(),
     val pomodoroSessions: List<ExportPomodoroSession> = emptyList(),
-    val pomodoroFocusSessions: List<ExportPomodoroFocusSession> = emptyList()
+    val pomodoroFocusSessions: List<ExportPomodoroFocusSession> = emptyList(),
+    val creditCards: List<ExportCreditCard> = emptyList(),
+    val creditCardTransactions: List<ExportCreditCardTransaction> = emptyList(),
+    val investments: List<ExportInvestment> = emptyList()
 )
 
 @Serializable
@@ -128,6 +131,7 @@ data class ExportCategory(
 data class ExportSource(
     val id: Long = 0,
     val name: String,
+    val balance: Double = 0.0,
     val isDefault: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -179,6 +183,39 @@ data class ExportPomodoroFocusSession(
     val distractions: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class ExportCreditCard(
+    val id: Long = 0,
+    val name: String,
+    val creditLimit: Double,
+    val billingCycleDay: Int,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class ExportCreditCardTransaction(
+    val id: Long = 0,
+    val cardId: Long,
+    val amount: Double,
+    val description: String = "",
+    val date: Long = System.currentTimeMillis(),
+    val type: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class ExportInvestment(
+    val id: Long = 0,
+    val name: String,
+    val type: String,
+    val units: Double,
+    val purchasePrice: Double,
+    val currentPrice: Double,
+    val purchaseDate: Long,
+    val notes: String = "",
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 object DataExporter {
@@ -291,6 +328,7 @@ object DataExporter {
             ExportSource(
                 id = it.id,
                 name = it.name,
+                balance = it.balance,
                 isDefault = it.isDefault,
                 createdAt = it.createdAt
             )
@@ -350,6 +388,42 @@ object DataExporter {
             )
         }
 
+        val creditCards = database.creditCardDao().getAllCards().first().map {
+            ExportCreditCard(
+                id = it.id,
+                name = it.name,
+                creditLimit = it.creditLimit,
+                billingCycleDay = it.billingCycleDay,
+                createdAt = it.createdAt
+            )
+        }
+
+        val creditCardTransactions = database.creditCardTransactionDao().getAllTransactions().map {
+            ExportCreditCardTransaction(
+                id = it.id,
+                cardId = it.cardId,
+                amount = it.amount,
+                description = it.description,
+                date = it.date,
+                type = it.type,
+                createdAt = it.createdAt
+            )
+        }
+
+        val investments = database.investmentDao().getAllInvestments().first().map {
+            ExportInvestment(
+                id = it.id,
+                name = it.name,
+                type = it.type,
+                units = it.units,
+                purchasePrice = it.purchasePrice,
+                currentPrice = it.currentPrice,
+                purchaseDate = it.purchaseDate,
+                notes = it.notes,
+                createdAt = it.createdAt
+            )
+        }
+
         val appData = AppData(
             tasks = tasks,
             habits = habits,
@@ -363,7 +437,10 @@ object DataExporter {
             budgetLimits = budgetLimits,
             subtasks = subtasks,
             pomodoroSessions = pomodoroSessions,
-            pomodoroFocusSessions = pomodoroFocusSessions
+            pomodoroFocusSessions = pomodoroFocusSessions,
+            creditCards = creditCards,
+            creditCardTransactions = creditCardTransactions,
+            investments = investments
         )
         json.encodeToString(appData)
     }
@@ -390,6 +467,9 @@ object DataExporter {
             database.subtaskDao().deleteAllSubtasks()
             database.pomodoroSessionDao().deleteAllSessions()
             database.pomodoroFocusSessionDao().deleteAllSessions()
+            database.creditCardDao().deleteAllCards()
+            database.creditCardTransactionDao().deleteAllTransactions()
+            database.investmentDao().deleteAllInvestments()
 
             appData.tasks.forEach { exportTask ->
                 database.taskDao().insertTask(
@@ -504,6 +584,7 @@ object DataExporter {
                 database.sourceDao().insertSource(
                     com.clarity.app.data.local.database.SourceEntity(
                         name = exportSource.name,
+                        balance = exportSource.balance,
                         isDefault = exportSource.isDefault,
                         createdAt = exportSource.createdAt
                     )
@@ -565,6 +646,45 @@ object DataExporter {
                         distractions = exportSession.distractions,
                         createdAt = exportSession.createdAt,
                         updatedAt = exportSession.updatedAt
+                    )
+                )
+            }
+
+            appData.creditCards.forEach { exportCard ->
+                database.creditCardDao().insertCard(
+                    com.clarity.app.data.local.database.CreditCardEntity(
+                        name = exportCard.name,
+                        creditLimit = exportCard.creditLimit,
+                        billingCycleDay = exportCard.billingCycleDay,
+                        createdAt = exportCard.createdAt
+                    )
+                )
+            }
+
+            appData.creditCardTransactions.forEach { exportTx ->
+                database.creditCardTransactionDao().insertTransaction(
+                    com.clarity.app.data.local.database.CreditCardTransactionEntity(
+                        cardId = exportTx.cardId,
+                        amount = exportTx.amount,
+                        description = exportTx.description,
+                        date = exportTx.date,
+                        type = exportTx.type,
+                        createdAt = exportTx.createdAt
+                    )
+                )
+            }
+
+            appData.investments.forEach { exportInv ->
+                database.investmentDao().insertInvestment(
+                    com.clarity.app.data.local.database.InvestmentEntity(
+                        name = exportInv.name,
+                        type = exportInv.type,
+                        units = exportInv.units,
+                        purchasePrice = exportInv.purchasePrice,
+                        currentPrice = exportInv.currentPrice,
+                        purchaseDate = exportInv.purchaseDate,
+                        notes = exportInv.notes,
+                        createdAt = exportInv.createdAt
                     )
                 )
             }

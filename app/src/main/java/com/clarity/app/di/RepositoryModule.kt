@@ -1,18 +1,22 @@
 package com.clarity.app.di
 
 import com.clarity.app.data.repository.BudgetRepositoryImpl
+import com.clarity.app.data.repository.CreditCardRepositoryImpl
 import com.clarity.app.data.repository.EventRepositoryImpl
 import com.clarity.app.data.repository.GoalRepositoryImpl
 import com.clarity.app.data.repository.HabitRepositoryImpl
+import com.clarity.app.data.repository.InvestmentRepositoryImpl
 import com.clarity.app.data.repository.NoteRepositoryImpl
 import com.clarity.app.data.repository.PomodoroRepositoryImpl
 import com.clarity.app.data.repository.SubtaskRepositoryImpl
 import com.clarity.app.data.repository.TaskRepositoryImpl
 import com.clarity.app.data.repository.TransactionRepositoryImpl
 import com.clarity.app.domain.repository.BudgetRepository
+import com.clarity.app.domain.repository.CreditCardRepository
 import com.clarity.app.domain.repository.EventRepository
 import com.clarity.app.domain.repository.GoalRepository
 import com.clarity.app.domain.repository.HabitRepository
+import com.clarity.app.domain.repository.InvestmentRepository
 import com.clarity.app.domain.repository.NoteRepository
 import com.clarity.app.domain.repository.PomodoroRepository
 import com.clarity.app.domain.repository.SubtaskRepository
@@ -36,4 +40,6 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindSubtaskRepository(impl: SubtaskRepositoryImpl): SubtaskRepository
     @Binds @Singleton abstract fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
     @Binds @Singleton abstract fun bindPomodoroRepository(impl: PomodoroRepositoryImpl): PomodoroRepository
+    @Binds @Singleton abstract fun bindCreditCardRepository(impl: CreditCardRepositoryImpl): CreditCardRepository
+    @Binds @Singleton abstract fun bindInvestmentRepository(impl: InvestmentRepositoryImpl): InvestmentRepository
 }

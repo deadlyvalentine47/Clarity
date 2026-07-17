@@ -34,8 +34,8 @@ class BudgetRepositoryImpl @Inject constructor(
     override fun getBudgetLimitsForMonth(month: Int, year: Int): Flow<List<BudgetLimitEntity>> =
         budgetLimitDao.getBudgetLimitsForMonth(month, year)
 
-    override suspend fun insertTransaction(transaction: TransactionEntity) {
-        transactionRepository.insertTransaction(transaction)
+    override suspend fun insertTransaction(transaction: TransactionEntity): Long {
+        return transactionRepository.insertTransaction(transaction)
     }
 
     override suspend fun deleteTransaction(transaction: TransactionEntity) {
@@ -46,7 +46,11 @@ class BudgetRepositoryImpl @Inject constructor(
 
     override suspend fun deleteCategory(category: CategoryEntity) = categoryDao.deleteCategory(category)
 
+    override suspend fun getSourceByName(name: String): SourceEntity? = sourceDao.getSourceByName(name)
+
     override suspend fun insertSource(source: SourceEntity): Long = sourceDao.insertSource(source)
+
+    override suspend fun updateSource(source: SourceEntity) = sourceDao.updateSource(source)
 
     override suspend fun deleteSource(source: SourceEntity) = sourceDao.deleteSource(source)
 

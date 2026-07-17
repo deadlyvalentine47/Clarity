@@ -4,9 +4,12 @@ import android.content.Context
 import com.clarity.app.data.local.database.BudgetLimitDao
 import com.clarity.app.data.local.database.CategoryDao
 import com.clarity.app.data.local.database.ClarityDatabase
+import com.clarity.app.data.local.database.CreditCardDao
+import com.clarity.app.data.local.database.CreditCardTransactionDao
 import com.clarity.app.data.local.database.EventDao
 import com.clarity.app.data.local.database.GoalDao
 import com.clarity.app.data.local.database.HabitDao
+import com.clarity.app.data.local.database.InvestmentDao
 import com.clarity.app.data.local.database.NoteCategoryDao
 import com.clarity.app.data.local.database.NoteDao
 import com.clarity.app.data.local.database.PomodoroFocusSessionDao
@@ -70,4 +73,13 @@ object DatabaseModule {
 
     @Provides
     fun provideNoteCategoryDao(database: ClarityDatabase): NoteCategoryDao = database.noteCategoryDao()
+
+    @Provides
+    fun provideCreditCardDao(database: ClarityDatabase): CreditCardDao = database.creditCardDao()
+
+    @Provides
+    fun provideCreditCardTransactionDao(database: ClarityDatabase): CreditCardTransactionDao = database.creditCardTransactionDao()
+
+    @Provides
+    fun provideInvestmentDao(database: ClarityDatabase): InvestmentDao = database.investmentDao()
 }
