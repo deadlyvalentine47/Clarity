@@ -103,6 +103,13 @@ internal fun isHabitActiveOn(habit: HabitEntity, date: LocalDate): Boolean {
     return true
 }
 
+internal fun isHabitAliveInMonth(habit: HabitEntity, ym: YearMonth): Boolean {
+    if (habitCreatedDate(habit).isAfter(ym.atEndOfMonth())) return false
+    val end = habitEndDate(habit)
+    if (end != null && end.isBefore(ym.atDay(1))) return false
+    return true
+}
+
 internal fun isScheduledOn(habit: HabitEntity, date: LocalDate): Boolean {
     if (!isHabitActiveOn(habit, date)) return false
     return isScheduledDayFor(habit.frequency, habit.alternateDays, habit.selectedDays, habitCreatedDate(habit), date)
@@ -190,14 +197,15 @@ fun HabitMetricsScreen(
     val years = (YearMonth.now().year - 10)..(YearMonth.now().year + 10)
     val ym = YearMonth.of(selectedYear, selectedMonth)
 
-    val stats = remember(habits, selectedYear, selectedMonth) { habits.map { computeMonthStats(it, ym) } }
-    val totalScheduled = stats.sumOf { it.scheduled }
-    val totalCompleted = stats.sumOf { it.completed }
-    val totalMissed = stats.sumOf { it.missed }
+    val monthHabits = remember(habits, selectedYear, selectedMonth) { habits.filter { isHabitAliveInMonth(it, ym) } }
+    val monthStats = remember(monthHabits, selectedYear, selectedMonth) { monthHabits.map { computeMonthStats(it, ym) } }
+    val totalScheduled = monthStats.sumOf { it.scheduled }
+    val totalCompleted = monthStats.sumOf { it.completed }
+    val totalMissed = monthStats.sumOf { it.missed }
     val overallRate = if (totalScheduled == 0) 0f else totalCompleted.toFloat() / totalScheduled
-    val activeCount = habits.count { !it.isArchived && !it.isDeleted }
-    val archivedCount = habits.count { it.isArchived }
-    val deletedCount = habits.count { it.isDeleted }
+    val activeCount = monthHabits.count { !it.isArchived && !it.isDeleted }
+    val archivedCount = monthHabits.count { it.isArchived }
+    val deletedCount = monthHabits.count { it.isDeleted }
 
     Scaffold(
         topBar = {
@@ -266,8 +274,8 @@ fun HabitMetricsScreen(
 
             when (selectedTab) {
                 0 -> MonthTab(
-                    habits = habits,
-                    stats = stats,
+                    habits = monthHabits,
+                    stats = monthStats,
                     activeCount = activeCount,
                     archivedCount = archivedCount,
                     deletedCount = deletedCount,
@@ -278,7 +286,7 @@ fun HabitMetricsScreen(
                     ym = ym,
                     onDayClick = onDayClick
                 )
-                else -> HabitsTab(habits = habits, stats = stats, ym = ym)
+                else -> HabitsTab(habits = monthHabits, stats = monthStats, ym = ym)
             }
         }
     }
@@ -371,6 +379,24 @@ private fun MonthTab(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        when {
+                            habit.isArchived -> {
+                                val archived = habitArchivedDate(habit)
+                                Text(
+                                    text = if (archived != null) "Archived ${archived.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}" else "Archived",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            habit.isDeleted -> {
+                                val deleted = habitDeletedDate(habit)
+                                Text(
+                                    text = if (deleted != null) "Deleted ${deleted.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}" else "Deleted",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(

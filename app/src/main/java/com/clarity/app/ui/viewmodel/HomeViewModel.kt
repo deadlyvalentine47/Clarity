@@ -29,6 +29,13 @@ class HomeViewModel @Inject constructor(
             initialValue = listOf("Tasks", "Events", "Habits")
         )
 
+    val sectionEnabled: StateFlow<Set<String>> = userPreferences.sectionEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = setOf("Tasks", "Events", "Habits")
+        )
+
     val isFirstLaunch: StateFlow<Boolean> = userPreferences.isFirstLaunch
         .stateIn(
             scope = viewModelScope,

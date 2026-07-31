@@ -29,7 +29,16 @@ data class AppData(
     val pomodoroFocusSessions: List<ExportPomodoroFocusSession> = emptyList(),
     val creditCards: List<ExportCreditCard> = emptyList(),
     val creditCardTransactions: List<ExportCreditCardTransaction> = emptyList(),
-    val investments: List<ExportInvestment> = emptyList()
+    val investments: List<ExportInvestment> = emptyList(),
+    val settings: ExportSettings = ExportSettings()
+)
+
+@Serializable
+data class ExportSettings(
+    val username: String = "",
+    val themeName: String = "Ocean",
+    val sectionOrder: List<String> = listOf("Tasks", "Events", "Habits"),
+    val sectionEnabled: Set<String> = setOf("Tasks", "Events", "Habits")
 )
 
 @Serializable
@@ -226,7 +235,11 @@ data class ExportInvestment(
 object DataExporter {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
-    suspend fun exportToJson(context: Context, database: ClarityDatabase): String = withContext(Dispatchers.IO) {
+    suspend fun exportToJson(
+        context: Context,
+        database: ClarityDatabase,
+        userPreferences: com.clarity.app.data.local.datastore.UserPreferences
+    ): String = withContext(Dispatchers.IO) {
         val tasks = database.taskDao().getAllTasks().first().map {
             ExportTask(
                 id = it.id,
@@ -450,12 +463,23 @@ object DataExporter {
             pomodoroFocusSessions = pomodoroFocusSessions,
             creditCards = creditCards,
             creditCardTransactions = creditCardTransactions,
-            investments = investments
+            investments = investments,
+            settings = ExportSettings(
+                username = userPreferences.username.first(),
+                themeName = userPreferences.themeName.first(),
+                sectionOrder = userPreferences.sectionOrder.first(),
+                sectionEnabled = userPreferences.sectionEnabled.first()
+            )
         )
         json.encodeToString(appData)
     }
 
-    suspend fun importFromJson(context: Context, database: ClarityDatabase, uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun importFromJson(
+        context: Context,
+        database: ClarityDatabase,
+        uri: Uri,
+        userPreferences: com.clarity.app.data.local.datastore.UserPreferences
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext Result.failure(Exception("Cannot open file"))
             val reader = BufferedReader(InputStreamReader(inputStream))
@@ -703,6 +727,11 @@ object DataExporter {
                     )
                 )
             }
+
+            userPreferences.setUsername(appData.settings.username)
+            userPreferences.setTheme(appData.settings.themeName)
+            userPreferences.setSectionOrder(appData.settings.sectionOrder)
+            userPreferences.setSectionEnabled(appData.settings.sectionEnabled)
 
             Result.success(Unit)
         } catch (e: Exception) {

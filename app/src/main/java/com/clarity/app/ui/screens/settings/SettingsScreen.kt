@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -257,6 +258,7 @@ fun SettingsScreen(
 
         if (homePageExpanded) {
             val sectionOrder by viewModel.sectionOrder.collectAsStateWithLifecycle()
+            val sectionEnabled by viewModel.sectionEnabled.collectAsStateWithLifecycle()
             Spacer(modifier = Modifier.height(8.dp))
             sectionOrder.forEachIndexed { index, section ->
                 Row(
@@ -265,7 +267,11 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(section, style = MaterialTheme.typography.bodyLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = section in sectionEnabled,
+                            onCheckedChange = { viewModel.toggleSection(section) }
+                        )
                         IconButton(
                             onClick = { viewModel.moveSection(section, -1) },
                             enabled = index > 0

@@ -46,6 +46,13 @@ class SettingsViewModel @Inject constructor(
             initialValue = listOf("Tasks", "Events", "Habits")
         )
 
+    val sectionEnabled: StateFlow<Set<String>> = userPreferences.sectionEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = setOf("Tasks", "Events", "Habits")
+        )
+
     val availableThemes: List<String> = allThemes.keys.toList()
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
@@ -66,6 +73,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun toggleSection(section: String) {
+        val current = sectionEnabled.value.toMutableSet()
+        if (!current.remove(section)) current.add(section)
+        viewModelScope.launch {
+            userPreferences.setSectionEnabled(current)
+        }
+    }
+
     fun updateUsername(name: String) {
         viewModelScope.launch {
             userPreferences.setUsername(name)
@@ -82,7 +97,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _exportState.value = ExportState.Loading
             try {
-                val json = DataExporter.exportToJson(context, database)
+                val json = DataExporter.exportToJson(context, database, userPreferences)
                 _exportState.value = ExportState.Success(json)
             } catch (e: Exception) {
                 _exportState.value = ExportState.Error(e.message ?: "Export failed")
@@ -94,7 +109,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _importState.value = ImportState.Loading
             try {
-                DataExporter.importFromJson(context, database, uri)
+                DataExporter.importFromJson(context, database, uri, userPreferences)
                     .onSuccess {
                         _importState.value = ImportState.Success
                     }

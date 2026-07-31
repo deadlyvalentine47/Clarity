@@ -64,6 +64,11 @@ fun HomeScreen(
     val habitCount by dashboardViewModel.habitCount.collectAsStateWithLifecycle()
 
     val sectionOrder by homeViewModel.sectionOrder.collectAsStateWithLifecycle()
+    val sectionEnabled by homeViewModel.sectionEnabled.collectAsStateWithLifecycle()
+
+    val visibleSections = remember(sectionOrder, sectionEnabled) {
+        sectionOrder.filter { it in sectionEnabled }
+    }
 
     var tasksExpanded by remember { mutableStateOf(true) }
     var todayTasksExpanded by remember { mutableStateOf(true) }
@@ -136,7 +141,7 @@ fun HomeScreen(
             }
         }
 
-        sectionOrder.forEach { section ->
+        visibleSections.forEach { section ->
             when (section) {
                 "Tasks" -> {
                     item {
