@@ -56,6 +56,8 @@ import com.clarity.app.ui.screens.budget.SourceDetailScreen
 import com.clarity.app.ui.screens.budget.SpendingScreen
 import com.clarity.app.ui.screens.calendar.CalendarScreen
 import com.clarity.app.ui.screens.habits.HabitDetailScreen
+import com.clarity.app.ui.screens.habits.HabitMetricsDayScreen
+import com.clarity.app.ui.screens.habits.HabitMetricsScreen
 import com.clarity.app.ui.screens.habits.HabitsScreen
 import com.clarity.app.ui.screens.home.HomeScreen
 import com.clarity.app.ui.screens.home.OnboardingScreen
@@ -82,6 +84,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object PomodoroSession : Screen("pomodoro_session/{focusSessionId}", "Pomodoro Session", Icons.Outlined.Timer)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     data object HabitDetail : Screen("habit_detail/{habitId}", "Habit Detail", Icons.Default.Notifications)
+    data object HabitMetrics : Screen("habit_metrics", "Habit Metrics", Icons.Default.Notifications)
+    data object HabitMetricsDay : Screen("habit_metrics/{date}", "Habit Metrics Day", Icons.Default.Notifications)
     data object BudgetBank : Screen("budget_bank", "Bank", Icons.Default.Home)
     data object BudgetIncome : Screen("budget_income", "Income", Icons.Default.Home)
     data object BudgetSpending : Screen("budget_spending", "Spending", Icons.Default.Home)
@@ -173,13 +177,26 @@ fun ClarityNavHost() {
                     composable(Screen.Tasks.route) { TasksScreen() }
                     composable(Screen.Calendar.route) { CalendarScreen() }
                     composable(Screen.Habits.route) {
-                        HabitsScreen(onHabitClick = { habitId ->
-                            navController.navigate("habit_detail/$habitId")
-                        })
+                        HabitsScreen(
+                            onHabitClick = { habitId ->
+                                navController.navigate("habit_detail/$habitId")
+                            },
+                            onMetricsClick = { navController.navigate(Screen.HabitMetrics.route) }
+                        )
                     }
                     composable(Screen.HabitDetail.route) { backStackEntry ->
                         val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
                         HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                    }
+                    composable(Screen.HabitMetrics.route) {
+                        HabitMetricsScreen(
+                            onBack = { navController.popBackStack() },
+                            onDayClick = { date -> navController.navigate("habit_metrics/$date") }
+                        )
+                    }
+                    composable(Screen.HabitMetricsDay.route) { backStackEntry ->
+                        val date = backStackEntry.arguments?.getString("date") ?: ""
+                        HabitMetricsDayScreen(date = date, onBack = { navController.popBackStack() })
                     }
                     composable(Screen.Budget.route) {
                         BudgetMainScreen(
@@ -259,7 +276,8 @@ fun ClarityNavHost() {
             ) {
                 val isDetailScreen = currentDestination?.route?.startsWith("pomodoro_session") == true ||
                         currentDestination?.route?.startsWith("note_detail") == true ||
-                        currentDestination?.route?.startsWith("habit_detail") == true
+                        currentDestination?.route?.startsWith("habit_detail") == true ||
+                        currentDestination?.route?.startsWith("habit_metrics") == true
 
                 Scaffold(
                     topBar = {
@@ -310,13 +328,26 @@ fun ClarityNavHost() {
                         composable(Screen.Tasks.route) { TasksScreen() }
                         composable(Screen.Calendar.route) { CalendarScreen() }
                         composable(Screen.Habits.route) {
-                            HabitsScreen(onHabitClick = { habitId ->
-                                navController.navigate("habit_detail/$habitId")
-                            })
+                            HabitsScreen(
+                                onHabitClick = { habitId ->
+                                    navController.navigate("habit_detail/$habitId")
+                                },
+                                onMetricsClick = { navController.navigate(Screen.HabitMetrics.route) }
+                            )
                         }
                         composable(Screen.HabitDetail.route) { backStackEntry ->
                             val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
                             HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                        }
+                        composable(Screen.HabitMetrics.route) {
+                            HabitMetricsScreen(
+                                onBack = { navController.popBackStack() },
+                                onDayClick = { date -> navController.navigate("habit_metrics/$date") }
+                            )
+                        }
+                        composable(Screen.HabitMetricsDay.route) { backStackEntry ->
+                            val date = backStackEntry.arguments?.getString("date") ?: ""
+                            HabitMetricsDayScreen(date = date, onBack = { navController.popBackStack() })
                         }
                         composable(Screen.Budget.route) {
                             BudgetMainScreen(

@@ -13,12 +13,16 @@ class HabitRepositoryImpl @Inject constructor(
 ) : HabitRepository {
     override fun getActiveHabits(): Flow<List<HabitEntity>> = habitDao.getActiveHabits()
     override fun getArchivedHabits(): Flow<List<HabitEntity>> = habitDao.getArchivedHabits()
+    override fun getMetricsHabits(): Flow<List<HabitEntity>> = habitDao.getMetricsHabits()
     override fun getHabitById(habitId: Long): Flow<HabitEntity?> = habitDao.getHabitById(habitId)
     override suspend fun insertHabit(habit: HabitEntity): Long = habitDao.insertHabit(habit)
     override suspend fun updateHabit(habit: HabitEntity) = habitDao.updateHabit(habit)
-    override suspend fun deleteHabit(habit: HabitEntity) = habitDao.deleteHabit(habit)
+    override suspend fun softDeleteHabit(habitId: Long) =
+        habitDao.softDeleteHabit(habitId, System.currentTimeMillis())
     override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) =
         habitDao.toggleHabitForDate(habitId, date, completed)
+    override suspend fun setHabitMissed(habitId: Long, date: String) =
+        habitDao.setHabitMissed(habitId, date)
     override suspend fun archiveHabit(habitId: Long, archivedAt: Long) =
         habitDao.archiveHabit(habitId, archivedAt)
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -22,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -67,6 +70,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun HabitsScreen(
     onHabitClick: (Long) -> Unit = {},
+    onMetricsClick: () -> Unit = {},
     viewModel: HabitViewModel = hiltViewModel()
 ) {
     val activeHabits by viewModel.activeHabits.collectAsStateWithLifecycle()
@@ -137,15 +141,26 @@ fun HabitsScreen(
 
             item {
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    filterOptions.forEach { option ->
-                        FilterChip(
-                            selected = listFilter == option,
-                            onClick = { listFilter = option },
-                            label = { Text(option) }
-                        )
+                    Row(
+                        modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        filterOptions.forEach { option ->
+                            FilterChip(
+                                selected = listFilter == option,
+                                onClick = { listFilter = option },
+                                label = { Text(option) }
+                            )
+                        }
+                    }
+                    Button(onClick = onMetricsClick) {
+                        Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Metrics")
                     }
                 }
             }
@@ -207,9 +222,9 @@ fun HabitsScreen(
     deletingHabit?.let { habit ->
         DeleteConfirmationDialog(
             title = "Delete Habit",
-            message = "Are you sure you want to delete \"${habit.name}\"?",
+            message = "Are you sure you want to delete \"${habit.name}\"? Its history will be removed from the list but preserved in the database.",
             onConfirm = {
-                viewModel.deleteHabit(habit)
+                viewModel.deleteHabit(habit.id)
                 deletingHabit = null
             },
             onDismiss = { deletingHabit = null }
@@ -251,7 +266,39 @@ fun HabitItem(
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
     val yesterday = LocalDate.now().minusDays(1).toString()
-    val wasMissedYesterday = habit.completionHistory[yesterday] == false
+    val deadlinePassed = habit.deadlineHour != null && habit.deadlineMinute != null &&
+        !isCompletedToday &&
+        java.time.LocalTime.now().isAfter(java.time.LocalTime.of(habit.deadlineHour, habit.deadlineMinute))
+    val hasDeadline = habit.deadlineHour != null && habit.deadlineMinute != null
+    val created = Instant.ofEpochMilli(habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+    val createdStr = created.toString()
+
+    val mostRecentMissed = habit.completionHistory
+        .filter { (date, v) -> !v && date >= createdStr }
+        .maxByOrNull { it.key }?.key
+
+    val missedLabel = when {
+        hasDeadline -> when (mostRecentMissed) {
+            today -> "✗ Today"
+            yesterday -> "✗ Yesterday"
+            null -> null
+            else -> {
+                val date = LocalDate.parse(mostRecentMissed)
+                "✗ on ${date.format(DateTimeFormatter.ofPattern("d MMM"))}"
+            }
+        }
+        habit.frequency == "Daily" -> {
+            if (habit.completionHistory[yesterday] == false && yesterday >= createdStr) "✗ Yesterday" else null
+        }
+        else -> when (mostRecentMissed) {
+            yesterday -> "✗ Yesterday"
+            null -> null
+            else -> {
+                val date = LocalDate.parse(mostRecentMissed)
+                "✗ on ${date.format(DateTimeFormatter.ofPattern("d MMM"))}"
+            }
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -290,9 +337,9 @@ fun HabitItem(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (wasMissedYesterday) {
+                    if (missedLabel != null) {
                         Text(
-                            text = "✗ Yesterday",
+                            text = missedLabel,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold
@@ -323,19 +370,35 @@ fun HabitItem(
                     Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
                 }
                 if (onUnarchive == null) {
-                    IconButton(
-                        onClick = onToggle,
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(
-                            if (isCompletedToday) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
-                            tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (deadlinePassed) {
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = "Deadline passed",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onToggle,
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(
+                                if (isCompletedToday) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
+                                tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

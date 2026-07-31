@@ -12,13 +12,16 @@ interface HabitDao {
     @Query("SELECT * FROM habits ORDER BY createdAt DESC")
     fun getAllHabits(): Flow<List<HabitEntity>>
 
-    @Query("SELECT * FROM habits WHERE isArchived = 0 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM habits WHERE isArchived = 0 AND isDeleted = 0 ORDER BY createdAt DESC")
     fun getActiveHabits(): Flow<List<HabitEntity>>
 
-    @Query("SELECT * FROM habits WHERE isArchived = 1 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM habits WHERE isArchived = 1 AND isDeleted = 0 ORDER BY createdAt DESC")
     fun getArchivedHabits(): Flow<List<HabitEntity>>
 
-    @Query("SELECT * FROM habits WHERE id = :habitId")
+    @Query("SELECT * FROM habits ORDER BY createdAt DESC")
+    fun getMetricsHabits(): Flow<List<HabitEntity>>
+
+    @Query("SELECT * FROM habits WHERE id = :habitId AND isDeleted = 0")
     fun getHabitById(habitId: Long): Flow<HabitEntity?>
 
     @Insert
@@ -42,7 +45,10 @@ interface HabitDao {
     @Query("UPDATE habits SET isArchived = 0 WHERE id = :habitId")
     suspend fun unarchiveHabit(habitId: Long)
 
-    @Query("SELECT * FROM habits WHERE id = :habitId")
+    @Query("UPDATE habits SET isDeleted = 1, deletedAt = :deletedAt WHERE id = :habitId")
+    suspend fun softDeleteHabit(habitId: Long, deletedAt: Long = System.currentTimeMillis())
+
+    @Query("SELECT * FROM habits WHERE id = :habitId AND isDeleted = 0")
     suspend fun getHabitByIdOnce(habitId: Long): HabitEntity?
 
     @Query("UPDATE habits SET completionHistory = :history, currentStreak = :streak WHERE id = :habitId")
@@ -57,6 +63,14 @@ interface HabitDao {
         } else {
             newHistory[date] = completed
         }
+        val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
+        updateHabitCompletion(habitId, newHistory, streak)
+    }
+
+    suspend fun setHabitMissed(habitId: Long, date: String) {
+        val habit = getHabitByIdOnce(habitId) ?: return
+        val newHistory = habit.completionHistory.toMutableMap()
+        newHistory[date] = false
         val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
         updateHabitCompletion(habitId, newHistory, streak)
     }

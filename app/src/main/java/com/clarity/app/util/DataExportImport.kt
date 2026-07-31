@@ -63,6 +63,11 @@ data class ExportHabit(
     val completionHistory: Map<String, Boolean>,
     val reminderTime: Long?,
     val isArchived: Boolean,
+    val archivedAt: Long? = null,
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null,
+    val deadlineHour: Int? = null,
+    val deadlineMinute: Int? = null,
     val createdAt: Long
 )
 
@@ -254,6 +259,11 @@ object DataExporter {
                 completionHistory = it.completionHistory,
                 reminderTime = it.reminderTime,
                 isArchived = it.isArchived,
+                archivedAt = it.archivedAt,
+                isDeleted = it.isDeleted,
+                deletedAt = it.deletedAt,
+                deadlineHour = it.deadlineHour,
+                deadlineMinute = it.deadlineMinute,
                 createdAt = it.createdAt
             )
         }
@@ -504,6 +514,11 @@ object DataExporter {
                         completionHistory = exportHabit.completionHistory,
                         reminderTime = exportHabit.reminderTime,
                         isArchived = exportHabit.isArchived,
+                        archivedAt = exportHabit.archivedAt,
+                        isDeleted = exportHabit.isDeleted,
+                        deletedAt = exportHabit.deletedAt,
+                        deadlineHour = exportHabit.deadlineHour,
+                        deadlineMinute = exportHabit.deadlineMinute,
                         createdAt = exportHabit.createdAt
                     )
                 )
