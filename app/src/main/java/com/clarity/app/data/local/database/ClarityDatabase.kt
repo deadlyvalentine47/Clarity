@@ -27,7 +27,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CreditCardTransactionEntity::class,
         InvestmentEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -114,13 +114,17 @@ abstract class ClarityDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE habits ADD COLUMN deletedAt INTEGER DEFAULT NULL")
         }
 
+        val MIGRATION_13_14 = Migration(13, 14) { db ->
+            db.execSQL("ALTER TABLE notes ADD COLUMN parentNoteId INTEGER DEFAULT NULL")
+        }
+
         fun create(context: Context): ClarityDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
                 ClarityDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback())
                 .build()

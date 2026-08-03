@@ -87,6 +87,7 @@ data class ExportNote(
     val content: String,
     val isPinned: Boolean,
     val category: String,
+    val parentNoteId: Long? = null,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -288,6 +289,7 @@ object DataExporter {
                 content = it.content,
                 isPinned = it.isPinned,
                 category = it.category,
+                parentNoteId = it.parentNoteId,
                 createdAt = it.createdAt,
                 updatedAt = it.updatedAt
             )
@@ -548,8 +550,9 @@ object DataExporter {
                 )
             }
 
+            val noteIdMap = mutableMapOf<Long, Long>()
             appData.notes.forEach { exportNote ->
-                database.noteDao().insertNote(
+                val newId = database.noteDao().insertNote(
                     com.clarity.app.data.local.database.NoteEntity(
                         title = exportNote.title,
                         content = exportNote.content,
@@ -559,6 +562,13 @@ object DataExporter {
                         updatedAt = exportNote.updatedAt
                     )
                 )
+                noteIdMap[exportNote.id] = newId
+            }
+            appData.notes.forEach { exportNote ->
+                val parentId = exportNote.parentNoteId?.let { noteIdMap[it] }
+                if (parentId != null) {
+                    database.noteDao().setParentNote(noteIdMap.getValue(exportNote.id), parentId)
+                }
             }
 
             appData.transactions.forEach { exportTransaction ->

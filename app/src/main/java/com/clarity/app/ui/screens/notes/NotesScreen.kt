@@ -16,16 +16,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.automirrored.outlined.Note
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -38,6 +42,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,6 +107,31 @@ fun NotesScreen(
         }
         matchesSearch && matchesFilter
     }.sortedByDescending { it.isPinned }
+
+    val isTreeMode = searchQuery.isBlank() && !hasActiveFilters
+    var expandedIds by remember { mutableStateOf(setOf<Long>()) }
+
+    val childCountById: Map<Long, Int> = remember(notes) {
+        notes.filter { it.parentNoteId != null }.groupingBy { it.parentNoteId!! }.eachCount()
+    }
+
+    val treeNodes: List<Pair<NoteEntity, Int>> = if (isTreeMode) {
+        val childrenByParent = notes.filter { it.parentNoteId != null }.groupBy { it.parentNoteId!! }
+        val sorted: (List<NoteEntity>) -> List<NoteEntity> = { list ->
+            list.sortedWith(compareByDescending<NoteEntity> { it.isPinned }.thenByDescending { it.updatedAt })
+        }
+        val result = mutableListOf<Pair<NoteEntity, Int>>()
+        fun visit(note: NoteEntity, depth: Int) {
+            result.add(note to depth)
+            if (note.id in expandedIds) {
+                sorted(childrenByParent[note.id].orEmpty()).forEach { visit(it, depth + 1) }
+            }
+        }
+        sorted(notes.filter { it.parentNoteId == null }).forEach { visit(it, 0) }
+        result
+    } else {
+        emptyList()
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -185,13 +215,35 @@ fun NotesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(filteredNotes, key = { it.id }) { note ->
-                        NoteItem(
-                            note = note,
-                            onPin = { viewModel.togglePin(note) },
-                            onClick = { onNoteClick(note.id) },
-                            onDelete = { viewModel.deleteNote(note) }
-                        )
+                    if (isTreeMode) {
+                        items(treeNodes, key = { it.first.id }) { (note, depth) ->
+                            NoteItem(
+                                note = note,
+                                depth = depth,
+                                childCount = childCountById[note.id] ?: 0,
+                                isExpanded = note.id in expandedIds,
+                                onToggleExpand = {
+                                    expandedIds = if (note.id in expandedIds) {
+                                        expandedIds - note.id
+                                    } else {
+                                        expandedIds + note.id
+                                    }
+                                },
+                                onPin = { viewModel.togglePin(note) },
+                                onClick = { onNoteClick(note.id) },
+                                onDelete = { viewModel.deleteNoteWithDescendants(note.id) }
+                            )
+                        }
+                    } else {
+                        items(filteredNotes, key = { it.id }) { note ->
+                            NoteItem(
+                                note = note,
+                                childCount = childCountById[note.id] ?: 0,
+                                onPin = { viewModel.togglePin(note) },
+                                onClick = { onNoteClick(note.id) },
+                                onDelete = { viewModel.deleteNoteWithDescendants(note.id) }
+                            )
+                        }
                     }
                 }
             }
@@ -348,11 +400,16 @@ fun NoteFilterBottomSheet(
 @Composable
 fun NoteDetailScreen(
     note: NoteEntity,
+    children: List<NoteEntity> = emptyList(),
     availableCategories: List<String> = emptyList(),
     onBack: () -> Unit,
     onEdit: (NoteEntity) -> Unit,
     onPin: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onGoToNotes: () -> Unit = {},
+    onOpenChild: (Long) -> Unit = {},
+    onAddChild: (String) -> Unit = {},
+    onDeleteChild: (Long) -> Unit = {}
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var editTitle by remember { mutableStateOf(note.title) }
@@ -362,16 +419,43 @@ fun NoteDetailScreen(
     ) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddTagMenu by remember { mutableStateOf(false) }
+    var showAddPageDialog by remember { mutableStateOf(false) }
+    var deleteChild by remember { mutableStateOf<NoteEntity?>(null) }
+
+    deleteChild?.let { childToDelete ->
+        DeleteConfirmationDialog(
+            title = "Delete page",
+            message = "Are you sure you want to delete \"${childToDelete.title}\" and all its nested pages?",
+            onConfirm = {
+                onDeleteChild(childToDelete.id)
+                deleteChild = null
+            },
+            onDismiss = { deleteChild = null }
+        )
+    }
 
     if (showDeleteDialog) {
         DeleteConfirmationDialog(
             title = "Delete Note",
-            message = "Are you sure you want to delete \"${note.title}\"?",
+            message = if (children.isNotEmpty())
+                "Are you sure you want to delete \"${note.title}\" and its ${children.size} nested page(s)?"
+            else
+                "Are you sure you want to delete \"${note.title}\"?",
             onConfirm = {
                 onDelete()
                 showDeleteDialog = false
             },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+
+    if (showAddPageDialog) {
+        AddChildPageDialog(
+            onDismiss = { showAddPageDialog = false },
+            onConfirm = { title ->
+                onAddChild(title)
+                showAddPageDialog = false
+            }
         )
     }
 
@@ -391,6 +475,12 @@ fun NoteDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onGoToNotes) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.Note,
+                            contentDescription = "All notes"
+                        )
+                    }
                     IconButton(onClick = onPin) {
                         Icon(
                             if (note.isPinned) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
@@ -497,27 +587,104 @@ fun NoteDetailScreen(
                     label = { Text("Content (Markdown supported)") }
                 )
             } else {
-                Text(
-                    text = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (currentTags.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        currentTags.forEach { tag ->
-                            FilterChip(
-                                selected = false,
-                                onClick = {},
-                                label = { Text(tag) }
-                            )
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(note.updatedAt)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (currentTags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            currentTags.forEach { tag ->
+                                FilterChip(
+                                    selected = false,
+                                    onClick = {},
+                                    label = { Text(tag) }
+                                )
+                            }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Pages inside (${children.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        TextButton(onClick = { showAddPageDialog = true }) {
+                            Text("+ Add page")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (children.isEmpty()) {
+                        Text(
+                            text = "No pages yet. Add a page to organise nested content.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        children.sortedWith(
+                            compareByDescending<NoteEntity> { it.isPinned }
+                                .thenByDescending { it.updatedAt }
+                        ).forEach { child ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                onClick = { onOpenChild(child.id) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(child.title, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                        if (child.content.isNotBlank()) {
+                                            Text(
+                                                text = child.content,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(child.updatedAt)),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    IconButton(onClick = { deleteChild = child }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Delete page",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        MarkdownPreview(content = note.content)
+                    }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                MarkdownPreview(content = note.content)
             }
         }
     }
@@ -608,13 +775,25 @@ fun ManageCategoriesDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NoteItem(note: NoteEntity, onPin: () -> Unit, onClick: () -> Unit, onDelete: () -> Unit) {
+fun NoteItem(
+    note: NoteEntity,
+    onPin: () -> Unit,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    depth: Int = 0,
+    childCount: Int = 0,
+    isExpanded: Boolean = true,
+    onToggleExpand: () -> Unit = {}
+) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
         DeleteConfirmationDialog(
             title = "Delete Note",
-            message = "Are you sure you want to delete \"${note.title}\"?",
+            message = if (childCount > 0)
+                "Are you sure you want to delete \"${note.title}\" and its $childCount nested page(s)?"
+            else
+                "Are you sure you want to delete \"${note.title}\"?",
             onConfirm = {
                 onDelete()
                 showDeleteDialog = false
@@ -624,11 +803,22 @@ fun NoteItem(note: NoteEntity, onPin: () -> Unit, onClick: () -> Unit, onDelete:
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = (depth * 20).dp),
         onClick = onClick
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                if (childCount > 0) {
+                    IconButton(onClick = onToggleExpand, modifier = Modifier.height(32.dp)) {
+                        Icon(
+                            if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            modifier = Modifier.height(16.dp)
+                        )
+                    }
+                }
                 Text(
                     text = note.title,
                     style = MaterialTheme.typography.bodyLarge,
@@ -829,6 +1019,32 @@ fun AddNoteDialog(
                 },
                 enabled = title.isNotBlank()
             ) { Text(if (note != null) "Save" else "Add") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun AddChildPageDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New page") },
+        text = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Page title") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(title.trim()) }) { Text("Create") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )

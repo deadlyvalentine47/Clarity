@@ -35,6 +35,25 @@ class NoteViewModel @Inject constructor(
         viewModelScope.launch { noteRepository.deleteNote(note) }
     }
 
+    fun deleteNoteWithDescendants(noteId: Long) {
+        viewModelScope.launch { noteRepository.deleteNoteWithDescendants(noteId) }
+    }
+
+    fun addChildNote(parentId: Long, title: String, content: String = "", onCreated: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val newId = noteRepository.insertNote(
+                NoteEntity(
+                    title = title.ifBlank { "Untitled" },
+                    content = content,
+                    parentNoteId = parentId,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            onCreated(newId)
+        }
+    }
+
     fun togglePin(note: NoteEntity) {
         viewModelScope.launch { noteRepository.updateNote(note.copy(isPinned = !note.isPinned)) }
     }

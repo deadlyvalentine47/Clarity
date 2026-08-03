@@ -231,7 +231,21 @@ fun ClarityNavHost() {
                     }
                     composable(Screen.NoteDetail.route) { backStackEntry ->
                         val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: 0L
-                        NoteDetailNavigation(noteId = noteId, onBack = { navController.popBackStack() })
+                        NoteDetailNavigation(
+                            noteId = noteId,
+                            onBack = { navController.popBackStack() },
+                            onGoToNotes = {
+                                val popped = navController.popBackStack(Screen.Notes.route, inclusive = false)
+                                if (!popped) {
+                                    navController.navigate(Screen.Notes.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            onOpenChild = { childId -> navController.navigate("note_detail/$childId") }
+                        )
                     }
                     composable(Screen.Goals.route) { GoalsScreen() }
                     composable(Screen.Pomodoro.route) {
@@ -382,7 +396,21 @@ fun ClarityNavHost() {
                         }
                         composable(Screen.NoteDetail.route) { backStackEntry ->
                             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: 0L
-                            NoteDetailNavigation(noteId = noteId, onBack = { navController.popBackStack() })
+                            NoteDetailNavigation(
+                                noteId = noteId,
+                                onBack = { navController.popBackStack() },
+                                onGoToNotes = {
+                                    val popped = navController.popBackStack(Screen.Notes.route, inclusive = false)
+                                    if (!popped) {
+                                        navController.navigate(Screen.Notes.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                },
+                                onOpenChild = { childId -> navController.navigate("note_detail/$childId") }
+                            )
                         }
                         composable(Screen.Goals.route) { GoalsScreen() }
                         composable(Screen.Pomodoro.route) {
