@@ -2,10 +2,13 @@ package com.clarity.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.clarity.app.data.local.database.DayJournalDao
+import com.clarity.app.data.local.database.DayJournalEntity
 import com.clarity.app.data.local.database.HabitEntity
 import com.clarity.app.domain.repository.HabitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +27,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HabitViewModel @Inject constructor(
-    private val habitRepository: HabitRepository
+    private val habitRepository: HabitRepository,
+    private val dayJournalDao: DayJournalDao
 ) : ViewModel() {
 
     val activeHabits: StateFlow<List<HabitEntity>> = habitRepository.getActiveHabits()
@@ -189,6 +193,21 @@ class HabitViewModel @Inject constructor(
     fun deleteHabit(habitId: Long) {
         viewModelScope.launch {
             habitRepository.softDeleteHabit(habitId)
+        }
+    }
+
+    fun getJournalForDate(date: String): Flow<DayJournalEntity?> =
+        dayJournalDao.getJournal(date)
+
+    fun saveJournal(date: String, content: String) {
+        viewModelScope.launch {
+            dayJournalDao.upsertJournal(DayJournalEntity(date = date, content = content))
+        }
+    }
+
+    fun saveHabitNote(habitId: Long, date: String, note: String) {
+        viewModelScope.launch {
+            habitRepository.updateHabitDailyNote(habitId, date, note)
         }
     }
 }

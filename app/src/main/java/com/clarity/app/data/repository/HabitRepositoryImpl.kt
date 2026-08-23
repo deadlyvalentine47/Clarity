@@ -17,6 +17,12 @@ class HabitRepositoryImpl @Inject constructor(
     override fun getHabitById(habitId: Long): Flow<HabitEntity?> = habitDao.getHabitById(habitId)
     override suspend fun insertHabit(habit: HabitEntity): Long = habitDao.insertHabit(habit)
     override suspend fun updateHabit(habit: HabitEntity) = habitDao.updateHabit(habit)
+    override suspend fun updateHabitDailyNote(habitId: Long, date: String, note: String) {
+        val habit = habitDao.getHabitByIdOnce(habitId) ?: return
+        val newNotes = habit.dailyNotes.toMutableMap()
+        if (note.isBlank()) newNotes.remove(date) else newNotes[date] = note
+        habitDao.updateHabit(habit.copy(dailyNotes = newNotes))
+    }
     override suspend fun softDeleteHabit(habitId: Long) =
         habitDao.softDeleteHabit(habitId, System.currentTimeMillis())
     override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) =

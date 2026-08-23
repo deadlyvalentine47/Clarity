@@ -26,5 +26,6 @@ data class HabitEntity(
     val deletedAt: Long? = null,
     val deadlineHour: Int? = null,
     val deadlineMinute: Int? = null,
+    val dailyNotes: Map<String, String> = emptyMap(), // date to note text
     val createdAt: Long = System.currentTimeMillis()
 )

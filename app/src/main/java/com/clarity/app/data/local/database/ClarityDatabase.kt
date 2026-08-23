@@ -25,9 +25,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NoteCategoryEntity::class,
         CreditCardEntity::class,
         CreditCardTransactionEntity::class,
-        InvestmentEntity::class
+        InvestmentEntity::class,
+        DayJournalEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -48,6 +49,7 @@ abstract class ClarityDatabase : RoomDatabase() {
     abstract fun creditCardDao(): CreditCardDao
     abstract fun creditCardTransactionDao(): CreditCardTransactionDao
     abstract fun investmentDao(): InvestmentDao
+    abstract fun dayJournalDao(): DayJournalDao
 
     companion object {
         const val DATABASE_NAME = "clarity.db"
@@ -122,13 +124,25 @@ abstract class ClarityDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE habits ADD COLUMN lateCompletions TEXT NOT NULL DEFAULT '[]'")
         }
 
+        val MIGRATION_15_16 = Migration(15, 16) { db ->
+            db.execSQL("ALTER TABLE habits ADD COLUMN dailyNotes TEXT NOT NULL DEFAULT '{}'")
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS `day_journals` (
+                    `date` TEXT NOT NULL,
+                    `content` TEXT NOT NULL DEFAULT '',
+                    `updatedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`date`)
+                )"""
+            )
+        }
+
         fun create(context: Context): ClarityDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
                 ClarityDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback())
                 .build()

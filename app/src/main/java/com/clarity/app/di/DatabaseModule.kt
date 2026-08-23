@@ -6,6 +6,7 @@ import com.clarity.app.data.local.database.CategoryDao
 import com.clarity.app.data.local.database.ClarityDatabase
 import com.clarity.app.data.local.database.CreditCardDao
 import com.clarity.app.data.local.database.CreditCardTransactionDao
+import com.clarity.app.data.local.database.DayJournalDao
 import com.clarity.app.data.local.database.EventDao
 import com.clarity.app.data.local.database.GoalDao
 import com.clarity.app.data.local.database.HabitDao
@@ -82,4 +83,7 @@ object DatabaseModule {
 
     @Provides
     fun provideInvestmentDao(database: ClarityDatabase): InvestmentDao = database.investmentDao()
+
+    @Provides
+    fun provideDayJournalDao(database: ClarityDatabase): DayJournalDao = database.dayJournalDao()
 }

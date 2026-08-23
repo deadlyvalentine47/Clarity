@@ -30,6 +30,7 @@ data class AppData(
     val creditCards: List<ExportCreditCard> = emptyList(),
     val creditCardTransactions: List<ExportCreditCardTransaction> = emptyList(),
     val investments: List<ExportInvestment> = emptyList(),
+    val dayJournals: List<ExportDayJournal> = emptyList(),
     val settings: ExportSettings = ExportSettings()
 )
 
@@ -78,6 +79,7 @@ data class ExportHabit(
     val deletedAt: Long? = null,
     val deadlineHour: Int? = null,
     val deadlineMinute: Int? = null,
+    val dailyNotes: Map<String, String> = emptyMap(),
     val createdAt: Long
 )
 
@@ -234,6 +236,13 @@ data class ExportInvestment(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Serializable
+data class ExportDayJournal(
+    val date: String,
+    val content: String = "",
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 object DataExporter {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
@@ -280,6 +289,7 @@ object DataExporter {
                 deletedAt = it.deletedAt,
                 deadlineHour = it.deadlineHour,
                 deadlineMinute = it.deadlineMinute,
+                dailyNotes = it.dailyNotes,
                 createdAt = it.createdAt
             )
         }
@@ -451,6 +461,14 @@ object DataExporter {
             )
         }
 
+        val dayJournals = database.dayJournalDao().getAllJournals().first().map {
+            ExportDayJournal(
+                date = it.date,
+                content = it.content,
+                updatedAt = it.updatedAt
+            )
+        }
+
         val appData = AppData(
             tasks = tasks,
             habits = habits,
@@ -468,6 +486,7 @@ object DataExporter {
             creditCards = creditCards,
             creditCardTransactions = creditCardTransactions,
             investments = investments,
+            dayJournals = dayJournals,
             settings = ExportSettings(
                 username = userPreferences.username.first(),
                 themeName = userPreferences.themeName.first(),
@@ -508,6 +527,7 @@ object DataExporter {
             database.creditCardDao().deleteAllCards()
             database.creditCardTransactionDao().deleteAllTransactions()
             database.investmentDao().deleteAllInvestments()
+            database.dayJournalDao().deleteAll()
 
             appData.tasks.forEach { exportTask ->
                 database.taskDao().insertTask(
@@ -548,6 +568,7 @@ object DataExporter {
                         deletedAt = exportHabit.deletedAt,
                         deadlineHour = exportHabit.deadlineHour,
                         deadlineMinute = exportHabit.deadlineMinute,
+                        dailyNotes = exportHabit.dailyNotes,
                         createdAt = exportHabit.createdAt
                     )
                 )
@@ -737,6 +758,16 @@ object DataExporter {
                         purchaseDate = exportInv.purchaseDate,
                         notes = exportInv.notes,
                         createdAt = exportInv.createdAt
+                    )
+                )
+            }
+
+            appData.dayJournals.forEach { exportJournal ->
+                database.dayJournalDao().upsertJournal(
+                    com.clarity.app.data.local.database.DayJournalEntity(
+                        date = exportJournal.date,
+                        content = exportJournal.content,
+                        updatedAt = exportJournal.updatedAt
                     )
                 )
             }

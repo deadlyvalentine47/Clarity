@@ -48,4 +48,14 @@ class Converters {
     } catch (e: Exception) {
         emptyMap()
     }
+
+    @TypeConverter
+    fun fromStringMap(value: Map<String, String>): String = json.encodeToString(value)
+
+    @TypeConverter
+    fun toStringMap(value: String): Map<String, String> = try {
+        json.decodeFromString(value)
+    } catch (e: Exception) {
+        emptyMap()
+    }
 }
