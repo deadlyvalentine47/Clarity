@@ -91,6 +91,7 @@ data class ExportNote(
     val isPinned: Boolean,
     val category: String,
     val parentNoteId: Long? = null,
+    val sortOrder: Int = 0,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -302,6 +303,7 @@ object DataExporter {
                 isPinned = it.isPinned,
                 category = it.category,
                 parentNoteId = it.parentNoteId,
+                sortOrder = it.sortOrder,
                 createdAt = it.createdAt,
                 updatedAt = it.updatedAt
             )
@@ -582,6 +584,7 @@ object DataExporter {
                         content = exportNote.content,
                         isPinned = exportNote.isPinned,
                         category = exportNote.category,
+                        sortOrder = exportNote.sortOrder,
                         createdAt = exportNote.createdAt,
                         updatedAt = exportNote.updatedAt
                     )

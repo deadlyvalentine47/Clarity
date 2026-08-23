@@ -11,6 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -87,5 +88,16 @@ class NoteViewModel @Inject constructor(
 
     fun deleteCategory(category: NoteCategoryEntity) {
         viewModelScope.launch { noteRepository.deleteCategory(category) }
+    }
+
+    fun reorderNote(noteId: Long, newParentId: Long?, newSortOrder: Int) {
+        viewModelScope.launch {
+            noteRepository.setParentNote(noteId, newParentId)
+            noteRepository.setSortOrder(noteId, newSortOrder)
+            val note = noteRepository.getNoteById(noteId).first()
+            if (note != null) {
+                noteRepository.updateNote(note.copy(updatedAt = System.currentTimeMillis()))
+            }
+        }
     }
 }

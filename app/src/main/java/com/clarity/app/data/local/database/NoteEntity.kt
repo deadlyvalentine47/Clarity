@@ -12,6 +12,7 @@ data class NoteEntity(
     val isPinned: Boolean = false,
     val category: String = "",
     val parentNoteId: Long? = null,
+    val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

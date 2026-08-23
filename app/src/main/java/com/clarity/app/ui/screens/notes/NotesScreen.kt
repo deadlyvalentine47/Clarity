@@ -57,19 +57,34 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,6 +107,8 @@ import androidx.compose.runtime.LaunchedEffect
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+enum class DropZone { ABOVE, BELOW, INSIDE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +154,15 @@ fun NotesScreen(
 
     val isTreeMode = searchQuery.isBlank() && !hasActiveFilters
     var expandedIds by remember { mutableStateOf(setOf<Long>()) }
+
+    var draggedNoteId by remember { mutableStateOf<Long?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var hoveredNoteId by remember { mutableStateOf<Long?>(null) }
+    var hoveredZone by remember { mutableStateOf<DropZone?>(null) }
+    val itemBounds = remember { mutableStateMapOf<Long, Pair<Offset, IntSize>>() }
+    val listBounds = remember { mutableStateOf(Pair(Offset.Zero, IntSize(0, 0))) }
+    val density = LocalDensity.current
+    val dragAlpha = 0.85f
 
     val childCountById: Map<Long, Int> = remember(notes) {
         notes.filter { it.parentNoteId != null }.groupingBy { it.parentNoteId!! }.eachCount()
@@ -237,39 +263,177 @@ fun NotesScreen(
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
-                    if (isTreeMode) {
-                        items(treeNodes, key = { it.first.id }) { (note, depth) ->
-                            NoteItem(
-                                note = note,
-                                depth = depth,
-                                childCount = childCountById[note.id] ?: 0,
-                                isExpanded = note.id in expandedIds,
-                                onToggleExpand = {
-                                    expandedIds = if (note.id in expandedIds) {
-                                        expandedIds - note.id
-                                    } else {
-                                        expandedIds + note.id
-                                    }
-                                },
-                                onPin = { viewModel.togglePin(note) },
-                                onClick = { onNoteClick(note.id) },
-                                onDelete = { viewModel.deleteNoteWithDescendants(note.id) }
-                            )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { coords ->
+                            listBounds.value = coords.positionInRoot() to coords.size
                         }
-                    } else {
-                        items(filteredNotes, key = { it.id }) { note ->
-                            NoteItem(
-                                note = note,
-                                childCount = childCountById[note.id] ?: 0,
-                                onPin = { viewModel.togglePin(note) },
-                                onClick = { onNoteClick(note.id) },
-                                onDelete = { viewModel.deleteNoteWithDescendants(note.id) }
-                            )
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        if (isTreeMode) {
+                            items(treeNodes, key = { it.first.id }) { (note, depth) ->
+                                val isDragged = draggedNoteId == note.id
+                                val isHovered = hoveredNoteId == note.id
+                                val zone = if (isHovered) hoveredZone else null
+
+                                NoteItem(
+                                    note = note,
+                                    depth = depth,
+                                    childCount = childCountById[note.id] ?: 0,
+                                    isExpanded = note.id in expandedIds,
+                                    onToggleExpand = {
+                                        expandedIds = if (note.id in expandedIds) {
+                                            expandedIds - note.id
+                                        } else {
+                                            expandedIds + note.id
+                                        }
+                                    },
+                                    onPin = { viewModel.togglePin(note) },
+                                    onClick = {
+                                        if (draggedNoteId == null) onNoteClick(note.id)
+                                    },
+                                    onDelete = { viewModel.deleteNoteWithDescendants(note.id) },
+                                    isDragged = isDragged,
+                                    dropZone = zone,
+                                    modifier = Modifier
+                                        .onGloballyPositioned { coords ->
+                                            itemBounds[note.id] = coords.positionInRoot() to coords.size
+                                        }
+                                        .pointerInput(note.id) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggedNoteId = note.id
+                                                    dragOffset = Offset.Zero
+                                                },
+                                                onDrag = { change, amount ->
+                                                    change.consume()
+                                                    dragOffset += amount
+                                                    val pointerAbs = itemBounds[note.id]?.let {
+                                                        it.first + Offset(it.second.width / 2f, it.second.height / 2f) + dragOffset
+                                                    } ?: return@detectDragGesturesAfterLongPress
+                                                    var bestId: Long? = null
+                                                    var bestZone: DropZone? = null
+                                                    for ((id, pair) in itemBounds) {
+                                                        if (id == note.id) continue
+                                                        val (pos, size) = pair
+                                                        val cx = pos.x + size.width / 2f
+                                                        val cy = pos.y + size.height / 2f
+                                                        val dx = kotlin.math.abs(pointerAbs.x - cx)
+                                                        val dy = kotlin.math.abs(pointerAbs.y - cy)
+                                                        if (dx < size.width / 2f + 40 && dy < size.height / 2f + 20) {
+                                                            bestId = id
+                                                            bestZone = when {
+                                                                pointerAbs.y < pos.y + size.height * 0.25f -> DropZone.ABOVE
+                                                                pointerAbs.y > pos.y + size.height * 0.75f -> DropZone.BELOW
+                                                                else -> DropZone.INSIDE
+                                                            }
+                                                            break
+                                                        }
+                                                    }
+                                                    hoveredNoteId = bestId
+                                                    hoveredZone = bestZone
+                                                },
+                                                onDragEnd = {
+                                                    val hId = hoveredNoteId
+                                                    val hZone = hoveredZone
+                                                    if (hId != null && hZone != null && hId != draggedNoteId) {
+                                                        val targetNote = notes.find { it.id == hId }
+                                                        when (hZone) {
+                                                            DropZone.INSIDE -> {
+                                                                viewModel.reorderNote(
+                                                                    noteId = draggedNoteId!!,
+                                                                    newParentId = hId,
+                                                                    newSortOrder = 0
+                                                                )
+                                                            }
+                                                            DropZone.ABOVE -> {
+                                                                viewModel.reorderNote(
+                                                                    noteId = draggedNoteId!!,
+                                                                    newParentId = targetNote?.parentNoteId,
+                                                                    newSortOrder = (targetNote?.sortOrder ?: 0) - 1
+                                                                )
+                                                            }
+                                                            DropZone.BELOW -> {
+                                                                viewModel.reorderNote(
+                                                                    noteId = draggedNoteId!!,
+                                                                    newParentId = targetNote?.parentNoteId,
+                                                                    newSortOrder = (targetNote?.sortOrder ?: 0) + 1
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    draggedNoteId = null
+                                                    dragOffset = Offset.Zero
+                                                    hoveredNoteId = null
+                                                    hoveredZone = null
+                                                },
+                                                onDragCancel = {
+                                                    draggedNoteId = null
+                                                    dragOffset = Offset.Zero
+                                                    hoveredNoteId = null
+                                                    hoveredZone = null
+                                                }
+                                            )
+                                        }
+                                )
+                            }
+                        } else {
+                            items(filteredNotes, key = { it.id }) { note ->
+                                NoteItem(
+                                    note = note,
+                                    childCount = childCountById[note.id] ?: 0,
+                                    onPin = { viewModel.togglePin(note) },
+                                    onClick = { onNoteClick(note.id) },
+                                    onDelete = { viewModel.deleteNoteWithDescendants(note.id) }
+                                )
+                            }
+                        }
+                    }
+
+                    if (draggedNoteId != null) {
+                        val dragged = notes.find { it.id == draggedNoteId }
+                        if (dragged != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .graphicsLayer {
+                                        translationX = dragOffset.x
+                                        translationY = dragOffset.y
+                                        alpha = dragAlpha
+                                        shadowElevation = 12f
+                                        shape = RoundedCornerShape(12.dp)
+                                        clip = true
+                                    }
+                            ) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = dragged.title,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                        )
+                                        if (childCountById[dragged.id] ?: 0 > 0) {
+                                            Text(
+                                                text = "+${childCountById[dragged.id]} pages",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -827,7 +991,10 @@ fun NoteItem(
     depth: Int = 0,
     childCount: Int = 0,
     isExpanded: Boolean = true,
-    onToggleExpand: () -> Unit = {}
+    onToggleExpand: () -> Unit = {},
+    isDragged: Boolean = false,
+    dropZone: DropZone? = null,
+    modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -846,11 +1013,27 @@ fun NoteItem(
         )
     }
 
+    val borderColor = when (dropZone) {
+        DropZone.INSIDE -> MaterialTheme.colorScheme.primary
+        DropZone.ABOVE -> MaterialTheme.colorScheme.tertiary
+        DropZone.BELOW -> MaterialTheme.colorScheme.tertiary
+        null -> Color.Transparent
+    }
+    val borderWidth = if (dropZone != null) 2.dp else 0.dp
+
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(start = (depth * 20).dp),
-        onClick = onClick
+            .padding(start = (depth * 20).dp)
+            .then(
+                if (isDragged) Modifier.graphicsLayer { alpha = 0.4f }
+                else Modifier
+            ),
+        onClick = onClick,
+        colors = if (dropZone == DropZone.INSIDE)
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+        else CardDefaults.cardColors(),
+        border = if (dropZone != null) androidx.compose.foundation.BorderStroke(borderWidth, borderColor) else null
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
