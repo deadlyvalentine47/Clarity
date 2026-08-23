@@ -18,6 +18,10 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "us
 class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    companion object {
+        val ALL_SECTIONS = listOf("Tasks", "Events", "Habits", "Budget", "Notes", "Goals", "Pomodoro")
+    }
+
     private object Keys {
         val USERNAME = stringPreferencesKey("username")
         val THEME_NAME = stringPreferencesKey("theme_name")
@@ -38,12 +42,19 @@ class UserPreferences @Inject constructor(
     }
 
     val sectionOrder: Flow<List<String>> = context.dataStore.data.map { preferences ->
-        preferences[Keys.SECTION_ORDER]?.split(",") ?: listOf("Tasks", "Events", "Habits")
+        val stored = preferences[Keys.SECTION_ORDER]?.split(",")?.filter { it.isNotBlank() }
+        if (stored != null) {
+            val known = stored.toSet()
+            val newSections = ALL_SECTIONS.filter { it !in known }
+            stored + newSections
+        } else {
+            ALL_SECTIONS
+        }
     }
 
     val sectionEnabled: Flow<Set<String>> = context.dataStore.data.map { preferences ->
         preferences[Keys.SECTION_ENABLED]?.split(",")?.filter { it.isNotBlank() }?.toSet()
-            ?: setOf("Tasks", "Events", "Habits")
+            ?: ALL_SECTIONS.toSet()
     }
 
     suspend fun setSectionOrder(order: List<String>) {

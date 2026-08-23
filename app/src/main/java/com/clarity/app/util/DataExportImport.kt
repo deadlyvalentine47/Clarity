@@ -37,8 +37,8 @@ data class AppData(
 data class ExportSettings(
     val username: String = "",
     val themeName: String = "Ocean",
-    val sectionOrder: List<String> = listOf("Tasks", "Events", "Habits"),
-    val sectionEnabled: Set<String> = setOf("Tasks", "Events", "Habits")
+    val sectionOrder: List<String> = listOf("Tasks", "Events", "Habits", "Budget", "Notes", "Goals", "Pomodoro"),
+    val sectionEnabled: Set<String> = setOf("Tasks", "Events", "Habits", "Budget", "Notes", "Goals", "Pomodoro")
 )
 
 @Serializable

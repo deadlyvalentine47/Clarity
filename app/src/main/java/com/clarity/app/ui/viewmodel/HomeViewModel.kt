@@ -3,6 +3,7 @@ package com.clarity.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.datastore.UserPreferences
+import com.clarity.app.data.local.datastore.UserPreferences.Companion.ALL_SECTIONS
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,14 +27,14 @@ class HomeViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = listOf("Tasks", "Events", "Habits")
+            initialValue = ALL_SECTIONS
         )
 
     val sectionEnabled: StateFlow<Set<String>> = userPreferences.sectionEnabled
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = setOf("Tasks", "Events", "Habits")
+            initialValue = ALL_SECTIONS.toSet()
         )
 
     val isFirstLaunch: StateFlow<Boolean> = userPreferences.isFirstLaunch

@@ -171,7 +171,11 @@ fun ClarityNavHost() {
                         HomeScreen(
                             onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
                             onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
-                            onNavigateToEvents = { navController.navigate(Screen.Calendar.route) }
+                            onNavigateToEvents = { navController.navigate(Screen.Calendar.route) },
+                            onNavigateToBudget = { navController.navigate(Screen.Budget.route) },
+                            onNavigateToNotes = { navController.navigate(Screen.Notes.route) },
+                            onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
+                            onNavigateToPomodoro = { navController.navigate(Screen.Pomodoro.route) }
                         )
                     }
                     composable(Screen.Tasks.route) { TasksScreen() }
@@ -336,7 +340,11 @@ fun ClarityNavHost() {
                             HomeScreen(
                                 onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
                                 onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
-                                onNavigateToEvents = { navController.navigate(Screen.Calendar.route) }
+                                onNavigateToEvents = { navController.navigate(Screen.Calendar.route) },
+                                onNavigateToBudget = { navController.navigate(Screen.Budget.route) },
+                                onNavigateToNotes = { navController.navigate(Screen.Notes.route) },
+                                onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
+                                onNavigateToPomodoro = { navController.navigate(Screen.Pomodoro.route) }
                             )
                         }
                         composable(Screen.Tasks.route) { TasksScreen() }

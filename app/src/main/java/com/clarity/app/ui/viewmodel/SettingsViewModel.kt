@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.datastore.UserPreferences
+import com.clarity.app.data.local.datastore.UserPreferences.Companion.ALL_SECTIONS
 import com.clarity.app.data.local.database.ClarityDatabase
 import com.clarity.app.util.DataExporter
 import com.clarity.app.ui.theme.allThemes
@@ -43,14 +44,14 @@ class SettingsViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = listOf("Tasks", "Events", "Habits")
+            initialValue = ALL_SECTIONS
         )
 
     val sectionEnabled: StateFlow<Set<String>> = userPreferences.sectionEnabled
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = setOf("Tasks", "Events", "Habits")
+            initialValue = ALL_SECTIONS.toSet()
         )
 
     val availableThemes: List<String> = allThemes.keys.toList()

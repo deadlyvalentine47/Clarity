@@ -19,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,8 +33,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.clarity.app.ui.viewmodel.BudgetMainViewModel
 import com.clarity.app.ui.viewmodel.DashboardViewModel
+import com.clarity.app.ui.viewmodel.GoalViewModel
 import com.clarity.app.ui.viewmodel.HomeViewModel
+import com.clarity.app.ui.viewmodel.NoteViewModel
+import com.clarity.app.ui.viewmodel.PomodoroSessionListViewModel
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -49,9 +54,17 @@ import java.util.Locale
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     dashboardViewModel: DashboardViewModel = hiltViewModel(),
+    budgetViewModel: BudgetMainViewModel = hiltViewModel(),
+    noteViewModel: NoteViewModel = hiltViewModel(),
+    goalViewModel: GoalViewModel = hiltViewModel(),
+    pomodoroViewModel: PomodoroSessionListViewModel = hiltViewModel(),
     onNavigateToTasks: () -> Unit = {},
     onNavigateToHabits: () -> Unit = {},
-    onNavigateToEvents: () -> Unit = {}
+    onNavigateToEvents: () -> Unit = {},
+    onNavigateToBudget: () -> Unit = {},
+    onNavigateToNotes: () -> Unit = {},
+    onNavigateToGoals: () -> Unit = {},
+    onNavigateToPomodoro: () -> Unit = {}
 ) {
     val username by homeViewModel.username.collectAsStateWithLifecycle()
     val todayTasks by dashboardViewModel.todayTasks.collectAsStateWithLifecycle()
@@ -62,6 +75,16 @@ fun HomeScreen(
     val monthlyExpenses by dashboardViewModel.monthlyExpenses.collectAsStateWithLifecycle()
     val pendingTaskCount by dashboardViewModel.pendingTaskCount.collectAsStateWithLifecycle()
     val habitCount by dashboardViewModel.habitCount.collectAsStateWithLifecycle()
+
+    val budgetBalance by budgetViewModel.balance.collectAsStateWithLifecycle()
+    val budgetIncome by budgetViewModel.totalIncome.collectAsStateWithLifecycle()
+    val budgetExpenses by budgetViewModel.totalExpenses.collectAsStateWithLifecycle()
+
+    val notes by noteViewModel.notes.collectAsStateWithLifecycle()
+
+    val activeGoals by goalViewModel.activeGoals.collectAsStateWithLifecycle()
+
+    val pomodoroSessions by pomodoroViewModel.sessions.collectAsStateWithLifecycle()
 
     val sectionOrder by homeViewModel.sectionOrder.collectAsStateWithLifecycle()
     val sectionEnabled by homeViewModel.sectionEnabled.collectAsStateWithLifecycle()
@@ -76,6 +99,10 @@ fun HomeScreen(
     var upcomingTasksExpanded by remember { mutableStateOf(true) }
     var habitsExpanded by remember { mutableStateOf(true) }
     var eventsExpanded by remember { mutableStateOf(true) }
+    var budgetExpanded by remember { mutableStateOf(true) }
+    var notesExpanded by remember { mutableStateOf(true) }
+    var goalsExpanded by remember { mutableStateOf(true) }
+    var pomodoroExpanded by remember { mutableStateOf(true) }
 
     val endOfToday = remember { 
         LocalDate.now().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -508,6 +535,165 @@ fun HomeScreen(
                         }
                     }
                 }
+
+                "Budget" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SectionHeader(
+                            title = "Budget",
+                            isExpanded = budgetExpanded,
+                            onToggleExpand = { budgetExpanded = !budgetExpanded },
+                            onNavigate = onNavigateToBudget,
+                            navigateLabel = "Go to Budget"
+                        )
+                    }
+                    if (budgetExpanded) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                StatCard(title = "Balance", value = "\u20B9${String.format("%.0f", budgetBalance)}", modifier = Modifier.weight(1f))
+                                StatCard(title = "Income", value = "\u20B9${String.format("%.0f", budgetIncome)}", modifier = Modifier.weight(1f))
+                                StatCard(title = "Expenses", value = "\u20B9${String.format("%.0f", budgetExpenses)}", modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+
+                "Notes" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SectionHeader(
+                            title = "Notes",
+                            isExpanded = notesExpanded,
+                            onToggleExpand = { notesExpanded = !notesExpanded },
+                            onNavigate = onNavigateToNotes,
+                            navigateLabel = "Go to Notes"
+                        )
+                    }
+                    if (notesExpanded) {
+                        if (notes.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No notes yet", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Tap + in Notes to create your first note", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        } else {
+                            items(notes.sortedByDescending { it.updatedAt }.take(5)) { note ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(note.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                        if (note.content.isNotBlank()) {
+                                            Text(
+                                                text = note.content,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 2,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Goals" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SectionHeader(
+                            title = "Goals",
+                            isExpanded = goalsExpanded,
+                            onToggleExpand = { goalsExpanded = !goalsExpanded },
+                            onNavigate = onNavigateToGoals,
+                            navigateLabel = "Go to Goals"
+                        )
+                    }
+                    if (goalsExpanded) {
+                        if (activeGoals.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No active goals", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Set a goal to start tracking progress", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        } else {
+                            items(activeGoals.take(5)) { goal ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(goal.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                text = "${(goal.progress * 100).toInt()}%",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        LinearProgressIndicator(
+                                            progress = { goal.progress },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Pomodoro" -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SectionHeader(
+                            title = "Pomodoro",
+                            isExpanded = pomodoroExpanded,
+                            onToggleExpand = { pomodoroExpanded = !pomodoroExpanded },
+                            onNavigate = onNavigateToPomodoro,
+                            navigateLabel = "Go to Pomodoro"
+                        )
+                    }
+                    if (pomodoroExpanded) {
+                        if (pomodoroSessions.isEmpty()) {
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("No focus sessions", style = MaterialTheme.typography.bodyLarge)
+                                        Text("Start a Pomodoro session to boost productivity", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        } else {
+                            items(pomodoroSessions.take(5)) { session ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(session.title, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            text = SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(session.createdAt)),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -534,6 +720,43 @@ fun StatCard(title: String, value: String, modifier: Modifier = Modifier) {
                 text = title,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+fun SectionHeader(
+    title: String,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onNavigate: () -> Unit,
+    navigateLabel: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggleExpand() },
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = navigateLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onNavigate() }
+            )
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
