@@ -54,8 +54,8 @@ fun HabitMetricsDayScreen(
     val day = runCatching { LocalDate.parse(date) }.getOrNull() ?: LocalDate.now()
     val dayStr = day.toString()
 
-    val activeHabits = habits.filter { !it.isArchived && !it.isDeleted && isHabitActiveOn(it, day) }
-    val archivedHabits = habits.filter { (it.isArchived || it.isDeleted) && isHabitActiveOn(it, day) }
+    val activeHabits = habits.filter { !it.isArchived && !it.isDeleted && isScheduledOn(it, day) }
+    val archivedHabits = habits.filter { (it.isArchived || it.isDeleted) && isScheduledOn(it, day) }
 
     val dayRows = (activeHabits + archivedHabits).map { habit ->
         DayRowData(
