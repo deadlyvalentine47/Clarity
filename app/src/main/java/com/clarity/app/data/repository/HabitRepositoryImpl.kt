@@ -21,6 +21,8 @@ class HabitRepositoryImpl @Inject constructor(
         habitDao.softDeleteHabit(habitId, System.currentTimeMillis())
     override suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) =
         habitDao.toggleHabitForDate(habitId, date, completed)
+    override suspend fun completeHabitLate(habitId: Long, date: String) =
+        habitDao.toggleHabitLateForDate(habitId, date, true)
     override suspend fun setHabitMissed(habitId: Long, date: String) =
         habitDao.setHabitMissed(habitId, date)
     override suspend fun archiveHabit(habitId: Long, archivedAt: Long) =

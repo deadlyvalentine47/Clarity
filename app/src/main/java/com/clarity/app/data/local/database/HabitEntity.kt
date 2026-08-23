@@ -18,6 +18,7 @@ data class HabitEntity(
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
     val completionHistory: Map<String, Boolean> = emptyMap(), // date to completed
+    val lateCompletions: Set<String> = emptySet(), // dates completed after deadline (yellow)
     val reminderTime: Long? = null,
     val isArchived: Boolean = false,
     val archivedAt: Long? = null,

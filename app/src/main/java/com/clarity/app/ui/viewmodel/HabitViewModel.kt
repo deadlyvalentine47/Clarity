@@ -96,40 +96,15 @@ class HabitViewModel @Inject constructor(
     }
 
     private suspend fun checkDeadline(habit: HabitEntity, date: LocalDate) {
+        // Deadline habits are intentionally NOT auto-marked at the deadline.
+        // The user can still mark them completed (late = yellow warning) up to
+        // the end of day; uncompleted deadline habits get marked red at the end
+        // of the day like all other habits (see scheduleEndOfDayCheck).
         if (habit.deadlineHour == null || habit.deadlineMinute == null) return
-        val dateStr = date.toString()
-        if (habit.completionHistory[dateStr] == true) return
-        val now = LocalTime.now()
-        val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
-        if (now.isAfter(deadline)) {
-            if (!habit.completionHistory.containsKey(dateStr)) {
-                habitRepository.setHabitMissed(habit.id, dateStr)
-            }
-        }
     }
 
     private fun scheduleDeadlineCheck(habit: HabitEntity) {
-        if (habit.deadlineHour == null || habit.deadlineMinute == null) return
-        viewModelScope.launch {
-            val today = LocalDate.now()
-            val dateStr = today.toString()
-
-            val currentHabit = activeHabits.value.find { it.id == habit.id } ?: return@launch
-            if (currentHabit.completionHistory[dateStr] == true) return@launch
-
-            val now = LocalTime.now()
-            val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
-
-            if (now.isBefore(deadline)) {
-                delay(ChronoUnit.MILLIS.between(now, deadline))
-            }
-
-            val refreshedHabit = activeHabits.value.find { it.id == habit.id } ?: return@launch
-            val refreshedToday = LocalDate.now().toString()
-            if (refreshedHabit.completionHistory[refreshedToday] != true) {
-                habitRepository.setHabitMissed(habit.id, refreshedToday)
-            }
-        }
+        // Intentionally empty: deadline does not mark a habit missed anymore.
     }
 
     private fun scheduleEndOfDayCheck(habit: HabitEntity) {
@@ -187,15 +162,12 @@ class HabitViewModel @Inject constructor(
             if (!currentCompleted && habit.deadlineHour != null && habit.deadlineMinute != null) {
                 val now = LocalTime.now()
                 val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
-                if (now.isAfter(deadline)) return@launch
-            }
-            habitRepository.toggleHabitForDate(habitId, today, !currentCompleted)
-            if (currentCompleted && habit.deadlineHour != null && habit.deadlineMinute != null) {
-                val deadline = LocalTime.of(habit.deadlineHour, habit.deadlineMinute)
-                if (LocalTime.now().isBefore(deadline)) {
-                    scheduleDeadlineCheck(habit)
+                if (now.isAfter(deadline)) {
+                    habitRepository.completeHabitLate(habitId, today)
+                    return@launch
                 }
             }
+            habitRepository.toggleHabitForDate(habitId, today, !currentCompleted)
             if (currentCompleted) {
                 scheduleEndOfDayCheck(habit)
             }

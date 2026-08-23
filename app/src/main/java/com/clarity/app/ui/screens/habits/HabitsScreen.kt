@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
@@ -265,6 +266,7 @@ fun HabitItem(
 ) {
     val today = LocalDate.now().toString()
     val isCompletedToday = habit.completionHistory[today] ?: false
+    val isLateToday = habit.lateCompletions.contains(today)
     val yesterday = LocalDate.now().minusDays(1).toString()
     val deadlinePassed = habit.deadlineHour != null && habit.deadlineMinute != null &&
         !isCompletedToday &&
@@ -337,6 +339,14 @@ fun HabitItem(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (isLateToday) {
+                        Text(
+                            text = "Late ✓",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFB28704),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     if (missedLabel != null) {
                         Text(
                             text = missedLabel,
@@ -371,16 +381,17 @@ fun HabitItem(
                 }
                 if (onUnarchive == null) {
                     if (deadlinePassed) {
-                        Box(
+                        IconButton(
+                            onClick = onToggle,
                             modifier = Modifier.size(40.dp).clip(CircleShape).background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            contentAlignment = Alignment.Center
+                                MaterialTheme.colorScheme.surfaceVariant
+                            )
                         ) {
                             Icon(
                                 Icons.Default.Check,
-                                contentDescription = "Deadline passed",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                contentDescription = "Mark complete (late)",
+                                tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
+                                else Color(0xFFF9C74F),
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -388,15 +399,21 @@ fun HabitItem(
                         IconButton(
                             onClick = onToggle,
                             modifier = Modifier.size(40.dp).clip(CircleShape).background(
-                                if (isCompletedToday) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
+                                when {
+                                    isCompletedToday && isLateToday -> Color(0xFFF9C74F)
+                                    isCompletedToday -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.surfaceVariant
+                                }
                             )
                         ) {
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = if (isCompletedToday) "Completed" else "Mark complete",
-                                tint = if (isCompletedToday) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = when {
+                                    isCompletedToday && isLateToday -> Color(0xFF3E2723)
+                                    isCompletedToday -> MaterialTheme.colorScheme.onPrimary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                             )
                         }
                     }

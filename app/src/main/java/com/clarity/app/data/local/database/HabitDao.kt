@@ -54,25 +54,48 @@ interface HabitDao {
     @Query("UPDATE habits SET completionHistory = :history, currentStreak = :streak WHERE id = :habitId")
     suspend fun updateHabitCompletion(habitId: Long, history: Map<String, Boolean>, streak: Int)
 
+    @Query("UPDATE habits SET completionHistory = :history, lateCompletions = :late, currentStreak = :streak WHERE id = :habitId")
+    suspend fun updateHabitCompletionWithLate(habitId: Long, history: Map<String, Boolean>, late: Set<String>, streak: Int)
+
     suspend fun toggleHabitForDate(habitId: Long, date: String, completed: Boolean) {
         val habit = getHabitByIdOnce(habitId) ?: return
         val newHistory = habit.completionHistory.toMutableMap()
+        val newLate = habit.lateCompletions.toMutableSet()
         val today = java.time.LocalDate.now().toString()
         if (!completed && date == today) {
             newHistory.remove(date)
+            newLate.remove(date)
         } else {
             newHistory[date] = completed
         }
         val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
-        updateHabitCompletion(habitId, newHistory, streak)
+        updateHabitCompletionWithLate(habitId, newHistory, newLate, streak)
+    }
+
+    suspend fun toggleHabitLateForDate(habitId: Long, date: String, completed: Boolean) {
+        val habit = getHabitByIdOnce(habitId) ?: return
+        val newHistory = habit.completionHistory.toMutableMap()
+        val newLate = habit.lateCompletions.toMutableSet()
+        val today = java.time.LocalDate.now().toString()
+        if (!completed && date == today) {
+            newHistory.remove(date)
+            newLate.remove(date)
+        } else {
+            newHistory[date] = completed
+            if (completed) newLate.add(date) else newLate.remove(date)
+        }
+        val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
+        updateHabitCompletionWithLate(habitId, newHistory, newLate, streak)
     }
 
     suspend fun setHabitMissed(habitId: Long, date: String) {
         val habit = getHabitByIdOnce(habitId) ?: return
         val newHistory = habit.completionHistory.toMutableMap()
+        val newLate = habit.lateCompletions.toMutableSet()
         newHistory[date] = false
+        newLate.remove(date)
         val streak = calculateStreak(newHistory, habit.frequency, habit.alternateDays, habit.selectedDays, habit.createdAt)
-        updateHabitCompletion(habitId, newHistory, streak)
+        updateHabitCompletionWithLate(habitId, newHistory, newLate, streak)
     }
 
     private fun calculateStreak(history: Map<String, Boolean>, frequency: String = "Daily", alternateDays: Int? = null, selectedDays: List<Int>? = null, createdAt: Long = System.currentTimeMillis()): Int {

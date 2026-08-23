@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -61,14 +62,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import coil.compose.AsyncImage
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
+import android.util.Log
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.clarity.app.data.local.database.NoteCategoryEntity
 import com.clarity.app.data.local.database.NoteEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.NoteViewModel
+import com.clarity.app.util.ImageStorage
+import com.clarity.app.util.StoragePermission
+import androidx.compose.runtime.LaunchedEffect
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -79,6 +99,13 @@ fun NotesScreen(
     viewModel: NoteViewModel = hiltViewModel(),
     onNoteClick: (Long) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (!StoragePermission.hasAllFilesAccess(context)) {
+            StoragePermission.requestAllFilesAccess(context)
+        }
+    }
+
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -413,7 +440,7 @@ fun NoteDetailScreen(
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var editTitle by remember { mutableStateOf(note.title) }
-    var editContent by remember { mutableStateOf(note.content) }
+    var editContentState by remember { mutableStateOf(TextFieldValue(note.content)) }
     var currentTags by remember { mutableStateOf(
         note.category.split(",").map { it.trim() }.filter { it.isNotBlank() }.toMutableList()
     ) }
@@ -421,6 +448,9 @@ fun NoteDetailScreen(
     var showAddTagMenu by remember { mutableStateOf(false) }
     var showAddPageDialog by remember { mutableStateOf(false) }
     var deleteChild by remember { mutableStateOf<NoteEntity?>(null) }
+    val pickImage = rememberImagePicker { uuid ->
+        editContentState = insertImageMarker(editContentState, uuid)
+    }
 
     deleteChild?.let { childToDelete ->
         DeleteConfirmationDialog(
@@ -491,7 +521,7 @@ fun NoteDetailScreen(
                         if (isEditing) {
                             onEdit(note.copy(
                                 title = editTitle.trim(),
-                                content = editContent.trim(),
+                                content = editContentState.text.trim(),
                                 category = currentTags.joinToString(", "),
                                 updatedAt = System.currentTimeMillis()
                             ))
@@ -522,13 +552,18 @@ fun NoteDetailScreen(
                 .padding(16.dp)
         ) {
             if (isEditing) {
-                OutlinedTextField(
-                    value = editTitle,
-                    onValueChange = { editTitle = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Title") }
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    OutlinedTextField(
+                        value = editTitle,
+                        onValueChange = { editTitle = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Title") }
+                    )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -580,12 +615,21 @@ fun NoteDetailScreen(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = pickImage) { Text("+ Add image") }
+                }
                 OutlinedTextField(
-                    value = editContent,
-                    onValueChange = { editContent = it },
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    value = editContentState,
+                    onValueChange = { editContentState = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 6,
                     label = { Text("Content (Markdown supported)") }
                 )
+                InlineImagePreview(content = editContentState.text)
+                }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
@@ -866,11 +910,25 @@ fun NoteItem(
 
 @Composable
 fun MarkdownPreview(content: String) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         val lines = content.split("\n")
         lines.forEach { line ->
+            val imageUuid = ImageStorage.extractUuid(line)
+            if (imageUuid != null) {
+                AsyncImage(
+                    model = ImageStorage.imageModel(context, imageUuid),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .padding(vertical = 4.dp)
+                )
+                return@forEach
+            }
             when {
                 line.startsWith("# ") -> {
                     Text(
@@ -949,15 +1007,21 @@ fun AddNoteDialog(
     onConfirm: (NoteEntity) -> Unit
 ) {
     var title by remember { mutableStateOf(note?.title ?: "") }
-    var content by remember { mutableStateOf(note?.content ?: "") }
+    var contentState by remember { mutableStateOf(TextFieldValue(note?.content ?: "")) }
     var category by remember { mutableStateOf(note?.category ?: "") }
     var selectedTab by remember { mutableStateOf(0) }
+    val pickImage = rememberImagePicker { uuid ->
+        contentState = insertImageMarker(contentState, uuid)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (note != null) "Edit Note" else "Add Note") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title *") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
                 TabRow(selectedTabIndex = selectedTab) {
@@ -966,10 +1030,23 @@ fun AddNoteDialog(
                 }
 
                 if (selectedTab == 0) {
-                    OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Content (Markdown supported)") }, modifier = Modifier.fillMaxWidth(), minLines = 6)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = pickImage) { Text("+ Add image") }
+                    }
+                    OutlinedTextField(
+                        value = contentState,
+                        onValueChange = { contentState = it },
+                        label = { Text("Content (Markdown supported)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 6
+                    )
+                    InlineImagePreview(content = contentState.text)
                 } else {
-                    if (content.isNotBlank()) {
-                        MarkdownPreview(content = content)
+                    if (contentState.text.isNotBlank()) {
+                        MarkdownPreview(content = contentState.text)
                     } else {
                         Text("Nothing to preview", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -1011,9 +1088,9 @@ fun AddNoteDialog(
                 onClick = {
                     if (title.isNotBlank()) {
                         if (note != null) {
-                            onConfirm(note.copy(title = title.trim(), content = content.trim(), category = category.trim(), updatedAt = System.currentTimeMillis()))
+                            onConfirm(note.copy(title = title.trim(), content = contentState.text.trim(), category = category.trim(), updatedAt = System.currentTimeMillis()))
                         } else {
-                            onConfirm(NoteEntity(title = title.trim(), content = content.trim(), category = category.trim()))
+                            onConfirm(NoteEntity(title = title.trim(), content = contentState.text.trim(), category = category.trim()))
                         }
                     }
                 },
@@ -1048,4 +1125,89 @@ fun AddChildPageDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+@Composable
+private fun InlineImagePreview(content: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val uuids = content.split("\n").mapNotNull { ImageStorage.extractUuid(it) }
+    if (uuids.isEmpty()) return
+    Column(modifier = modifier.fillMaxWidth()) {
+        uuids.forEach { uuid ->
+            AsyncImage(
+                model = ImageStorage.imageModel(context, uuid),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .padding(vertical = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberImagePicker(onImagePicked: (String) -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            val stream = try {
+                context.contentResolver.openInputStream(uri)
+            } catch (e: Exception) {
+                Log.e("ImageStorage", "openInputStream failed: ${e.message}", e)
+                null
+            }
+            if (stream == null) {
+                Toast.makeText(context, "Failed to open picked image", Toast.LENGTH_LONG).show()
+                return@rememberLauncherForActivityResult
+            }
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        if (!StoragePermission.hasAllFilesAccess(context)) {
+                            error("Storage permission required")
+                        }
+                        stream.use { ImageStorage.saveImage(context, it.readBytes()) }
+                    }
+                }
+                result.fold(
+                    onSuccess = { uuid -> onImagePicked(uuid) },
+                    onFailure = { e ->
+                        Log.e("ImageStorage", "saveImage failed: ${e.message}", e)
+                        if (e.message == "Storage permission required") {
+                            StoragePermission.requestAllFilesAccess(context)
+                            Toast.makeText(
+                                context,
+                                "Please allow 'All files access' to save images to the clarity folder",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Failed to save image: ${e.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                )
+            }
+        }
+    }
+    return { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+}
+
+private fun insertImageMarker(value: TextFieldValue, uuid: String): TextFieldValue {
+    val text = value.text
+    val start = value.selection.start.coerceIn(0, text.length)
+    val marker = ImageStorage.marker(uuid)
+    val before = text.take(start)
+    val after = text.drop(start)
+    val needsLeading = before.isNotEmpty() && !before.endsWith("\n")
+    val needsTrailing = after.isNotEmpty() && !after.startsWith("\n")
+    val insertion = (if (needsLeading) "\n" else "") + marker + (if (needsTrailing) "\n" else "")
+    val newText = before + insertion + after
+    val newCursor = (start + insertion.length).coerceIn(0, newText.length)
+    return TextFieldValue(newText, TextRange(newCursor))
 }

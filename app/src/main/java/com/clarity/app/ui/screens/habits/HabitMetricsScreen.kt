@@ -115,6 +115,30 @@ internal fun isScheduledOn(habit: HabitEntity, date: LocalDate): Boolean {
     return isScheduledDayFor(habit.frequency, habit.alternateDays, habit.selectedDays, habitCreatedDate(habit), date)
 }
 
+internal enum class HabitDayStatus { DONE, LATE, MISSED, WARNING, PENDING }
+
+/** Status of a single habit on a single day (only meaningful for scheduled days). */
+internal fun habitDayStatus(habit: HabitEntity, date: LocalDate): HabitDayStatus {
+    val dateStr = date.toString()
+    return when {
+        habit.completionHistory[dateStr] == true && habit.lateCompletions.contains(dateStr) -> HabitDayStatus.LATE
+        habit.completionHistory[dateStr] == true -> HabitDayStatus.DONE
+        habit.completionHistory[dateStr] == false -> HabitDayStatus.MISSED
+        (habit.isDeleted || habit.isArchived) -> HabitDayStatus.WARNING
+        else -> HabitDayStatus.PENDING
+    }
+}
+
+internal fun dayWarningCount(habits: List<HabitEntity>, date: LocalDate): Int {
+    var warned = 0
+    habits.forEach { habit ->
+        if (!isHabitActiveOn(habit, date)) return@forEach
+        if (!isScheduledOn(habit, date)) return@forEach
+        if (habitDayStatus(habit, date) == HabitDayStatus.WARNING) warned++
+    }
+    return warned
+}
+
 internal data class HabitMonthStats(
     val habit: HabitEntity,
     val scheduled: Int,
@@ -150,23 +174,28 @@ internal fun computeMonthStats(habit: HabitEntity, ym: YearMonth): HabitMonthSta
     return HabitMonthStats(habit, scheduled, completed, missed)
 }
 
-internal data class DayCellStats(val scheduled: Int, val done: Int, val missed: Int)
+internal data class DayCellStats(val scheduled: Int, val done: Int, val missed: Int, val late: Int = 0)
 
 internal fun dayStats(habits: List<HabitEntity>, date: LocalDate): DayCellStats {
     var scheduled = 0
     var done = 0
     var missed = 0
+    var late = 0
+    val dateStr = date.toString()
     habits.forEach { habit ->
         if (!isHabitActiveOn(habit, date)) return@forEach
         if (!isScheduledDayFor(habit.frequency, habit.alternateDays, habit.selectedDays, habitCreatedDate(habit), date)) return@forEach
         scheduled++
-        when (habit.completionHistory[date.toString()]) {
-            true -> done++
+        when (habit.completionHistory[dateStr]) {
+            true -> {
+                done++
+                if (habit.lateCompletions.contains(dateStr)) late++
+            }
             false -> missed++
             else -> {}
         }
     }
-    return DayCellStats(scheduled, done, missed)
+    return DayCellStats(scheduled, done, missed, late)
 }
 
 internal fun frequencyLabel(habit: HabitEntity): String = when {
@@ -338,6 +367,7 @@ private fun MonthTab(
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         Text("✓ all done", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("! late/warning", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB28704))
                         Text("✗ some missed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         Text("- none", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -469,6 +499,7 @@ private fun AggregateDayGrid(
                 val date = weekStart.plusDays(offset.toLong())
                 val inMonth = !date.isBefore(monthStart) && date.isBefore(monthStart.plusMonths(1))
                 val cell = if (inMonth) dayStats(habits, date) else null
+                val warns = if (inMonth) dayWarningCount(habits, date) else 0
                 val isToday = date == LocalDate.now()
 
                 Box(
@@ -480,6 +511,8 @@ private fun AggregateDayGrid(
                             when {
                                 cell == null -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
                                 cell.missed > 0 -> MaterialTheme.colorScheme.error
+                                cell.late > 0 -> Color(0xFFE6B800)
+                                warns > 0 -> Color(0xFFE6B800)
                                 cell.scheduled > 0 && cell.done == cell.scheduled -> MaterialTheme.colorScheme.primary
                                 cell.scheduled > 0 -> MaterialTheme.colorScheme.primaryContainer
                                 else -> MaterialTheme.colorScheme.surface
@@ -492,14 +525,18 @@ private fun AggregateDayGrid(
                         text = when {
                             cell == null -> ""
                             cell.scheduled == 0 -> date.dayOfMonth.toString()
-                            cell.missed > 0 -> "✗"
+                            cell.missed > 0 -> "✗${cell.missed}"
+                            cell.late > 0 -> if (cell.late > 1) "!${cell.late}" else "!"
+                            warns > 0 -> if (warns > 1) "!$warns" else "!"
                             cell.done == cell.scheduled -> "✓"
                             else -> date.dayOfMonth.toString()
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = when {
                             cell == null -> MaterialTheme.colorScheme.surface
                             cell.missed > 0 -> MaterialTheme.colorScheme.onError
+                            cell.late > 0 -> Color(0xFF3E2723)
+                            warns > 0 -> Color(0xFF3E2723)
                             cell.scheduled > 0 && cell.done == cell.scheduled -> MaterialTheme.colorScheme.onPrimary
                             else -> MaterialTheme.colorScheme.onSurface
                         }
@@ -638,6 +675,17 @@ private fun HabitMonthGrid(habit: HabitEntity, ym: YearMonth) {
                 val isScheduled = inMonth && !isBeforeCreation && !isAfterEnd &&
                     isScheduledDayFor(habit.frequency, habit.alternateDays, habit.selectedDays, created, date)
                 val completed = if (isScheduled) habit.completionHistory[date.toString()] else null
+                val status = if (isScheduled) {
+                    when {
+                        completed == true && habit.lateCompletions.contains(date.toString()) -> HabitDayStatus.LATE
+                        completed == true -> HabitDayStatus.DONE
+                        completed == false -> HabitDayStatus.MISSED
+                        (habit.isDeleted || habit.isArchived) -> HabitDayStatus.WARNING
+                        else -> HabitDayStatus.PENDING
+                    }
+                } else HabitDayStatus.PENDING
+                val isLate = status == HabitDayStatus.LATE
+                val isWarning = status == HabitDayStatus.WARNING
                 val isToday = date == LocalDate.now()
 
                 Box(
@@ -649,8 +697,9 @@ private fun HabitMonthGrid(habit: HabitEntity, ym: YearMonth) {
                             when {
                                 !inMonth -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
                                 isBeforeCreation || isAfterEnd -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                completed == true -> MaterialTheme.colorScheme.primary
                                 completed == false -> MaterialTheme.colorScheme.error
+                                isLate || isWarning -> Color(0xFFE6B800)
+                                completed == true -> MaterialTheme.colorScheme.primary
                                 isToday -> MaterialTheme.colorScheme.primaryContainer
                                 else -> MaterialTheme.colorScheme.surface
                             }
@@ -661,16 +710,19 @@ private fun HabitMonthGrid(habit: HabitEntity, ym: YearMonth) {
                         text = when {
                             !inMonth -> ""
                             isBeforeCreation || isAfterEnd -> "-"
-                            completed == true -> "✓"
                             completed == false -> "✗"
+                            isLate -> "✓*"
+                            isWarning -> "!"
+                            completed == true -> "✓"
                             else -> date.dayOfMonth.toString()
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = when {
                             !inMonth -> MaterialTheme.colorScheme.surface
                             isBeforeCreation || isAfterEnd -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            completed == true -> MaterialTheme.colorScheme.onPrimary
                             completed == false -> MaterialTheme.colorScheme.onError
+                            isLate || isWarning -> Color(0xFF3E2723)
+                            completed == true -> MaterialTheme.colorScheme.onPrimary
                             isToday -> MaterialTheme.colorScheme.onPrimaryContainer
                             else -> MaterialTheme.colorScheme.onSurface
                         }

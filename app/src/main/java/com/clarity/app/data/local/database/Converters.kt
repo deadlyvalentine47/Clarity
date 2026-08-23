@@ -20,6 +20,16 @@ class Converters {
     }
 
     @TypeConverter
+    fun fromStringSet(value: Set<String>): String = json.encodeToString(value)
+
+    @TypeConverter
+    fun toStringSet(value: String): Set<String> = try {
+        json.decodeFromString(value)
+    } catch (e: Exception) {
+        emptySet()
+    }
+
+    @TypeConverter
     fun fromIntList(value: List<Int>): String = json.encodeToString(value)
 
     @TypeConverter

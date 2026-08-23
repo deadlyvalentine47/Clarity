@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -239,6 +240,9 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                         val isSkipped = !isBeforeCreation && !isScheduledDay(date)
                         val isArchivedDate = archivedDate != null && !date.isBefore(archivedDate)
                         val completed = if (isBeforeCreation || isSkipped || isArchivedDate) null else history[date.toString()]
+                        val isLate = completed == true && date.toString() in habit.lateCompletions
+                        val isWarning = completed == null && !isBeforeCreation && !isSkipped &&
+                            !isArchivedDate && (habit.isDeleted || habit.isArchived)
                         val isToday = date == today
 
                         Box(
@@ -250,8 +254,9 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                     when {
                                         isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                         isArchivedDate -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        completed == true -> MaterialTheme.colorScheme.primary
                                         completed == false -> MaterialTheme.colorScheme.error
+                                        isLate || isWarning -> Color(0xFFE6B800)
+                                        completed == true -> MaterialTheme.colorScheme.primary
                                         isToday -> MaterialTheme.colorScheme.primaryContainer
                                         else -> MaterialTheme.colorScheme.surface
                                     }
@@ -262,16 +267,19 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                 text = when {
                                     isBeforeCreation || isSkipped -> "-"
                                     isArchivedDate -> "A"
-                                    completed == true -> "✓"
                                     completed == false -> "✗"
+                                    isLate -> "✓*"
+                                    isWarning -> "!"
+                                    completed == true -> "✓"
                                     else -> date.dayOfMonth.toString()
                                 },
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = when {
                                     isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     isArchivedDate -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    completed == true -> MaterialTheme.colorScheme.onPrimary
                                     completed == false -> MaterialTheme.colorScheme.onError
+                                    isLate || isWarning -> Color(0xFF3E2723)
+                                    completed == true -> MaterialTheme.colorScheme.onPrimary
                                     isToday -> MaterialTheme.colorScheme.onPrimaryContainer
                                     else -> MaterialTheme.colorScheme.onSurface
                                 }
@@ -336,6 +344,9 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                             val isSkipped = isCurrentMonth && !isBeforeCreation && !isScheduledDay(date)
                             val isArchivedDate = archivedDate != null && !date.isBefore(archivedDate)
                             val completed = if (isBeforeCreation || !isCurrentMonth || isSkipped || isArchivedDate) null else history[date.toString()]
+                            val isLate = completed == true && date.toString() in habit.lateCompletions
+                            val isWarning = completed == null && !isBeforeCreation && isCurrentMonth &&
+                                !isSkipped && !isArchivedDate && (habit.isDeleted || habit.isArchived)
                             val isToday = date == today
 
                             Box(
@@ -348,8 +359,9 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                             !isCurrentMonth -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
                                             isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                             isArchivedDate -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                            completed == true -> MaterialTheme.colorScheme.primary
                                             completed == false -> MaterialTheme.colorScheme.error
+                                            isLate || isWarning -> Color(0xFFE6B800)
+                                            completed == true -> MaterialTheme.colorScheme.primary
                                             isToday -> MaterialTheme.colorScheme.primaryContainer
                                             else -> MaterialTheme.colorScheme.surface
                                         }
@@ -361,17 +373,19 @@ private fun MetricsSection(habit: HabitEntity, period: String) {
                                         !isCurrentMonth -> ""
                                         isBeforeCreation || isSkipped -> "-"
                                         isArchivedDate -> "A"
-                                        completed == true -> "✓"
                                         completed == false -> "✗"
+                                        isLate || isWarning -> if (isLate) "✓*" else "!"
+                                        completed == true -> "✓"
                                         else -> date.dayOfMonth.toString()
                                     },
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = when {
                                         !isCurrentMonth -> MaterialTheme.colorScheme.surface
                                         isBeforeCreation || isSkipped -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         isArchivedDate -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        completed == true -> MaterialTheme.colorScheme.onPrimary
                                         completed == false -> MaterialTheme.colorScheme.onError
+                                        isLate || isWarning -> Color(0xFF3E2723)
+                                        completed == true -> MaterialTheme.colorScheme.onPrimary
                                         isToday -> MaterialTheme.colorScheme.onPrimaryContainer
                                         else -> MaterialTheme.colorScheme.onSurface
                                     }

@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -61,7 +62,10 @@ fun HabitMetricsDayScreen(
             habit = habit,
             scheduled = isScheduledOn(habit, day),
             completed = isScheduledOn(habit, day) && habit.completionHistory[dayStr] == true,
-            missed = isScheduledOn(habit, day) && habit.completionHistory[dayStr] == false
+            missed = isScheduledOn(habit, day) && habit.completionHistory[dayStr] == false,
+            late = dayStr in habit.lateCompletions,
+            warning = isScheduledOn(habit, day) && (habit.isDeleted || habit.isArchived) &&
+                habit.completionHistory[dayStr] == null
         )
     }
     val scheduledCount = dayRows.count { it.scheduled }
@@ -147,7 +151,9 @@ private data class DayRowData(
     val habit: HabitEntity,
     val scheduled: Boolean,
     val completed: Boolean,
-    val missed: Boolean
+    val missed: Boolean,
+    val late: Boolean = false,
+    val warning: Boolean = false
 )
 
 @Composable
@@ -181,6 +187,8 @@ private fun DayRow(row: DayRowData) {
         Text(
             text = when {
                 !row.scheduled -> "n/a"
+                row.late -> "done late"
+                row.warning -> "unfinished"
                 row.completed -> "done"
                 row.missed -> "missed"
                 else -> "pending"
@@ -188,6 +196,8 @@ private fun DayRow(row: DayRowData) {
             style = MaterialTheme.typography.labelMedium,
             color = when {
                 !row.scheduled -> MaterialTheme.colorScheme.onSurfaceVariant
+                row.late -> Color(0xFFB28704)
+                row.warning -> Color(0xFFB28704)
                 row.completed -> MaterialTheme.colorScheme.primary
                 row.missed -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -205,6 +215,12 @@ private fun StatusBadge(row: DayRowData) {
         !row.scheduled -> {
             text = "-"; color = MaterialTheme.colorScheme.onSurfaceVariant; bg = MaterialTheme.colorScheme.surfaceVariant
         }
+        row.late -> {
+            text = "✓ late"; color = Color(0xFF3E2723); bg = Color(0xFFE6B800)
+        }
+        row.warning -> {
+            text = "!"; color = Color(0xFF3E2723); bg = Color(0xFFE6B800)
+        }
         row.completed -> {
             text = "✓"; color = MaterialTheme.colorScheme.onPrimary; bg = MaterialTheme.colorScheme.primary
         }
@@ -217,11 +233,13 @@ private fun StatusBadge(row: DayRowData) {
     }
     Box(
         modifier = Modifier
-            .size(28.dp)
+            .height(28.dp)
+            .widthIn(min = 28.dp)
             .clip(CircleShape)
-            .background(bg),
+            .background(bg)
+            .padding(horizontal = if (row.late) 8.dp else 0.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
     }
 }
