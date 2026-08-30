@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -86,8 +87,8 @@ fun CreditCardsScreen(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text(cwd.card.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(cwd.card.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("Billing cycle: ${cwd.card.billingCycleDay}th of month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = { cardToDelete = cwd.card }) {
@@ -96,15 +97,15 @@ fun CreditCardsScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text("Limit", style = MaterialTheme.typography.bodySmall)
                                     Text("\u20B9${fmt0.format(cwd.card.creditLimit)}", style = MaterialTheme.typography.titleMedium)
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
+                                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Outstanding", style = MaterialTheme.typography.bodySmall)
                                     Text("\u20B9${fmt0.format(cwd.outstanding)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
+                                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                                     Text("Available", style = MaterialTheme.typography.bodySmall)
                                     Text("\u20B9${fmt0.format(cwd.available)}", style = MaterialTheme.typography.titleMedium, color = if (cwd.available >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                                 }

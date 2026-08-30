@@ -155,7 +155,7 @@ private fun StatCard(
         ) {
             Icon(icon, contentDescription = null, tint = valueColor, modifier = Modifier.padding(bottom = 4.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor, textAlign = TextAlign.Center)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor, textAlign = TextAlign.Center, maxLines = 1)
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.clarity.app.ui.screens.budget
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -152,7 +154,7 @@ fun SpendingScreen(
                             val maxVal = categorySpending.maxOfOrNull { it.second } ?: 1.0
                             categorySpending.forEach { (category, amount) ->
                                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(category, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(90.dp))
+                                    Text(category, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Box(
                                         modifier = Modifier.weight(1f).height(16.dp).clip(RoundedCornerShape(4.dp))
                                             .background(MaterialTheme.colorScheme.errorContainer)
@@ -276,7 +278,7 @@ fun AddExpenseDialog(
                 if (isCreditBillPayment && creditCardNames.isNotEmpty()) {
                     Column {
                         Text("Select Card *", style = MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                             creditCardNames.forEach { cardName ->
                                 FilterChip(selected = selectedCardName == cardName, onClick = { selectedCardName = cardName }, label = { Text(cardName) })
                             }
@@ -285,7 +287,7 @@ fun AddExpenseDialog(
                 } else {
                     Column {
                         Text("Category *", style = MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                             categories.forEach { cat ->
                                 FilterChip(selected = category == cat, onClick = { category = cat }, label = { Text(cat) })
                             }
@@ -295,7 +297,7 @@ fun AddExpenseDialog(
 
                 Column {
                     Text("Bank Account *", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         sources.forEach { src ->
                             FilterChip(selected = source == src, onClick = { source = src }, label = { Text(src) })
                         }

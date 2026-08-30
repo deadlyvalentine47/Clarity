@@ -131,10 +131,10 @@ fun BankScreen(
                 AnimatedVisibility(visible = fabExpanded, enter = expandVertically(), exit = shrinkVertically()) {
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SmallFloatingActionButton(onClick = { fabExpanded = false; showAddExpenseDialog = true }) {
-                            Text("S", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text("Spend", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                         SmallFloatingActionButton(onClick = { fabExpanded = false; showAddIncomeDialog = true }) {
-                            Text("C", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text("Credit", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

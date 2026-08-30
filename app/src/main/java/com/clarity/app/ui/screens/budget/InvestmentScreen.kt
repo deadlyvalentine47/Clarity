@@ -2,7 +2,9 @@ package com.clarity.app.ui.screens.budget
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -136,7 +139,7 @@ fun InvestmentScreen(
                             val maxVal = typeAllocation.maxOfOrNull { it.totalCurrentValue } ?: 1.0
                             typeAllocation.forEach { alloc ->
                                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(alloc.type, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(90.dp))
+                                    Text(alloc.type, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Box(modifier = Modifier.weight(1f).height(16.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondaryContainer)) {
                                         Box(modifier = Modifier.fillMaxWidth((alloc.totalCurrentValue / maxVal).toFloat().coerceIn(0f, 1f)).height(16.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.secondary))
                                     }
@@ -285,7 +288,7 @@ private fun AddEditInvestmentDialog(
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name *") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Column {
                     Text("Type *", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         types.forEach { type ->
                             FilterChip(selected = selectedType == type, onClick = { selectedType = type }, label = { Text(type) })
                         }
