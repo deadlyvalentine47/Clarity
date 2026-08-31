@@ -103,7 +103,11 @@ fun CreditCardsScreen(
                                 }
                                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Outstanding", style = MaterialTheme.typography.bodySmall)
-                                    Text("\u20B9${fmt0.format(cwd.outstanding)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                                    Text(
+                                        "\u20B9${fmt0.format(cwd.outstanding)}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (cwd.outstanding <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
                                 }
                                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                                     Text("Available", style = MaterialTheme.typography.bodySmall)
@@ -111,7 +115,7 @@ fun CreditCardsScreen(
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            val usage = (cwd.outstanding / cwd.card.creditLimit).toFloat().coerceIn(0f, 1f)
+                            val usage = if (cwd.card.creditLimit > 0) (cwd.outstanding / cwd.card.creditLimit).toFloat().coerceIn(0f, 1f) else 0f
                             Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
                                 Box(modifier = Modifier.fillMaxWidth(usage).height(8.dp).clip(RoundedCornerShape(4.dp)).background(if (usage < 0.7f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error))
                             }

@@ -1,5 +1,6 @@
 package com.clarity.app.ui.screens.budget
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -32,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -78,6 +81,7 @@ fun CreditCardDetailScreen(
     val transactions by viewModel.selectedCardTransactions.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showFabMenu by remember { mutableStateOf(false) }
     var addType by remember { mutableStateOf("Purchase") }
     var txToDelete by remember { mutableStateOf<Long?>(null) }
 
@@ -96,24 +100,38 @@ fun CreditCardDetailScreen(
 
     var selectedYM by remember { mutableStateOf(YearMonth.now()) }
 
-    val filteredTransactions = transactions.filter { tx ->
-        val cal = java.util.Calendar.getInstance()
-        cal.timeInMillis = tx.date
-        val txYM = YearMonth.of(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
-        txYM == selectedYM
+    val filteredTransactions = remember(transactions, selectedYM, card.billingCycleDay) {
+        val cycleDay = card.billingCycleDay
+        val selStart = selectedYM.atDay(cycleDay).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val selEnd = selectedYM.plusMonths(1).atDay(cycleDay).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        transactions.filter { tx -> tx.date >= selStart && tx.date < selEnd }
     }
 
     val purchases = transactions.filter { it.type == "Purchase" }.sumOf { it.amount }
     val payments = transactions.filter { it.type == "Payment" }.sumOf { it.amount }
-    val outstanding = purchases - payments
+    val credits = transactions.filter { it.type == "Credit" }.sumOf { it.amount }
+    val outstanding = purchases - payments - credits
     val available = card.creditLimit - outstanding
-    val usage = (outstanding / card.creditLimit).toFloat().coerceIn(0f, 1f)
+    val usage = if (card.creditLimit > 0) (outstanding / card.creditLimit).toFloat().coerceIn(0f, 1f) else 0f
 
     Scaffold(
         floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FloatingActionButton(onClick = { addType = "Purchase"; showAddDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Purchase")
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AnimatedVisibility(visible = showFabMenu) {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallFloatingActionButton(onClick = { addType = "Credit"; showAddDialog = true; showFabMenu = false }) {
+                            Text("Credit", style = MaterialTheme.typography.labelSmall)
+                        }
+                        SmallFloatingActionButton(onClick = { addType = "Purchase"; showAddDialog = true; showFabMenu = false }) {
+                            Text("Spend", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                FloatingActionButton(onClick = { showFabMenu = !showFabMenu }) {
+                    Icon(
+                        if (showFabMenu) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = if (showFabMenu) "Close" else "Add"
+                    )
                 }
             }
         }
@@ -140,7 +158,7 @@ fun CreditCardDetailScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column { Text("Outstanding", style = MaterialTheme.typography.bodySmall); Text("\u20B9${fmt0.format(outstanding)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error) }
+                            Column { Text("Outstanding", style = MaterialTheme.typography.bodySmall); Text("\u20B9${fmt0.format(outstanding)}", style = MaterialTheme.typography.titleMedium, color = if (outstanding <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
                             Column(horizontalAlignment = Alignment.End) { Text("Available", style = MaterialTheme.typography.bodySmall); Text("\u20B9${fmt0.format(available)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -160,6 +178,12 @@ fun CreditCardDetailScreen(
                     onSelectYM = { selectedYM = it },
                     onPrev = { selectedYM = selectedYM.minusMonths(1) },
                     onNext = { selectedYM = selectedYM.plusMonths(1) }
+                )
+                Text(
+                    text = "Cycle: ${selectedYM.minusMonths(1).month.name.take(3)} ${card.billingCycleDay} - ${selectedYM.month.name.take(3)} ${card.billingCycleDay - 1}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
@@ -204,10 +228,10 @@ fun CreditCardDetailScreen(
             type = addType,
             onDismiss = { showAddDialog = false },
             onConfirm = { amount, description ->
-                if (addType == "Purchase") {
-                    viewModel.addPurchase(cardId, amount, description)
-                } else {
-                    viewModel.addPayment(cardId, amount, description)
+                when (addType) {
+                    "Purchase" -> viewModel.addPurchase(cardId, amount, description)
+                    "Credit" -> viewModel.addCredit(cardId, amount, description)
+                    else -> viewModel.addPayment(cardId, amount, description)
                 }
                 showAddDialog = false
             }
@@ -246,49 +270,81 @@ fun MonthSelectorRowWithDropdown(
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var dropdownExpanded by remember { mutableStateOf(false) }
+    var monthExpanded by remember { mutableStateOf(false) }
+    var yearExpanded by remember { mutableStateOf(false) }
+
+    val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val years = (2020..2035).toList()
 
     Row(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPrev) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous") }
+
         Box {
-            Text(
-                text = selectedYM.format(monthFmt),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .width(160.dp)
-                    .clickable { dropdownExpanded = true }
-            )
-            DropdownMenu(
-                expanded = dropdownExpanded,
-                onDismissRequest = { dropdownExpanded = false }
+            Row(
+                modifier = Modifier.clickable { monthExpanded = true },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val now = YearMonth.now()
-                val startMonth = now.minusMonths(11)
-                val months = generateSequence(startMonth) { it.plusMonths(1) }
-                    .take(24)
-                    .toList()
-                months.forEach { ym ->
+                Text(
+                    text = months[selectedYM.monthValue - 1],
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            DropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }) {
+                months.forEachIndexed { index, name ->
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = ym.format(monthFmt),
-                                color = if (ym == selectedYM) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                text = name,
+                                color = if (index + 1 == selectedYM.monthValue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
-                            onSelectYM(ym)
-                            dropdownExpanded = false
+                            onSelectYM(YearMonth.of(selectedYM.year, index + 1))
+                            monthExpanded = false
                         }
                     )
                 }
             }
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Box {
+            Row(
+                modifier = Modifier.clickable { yearExpanded = true },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = selectedYM.year.toString(),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }) {
+                years.forEach { year ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = year.toString(),
+                                color = if (year == selectedYM.year) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        onClick = {
+                            onSelectYM(YearMonth.of(year, selectedYM.monthValue))
+                            yearExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
         IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next") }
     }
 }

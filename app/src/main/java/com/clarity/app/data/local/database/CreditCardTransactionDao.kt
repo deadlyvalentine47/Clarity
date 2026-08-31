@@ -14,10 +14,10 @@ interface CreditCardTransactionDao {
     @Query("SELECT * FROM credit_card_transactions WHERE cardId = :cardId AND date BETWEEN :start AND :end ORDER BY date DESC")
     fun getTransactionsForCardInRange(cardId: Long, start: Long, end: Long): Flow<List<CreditCardTransactionEntity>>
 
-    @Query("SELECT SUM(CASE WHEN type = 'Purchase' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'Payment' THEN amount ELSE 0 END) FROM credit_card_transactions WHERE cardId = :cardId")
+    @Query("SELECT SUM(CASE WHEN type = 'Purchase' THEN amount ELSE 0 END) - SUM(CASE WHEN type IN ('Payment', 'Credit') THEN amount ELSE 0 END) FROM credit_card_transactions WHERE cardId = :cardId")
     fun getOutstandingForCard(cardId: Long): Flow<Double?>
 
-    @Query("SELECT SUM(CASE WHEN type = 'Purchase' THEN amount ELSE 0 END) - SUM(CASE WHEN type = 'Payment' THEN amount ELSE 0 END) FROM credit_card_transactions WHERE cardId = :cardId AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(CASE WHEN type = 'Purchase' THEN amount ELSE 0 END) - SUM(CASE WHEN type IN ('Payment', 'Credit') THEN amount ELSE 0 END) FROM credit_card_transactions WHERE cardId = :cardId AND date BETWEEN :start AND :end")
     fun getOutstandingForCardInRange(cardId: Long, start: Long, end: Long): Flow<Double?>
 
     @Query("SELECT * FROM credit_card_transactions ORDER BY date DESC")

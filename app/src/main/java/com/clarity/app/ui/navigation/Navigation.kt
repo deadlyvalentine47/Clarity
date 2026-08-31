@@ -45,8 +45,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.clarity.app.ui.screens.budget.BankScreen
+import com.clarity.app.ui.screens.budget.BanksScreen
 import com.clarity.app.ui.screens.budget.BudgetMainScreen
 import com.clarity.app.ui.screens.budget.ComingSoonScreen
+import com.clarity.app.ui.screens.budget.CCSpendsScreen
 import com.clarity.app.ui.screens.budget.CreditCardDetailScreen
 import com.clarity.app.ui.screens.budget.CreditCardsScreen
 import com.clarity.app.ui.screens.budget.IncomeScreen
@@ -95,6 +97,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object BudgetComingSoon : Screen("budget_coming_soon", "Coming Soon", Icons.Default.Home)
     data object BudgetSources : Screen("budget_sources", "Sources", Icons.Default.Home)
     data object BudgetMetrics : Screen("budget_metrics", "Metrics", Icons.Default.Home)
+    data object BudgetCCSpends : Screen("budget_cc_spends", "CC Spends", Icons.Default.Home)
+    data object BudgetBanks : Screen("budget_banks", "Banks", Icons.Default.Home)
 }
 
 val drawerItems = listOf(
@@ -208,7 +212,9 @@ fun ClarityNavHost() {
                             onNavigateToCreditCards = { navController.navigate(Screen.BudgetCreditCards.route) },
                             onNavigateToInvestments = { navController.navigate(Screen.BudgetComingSoon.route) },
                             onNavigateToSources = { navController.navigate(Screen.BudgetSources.route) },
-                            onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) }
+                            onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) },
+                            onNavigateToCCSpends = { navController.navigate(Screen.BudgetCCSpends.route) },
+                            onNavigateToBanks = { navController.navigate(Screen.BudgetBanks.route) }
                         )
                     }
                     composable(Screen.BudgetBank.route) { BankScreen(onBack = { navController.popBackStack() }) }
@@ -228,6 +234,8 @@ fun ClarityNavHost() {
                     composable(Screen.BudgetComingSoon.route) { ComingSoonScreen(onBack = { navController.popBackStack() }) }
                     composable(Screen.BudgetSources.route) { SourceDetailScreen(onBack = { navController.popBackStack() }) }
                     composable(Screen.BudgetMetrics.route) { MetricsScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetCCSpends.route) { CCSpendsScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetBanks.route) { BanksScreen(onBack = { navController.popBackStack() }) }
                     composable(Screen.Notes.route) {
                         NotesScreen(onNoteClick = { noteId ->
                             navController.navigate("note_detail/$noteId")
@@ -377,7 +385,9 @@ fun ClarityNavHost() {
                                 onNavigateToCreditCards = { navController.navigate(Screen.BudgetCreditCards.route) },
                                 onNavigateToInvestments = { navController.navigate(Screen.BudgetComingSoon.route) },
                                 onNavigateToSources = { navController.navigate(Screen.BudgetSources.route) },
-                                onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) }
+                                onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) },
+                                onNavigateToCCSpends = { navController.navigate(Screen.BudgetCCSpends.route) },
+                                onNavigateToBanks = { navController.navigate(Screen.BudgetBanks.route) }
                             )
                         }
                         composable(Screen.BudgetBank.route) { BankScreen(onBack = { navController.popBackStack() }) }
@@ -397,6 +407,8 @@ fun ClarityNavHost() {
                         composable(Screen.BudgetComingSoon.route) { ComingSoonScreen(onBack = { navController.popBackStack() }) }
                         composable(Screen.BudgetSources.route) { SourceDetailScreen(onBack = { navController.popBackStack() }) }
                         composable(Screen.BudgetMetrics.route) { MetricsScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetCCSpends.route) { CCSpendsScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetBanks.route) { BanksScreen(onBack = { navController.popBackStack() }) }
                         composable(Screen.Notes.route) {
                             NotesScreen(onNoteClick = { noteId ->
                                 navController.navigate("note_detail/$noteId")

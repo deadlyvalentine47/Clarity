@@ -44,7 +44,9 @@ fun BudgetMainScreen(
     onNavigateToCreditCards: () -> Unit = {},
     onNavigateToInvestments: () -> Unit = {},
     onNavigateToSources: () -> Unit = {},
-    onNavigateToMetrics: () -> Unit = {}
+    onNavigateToMetrics: () -> Unit = {},
+    onNavigateToCCSpends: () -> Unit = {},
+    onNavigateToBanks: () -> Unit = {}
 ) {
     val balance by viewModel.balance.collectAsStateWithLifecycle()
     val cardsWithOutstanding by viewModel.cardsWithOutstanding.collectAsStateWithLifecycle()
@@ -86,8 +88,9 @@ fun BudgetMainScreen(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.CreditCard,
                     label = "CC Spends",
-                    value = "\u20B9${fmt0.format(totalCCSpends)}",
-                    valueColor = MaterialTheme.colorScheme.error
+                    value = "",
+                    valueColor = MaterialTheme.colorScheme.error,
+                    onClick = onNavigateToCCSpends
                 )
             }
         }
@@ -100,9 +103,9 @@ fun BudgetMainScreen(
                 NavCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.AccountBalance,
-                    title = "BANK",
-                    subtitle = "Manage income & spending",
-                    onClick = onNavigateToBank
+                    title = "Banks",
+                    subtitle = "Track all bank accounts",
+                    onClick = onNavigateToBanks
                 )
                 NavCard(
                     modifier = Modifier.weight(1f),

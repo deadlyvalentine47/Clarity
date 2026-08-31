@@ -113,6 +113,20 @@ class CreditCardViewModel @Inject constructor(
         }
     }
 
+    fun addCredit(cardId: Long, amount: Double, description: String) {
+        viewModelScope.launch {
+            creditCardRepository.insertTransaction(
+                CreditCardTransactionEntity(
+                    cardId = cardId,
+                    amount = amount,
+                    description = description.trim(),
+                    date = System.currentTimeMillis(),
+                    type = "Credit"
+                )
+            )
+        }
+    }
+
     fun deleteTransaction(transaction: CreditCardTransactionEntity) {
         viewModelScope.launch {
             creditCardRepository.deleteTransaction(transaction)
