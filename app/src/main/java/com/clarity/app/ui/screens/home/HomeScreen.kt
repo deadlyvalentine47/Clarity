@@ -164,7 +164,7 @@ fun HomeScreen(
             ) {
                 StatCard(title = "Tasks", value = pendingTaskCount.toString(), modifier = Modifier.weight(1f))
                 StatCard(title = "Habits", value = habitCount.toString(), modifier = Modifier.weight(1f))
-                StatCard(title = "Spent", value = "\u20B9${String.format("%.0f", monthlyExpenses)}", modifier = Modifier.weight(1f))
+                StatCard(title = "Spent", value = "\u20B9${String.format("%,.2f", monthlyExpenses)}", modifier = Modifier.weight(1f))
             }
         }
 
@@ -553,9 +553,9 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                StatCard(title = "Balance", value = "\u20B9${String.format("%.0f", budgetBalance)}", modifier = Modifier.weight(1f))
-                                StatCard(title = "Income", value = "\u20B9${String.format("%.0f", budgetIncome)}", modifier = Modifier.weight(1f))
-                                StatCard(title = "Expenses", value = "\u20B9${String.format("%.0f", budgetExpenses)}", modifier = Modifier.weight(1f))
+                                StatCard(title = "Balance", value = "\u20B9${String.format("%,.2f", budgetBalance)}", modifier = Modifier.weight(1f))
+                                StatCard(title = "Income", value = "\u20B9${String.format("%,.2f", budgetIncome)}", modifier = Modifier.weight(1f))
+                                StatCard(title = "Expenses", value = "\u20B9${String.format("%,.2f", budgetExpenses)}", modifier = Modifier.weight(1f))
                             }
                         }
                     }

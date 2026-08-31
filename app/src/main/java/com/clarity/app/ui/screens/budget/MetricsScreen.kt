@@ -46,7 +46,7 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val fmt0 = DecimalFormat("##,##,##0", DecimalFormatSymbols(Locale("en", "IN")))
+private val fmt0 = DecimalFormat("##,##,##0.##", DecimalFormatSymbols(Locale("en", "IN")))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

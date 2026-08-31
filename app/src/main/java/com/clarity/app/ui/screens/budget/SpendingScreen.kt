@@ -61,7 +61,7 @@ import java.util.Date
 import java.util.Locale
 
 private val indianFormat = DecimalFormat("##,##,##0.00", DecimalFormatSymbols(Locale("en", "IN")))
-private val indianFormatNoDecimal = DecimalFormat("##,##,##0", DecimalFormatSymbols(Locale("en", "IN")))
+private val indianFormatNoDecimal = DecimalFormat("##,##,##0.##", DecimalFormatSymbols(Locale("en", "IN")))
 private fun fmt(amount: Double): String = indianFormat.format(amount)
 private fun fmt0(amount: Double): String = indianFormatNoDecimal.format(amount)
 private val monthFmt = DateTimeFormatter.ofPattern("MMM yyyy")

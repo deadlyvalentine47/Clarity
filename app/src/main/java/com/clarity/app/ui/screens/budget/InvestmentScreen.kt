@@ -63,7 +63,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
-private val fmt0 = DecimalFormat("##,##,##0", DecimalFormatSymbols(Locale("en", "IN")))
+private val fmt0 = DecimalFormat("##,##,##0.##", DecimalFormatSymbols(Locale("en", "IN")))
 private val fmt2 = DecimalFormat("##,##,##0.00", DecimalFormatSymbols(Locale("en", "IN")))
 private val monthFmt = DateTimeFormatter.ofPattern("MMM yyyy")
 
