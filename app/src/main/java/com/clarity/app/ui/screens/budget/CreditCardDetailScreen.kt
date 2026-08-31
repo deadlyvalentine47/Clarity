@@ -1,6 +1,7 @@
 package com.clarity.app.ui.screens.budget
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +12,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -40,9 +49,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.clarity.app.data.local.database.CreditCardEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.CreditCardViewModel
 import java.text.DecimalFormat
@@ -66,6 +77,7 @@ fun CreditCardDetailScreen(
     val cards by viewModel.cards.collectAsStateWithLifecycle()
     val transactions by viewModel.selectedCardTransactions.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
     var addType by remember { mutableStateOf("Purchase") }
     var txToDelete by remember { mutableStateOf<Long?>(null) }
 
@@ -117,8 +129,15 @@ fun CreditCardDetailScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text("Credit Limit", style = MaterialTheme.typography.labelLarge)
-                        Text("\u20B9${fmt0.format(card.creditLimit)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Credit Limit", style = MaterialTheme.typography.labelLarge)
+                                Text("\u20B9${fmt0.format(card.creditLimit)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { showEditDialog = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Card", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column { Text("Outstanding", style = MaterialTheme.typography.bodySmall); Text("\u20B9${fmt0.format(outstanding)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error) }
@@ -135,7 +154,14 @@ fun CreditCardDetailScreen(
                 }
             }
 
-            item { MonthSelectorRow(selectedYM, onPrev = { selectedYM = selectedYM.minusMonths(1) }, onNext = { selectedYM = selectedYM.plusMonths(1) }) }
+            item {
+                MonthSelectorRowWithDropdown(
+                    selectedYM = selectedYM,
+                    onSelectYM = { selectedYM = it },
+                    onPrev = { selectedYM = selectedYM.minusMonths(1) },
+                    onNext = { selectedYM = selectedYM.plusMonths(1) }
+                )
+            }
 
             item { Text("Transactions", style = MaterialTheme.typography.titleMedium) }
 
@@ -188,6 +214,17 @@ fun CreditCardDetailScreen(
         )
     }
 
+    if (showEditDialog) {
+        EditCardDialog(
+            card = card,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { updated ->
+                viewModel.updateCard(updated)
+                showEditDialog = false
+            }
+        )
+    }
+
     txToDelete?.let { txId ->
         val tx = filteredTransactions.find { it.id == txId }
         if (tx != null) {
@@ -199,6 +236,118 @@ fun CreditCardDetailScreen(
             )
         }
     }
+}
+
+@Composable
+fun MonthSelectorRowWithDropdown(
+    selectedYM: YearMonth,
+    onSelectYM: (YearMonth) -> Unit,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onPrev) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous") }
+        Box {
+            Text(
+                text = selectedYM.format(monthFmt),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .width(160.dp)
+                    .clickable { dropdownExpanded = true }
+            )
+            DropdownMenu(
+                expanded = dropdownExpanded,
+                onDismissRequest = { dropdownExpanded = false }
+            ) {
+                val now = YearMonth.now()
+                val startMonth = now.minusMonths(11)
+                val months = generateSequence(startMonth) { it.plusMonths(1) }
+                    .take(24)
+                    .toList()
+                months.forEach { ym ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = ym.format(monthFmt),
+                                color = if (ym == selectedYM) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        onClick = {
+                            onSelectYM(ym)
+                            dropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next") }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditCardDialog(
+    card: CreditCardEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (CreditCardEntity) -> Unit
+) {
+    var name by remember { mutableStateOf(card.name) }
+    var creditLimit by remember { mutableStateOf(card.creditLimit.toString()) }
+    var billingCycleDay by remember { mutableStateOf(card.billingCycleDay.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Credit Card") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Card Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = creditLimit,
+                    onValueChange = { creditLimit = it },
+                    label = { Text("Credit Limit *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = billingCycleDay,
+                    onValueChange = { billingCycleDay = it.filter { c -> c.isDigit() } },
+                    label = { Text("Billing Cycle Day (1-31) *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val limit = creditLimit.toDoubleOrNull()
+                    val cycleDay = billingCycleDay.toIntOrNull()
+                    if (name.isNotBlank() && limit != null && limit > 0 && cycleDay != null && cycleDay in 1..31) {
+                        onConfirm(card.copy(name = name.trim(), creditLimit = limit, billingCycleDay = cycleDay))
+                    }
+                },
+                enabled = name.isNotBlank() &&
+                        (creditLimit.toDoubleOrNull() ?: 0.0) > 0 &&
+                        (billingCycleDay.toIntOrNull() ?: 0) in 1..31
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
