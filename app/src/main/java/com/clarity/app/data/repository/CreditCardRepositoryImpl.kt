@@ -44,4 +44,7 @@ class CreditCardRepositoryImpl @Inject constructor(
 
     override suspend fun deleteTransaction(transaction: CreditCardTransactionEntity) =
         creditCardTransactionDao.deleteTransaction(transaction)
+
+    override suspend fun getAllTransactions(): List<CreditCardTransactionEntity> =
+        creditCardTransactionDao.getAllTransactions()
 }

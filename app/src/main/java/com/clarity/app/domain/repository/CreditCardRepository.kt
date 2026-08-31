@@ -18,4 +18,5 @@ interface CreditCardRepository {
     fun getOutstandingForCardInRange(cardId: Long, start: Long, end: Long): Flow<Double?>
     suspend fun insertTransaction(transaction: CreditCardTransactionEntity): Long
     suspend fun deleteTransaction(transaction: CreditCardTransactionEntity)
+    suspend fun getAllTransactions(): List<CreditCardTransactionEntity>
 }

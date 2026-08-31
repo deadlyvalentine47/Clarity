@@ -61,6 +61,9 @@ class CreditCardViewModel @Inject constructor(
         _selectedCardId.value = cardId
     }
 
+    suspend fun getAllTransactions(): List<CreditCardTransactionEntity> =
+        creditCardRepository.getAllTransactions()
+
     fun addCard(name: String, creditLimit: Double, billingCycleDay: Int) {
         viewModelScope.launch {
             creditCardRepository.insertCard(
