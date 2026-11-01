@@ -38,6 +38,14 @@ import {
   updateTransaction,
 } from '../../db/budget'
 
+/** Today's entries keep the current time; other dates are stored at local noon. */
+function resolveWhen(date: string, existing?: number): number {
+  const todayKey = toDateKey(new Date())
+  if (date !== todayKey) return new Date(`${date}T12:00:00`).getTime()
+  if (existing != null && toDateKey(existing) === todayKey) return existing
+  return Date.now()
+}
+
 export function Money({
   value,
   tone,
@@ -443,7 +451,7 @@ export function TransactionDialog({
 
   const save = async () => {
     if (!valid || payment == null) return
-    const when = new Date(`${date}T12:00:00`).getTime()
+    const when = resolveWhen(date, transaction?.date)
     try {
       if (editingTransfer && transaction?.transferGroupId) {
         await updateSelfTransfer(transaction.transferGroupId, {
@@ -696,7 +704,7 @@ export function CardTransactionDialog({
       cardId,
       amount: amountValue,
       description: description.trim(),
-      date: new Date(`${date}T12:00:00`).getTime(),
+      date: resolveWhen(date, transaction?.date),
       type: typeValue,
     }
     if (editing && transaction?.id != null) {

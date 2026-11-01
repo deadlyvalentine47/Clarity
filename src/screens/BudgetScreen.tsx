@@ -5,26 +5,23 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   BarChart3,
+  ChevronRight,
   CreditCard,
   Landmark,
   LineChart,
-  Pencil,
   Plus,
   Settings2,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
-import { totalBankBalance, cardOutstanding, transferPair } from '../db/budget'
+import { totalBankBalance, cardOutstanding, dailySummary, transferPair } from '../db/budget'
 import type { CreditCardTransaction, Transaction, TransactionType } from '../db/types'
 import { PageHeader, EmptyState } from '../components/ui'
 import { formatMoney } from '../lib/format'
-import { formatDate } from '../lib/dates'
+import { endOfDay, startOfDay } from '../lib/dates'
 import { CardTransactionDialog, ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
-
-type RecentActivity =
-  | { kind: 'bank'; date: number; bank: Transaction }
-  | { kind: 'card'; date: number; card: CreditCardTransaction }
+import { ActivityRows, buildDailyActivity } from './budget/ActivityList'
 
 export default function BudgetScreen() {
   const navigate = useNavigate()
@@ -43,16 +40,14 @@ export default function BudgetScreen() {
     [],
     [],
   )
+  // Recent activity is scoped to today in local time; it naturally resets at
+  // midnight. The hub shows the latest five, the full day lives on its own screen.
+  const dayStart = startOfDay()
+  const dayEnd = endOfDay()
   const cardNameById = new Map((cards ?? []).map((c) => [c.id!, c.name]))
-  const recentActivity: RecentActivity[] = [
-    ...(transactions ?? []).map((t) => ({ kind: 'bank' as const, date: t.date, bank: t })),
-    ...(cardTxns ?? [])
-      // The card side of a bill payment is already represented by its bank row.
-      .filter((t) => !(t.type === 'Payment' && t.linkedTransactionId != null))
-      .map((t) => ({ kind: 'card' as const, date: t.date, card: t })),
-  ]
-    .sort((a, b) => b.date - a.date)
-    .slice(0, 6)
+  const dailyActivity = buildDailyActivity(transactions ?? [], cardTxns ?? [], dayStart, dayEnd)
+  const todayTotals = dailySummary(transactions ?? [], cardTxns ?? [], dayStart, dayEnd)
+  const recentActivity = dailyActivity.slice(0, 5)
 
   const openEdit = (txn: Transaction) => {
     const pair = transferPair(transactions ?? [], txn)
@@ -172,14 +167,22 @@ export default function BudgetScreen() {
         ))}
       </div>
 
-      <div className="row-between" style={{ marginBottom: 8 }}>
-        <span className="section-label">Recent activity</span>
+      <div className="row-between" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div className="section-label">Today&apos;s activity</div>
+          <div className="tiny muted">
+            Spent {formatMoney(todayTotals.spent)} · Earned {formatMoney(todayTotals.earned)}
+          </div>
+        </div>
         <div className="row" style={{ gap: 6 }}>
           <button className="btn btn-sm btn-outline" onClick={() => setShowAdd('Income')}>
             <ArrowDownLeft size={14} /> Credit
           </button>
           <button className="btn btn-sm btn-primary" onClick={() => setShowAdd('Expense')}>
             <ArrowUpRight size={14} /> Spend
+          </button>
+          <button className="btn btn-sm btn-outline" onClick={() => navigate('/budget/activity')}>
+            View all <ChevronRight size={14} />
           </button>
         </div>
       </div>
@@ -188,8 +191,8 @@ export default function BudgetScreen() {
         <div className="card">
           <EmptyState
             icon={<Wallet size={36} />}
-            title="No transactions yet"
-            subtitle="Add a spend or credit to start tracking your money."
+            title="No activity today"
+            subtitle="Spends and credits from today will appear here."
             action={
               <button className="btn btn-primary" onClick={() => setShowAdd('Expense')}>
                 <Plus size={16} /> Add transaction
@@ -199,73 +202,12 @@ export default function BudgetScreen() {
         </div>
       ) : (
         <div className="card flush">
-          {recentActivity.map((item, i) => {
-            const borderTop = i === 0 ? 'none' : '1px solid var(--outline)'
-            if (item.kind === 'bank') {
-              const txn = item.bank
-              return (
-                <div key={`bank-${txn.id}`} className="row" style={{ padding: '12px 16px', borderTop }}>
-                  <div className={`avatar ${txn.type === 'Income' ? 'primary' : 'error'}`} style={{ width: 34, height: 34 }}>
-                    {txn.type === 'Income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-                  </div>
-                  <div className="grow" style={{ minWidth: 0 }}>
-                    <div className="truncate">{txn.description || txn.category || txn.type}</div>
-                    <div className="tiny muted">
-                      {txn.source} · {txn.category} · {formatDate(txn.date)}
-                    </div>
-                  </div>
-                  <span className={txn.type === 'Income' ? 'money-positive' : 'money-negative'}>
-                    {txn.type === 'Income' ? '+' : '−'}
-                    {formatMoney(txn.amount)}
-                  </span>
-                  {txn.linkedCardTxnId == null && (
-                    <button
-                      className="icon-btn"
-                      style={{ width: 30, height: 30 }}
-                      aria-label="Edit transaction"
-                      onClick={() => openEdit(txn)}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                </div>
-              )
-            }
-
-            const txn = item.card
-            const spent = txn.type === 'Purchase'
-            return (
-              <div
-                key={`card-${txn.id}`}
-                className="row"
-                style={{ padding: '12px 16px', borderTop }}
-              >
-                <div className={`avatar ${spent ? 'error' : 'primary'}`} style={{ width: 34, height: 34 }}>
-                  <CreditCard size={16} />
-                </div>
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="truncate">{txn.description || txn.type}</div>
-                  <div className="tiny muted">
-                    {cardNameById.get(txn.cardId) ?? 'Card'} · {txn.type} · {formatDate(txn.date)}
-                  </div>
-                </div>
-                <span className={spent ? 'money-negative' : 'money-positive'}>
-                  {spent ? '−' : '+'}
-                  {formatMoney(txn.amount)}
-                </span>
-                {txn.linkedTransactionId == null && (
-                  <button
-                    className="icon-btn"
-                    style={{ width: 30, height: 30 }}
-                    aria-label="Edit card transaction"
-                    onClick={() => setEditingCardTxn(txn)}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
+          <ActivityRows
+            items={recentActivity}
+            cardNameById={cardNameById}
+            onEditBank={openEdit}
+            onEditCard={setEditingCardTxn}
+          />
         </div>
       )}
 

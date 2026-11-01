@@ -369,6 +369,29 @@ export function cardPurchasesInCycle(
     .reduce((sum, t) => sum + t.amount, 0)
 }
 
+export interface DailySummary {
+  spent: number
+  earned: number
+}
+
+/** Spent and earned in a window; self-transfers and bill payments are excluded. */
+export function dailySummary(
+  transactions: Transaction[],
+  cardTransactions: CreditCardTransaction[],
+  start: number,
+  end: number,
+): DailySummary {
+  const spent = spendSummary(transactions, cardTransactions, start, end).total
+  const earned =
+    transactions
+      .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= start && t.date <= end)
+      .reduce((sum, t) => sum + t.amount, 0) +
+    cardTransactions
+      .filter((t) => t.type === 'Credit' && t.date >= start && t.date <= end)
+      .reduce((sum, t) => sum + t.amount, 0)
+  return { spent, earned }
+}
+
 /** Record a spend/credit straight onto a card (budget quick-add). */
 export async function recordCardTransaction(
   cardId: number,
