@@ -1,0 +1,144 @@
+name: Android APK
+
+# Two ways in:
+#   - a pull request targeting master (the merge gate), and
+#   - a manual run from the Actions tab on any branch.
+# Every run stops at the `apk-build` environment and waits for a reviewer to
+# approve it, so pushing commits never burns build minutes: the newest commit
+# cancels the pending run and queues a fresh one awaiting approval.
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'APK type'
+        type: choice
+        options: [debug, release]
+        default: debug
+
+concurrency:
+  group: android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft != true }}
+    # Required reviewer lives on this environment. The job stays "waiting" —
+    # and the required status check stays pending — until it is approved.
+    environment: apk-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Copy assets into the Android project
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Check for signing secrets
+        id: signing
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Warn when a release build falls back to debug
+        if: ${{ steps.signing.outputs.enabled != 'true' && inputs.build_type == 'release' }}
+        run: echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building a debug APK instead."
+
+      - name: Build release APK
+        if: ${{ steps.signing.outputs.enabled == 'true' && inputs.build_type == 'release' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/clarity-release.keystore
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$PWD/app/clarity-release.keystore" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: Build debug APK
+        if: ${{ inputs.build_type != 'release' || steps.signing.outputs.enabled != 'true' }}
+        run: cd android && ./gradlew assembleDebug
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          for apk in $(find android/app/build/outputs/apk -name '*.apk'); do
+            case "$apk" in
+              *release*) name=clarity-release.apk ;;
+              *) name=clarity-debug.apk ;;
+            esac
+            cp "$apk" "out/$name"
+          done
+          ls -lh out
+
+      # Artifacts are always delivered as a zip, so the APK is also attached to
+      # a rolling "apk-latest" release, where it downloads as a plain .apk.
+      - name: Publish APK to the latest release
+        # Fork PRs only get a read-only token; don't fail the build over it.
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(basename "$(ls out/*.apk | head -1)")
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/apk-latest/$APK"
+
+          gh release view apk-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create apk-latest --repo "$GITHUB_REPOSITORY" \
+              --title "Clarity APK (latest build)" \
+              --notes "Built from the latest approved commit. Install with adb or by opening the file on the phone." \
+              --prerelease
+          gh release upload apk-latest out/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit apk-latest --repo "$GITHUB_REPOSITORY" \
+            --notes "Built from commit $GITHUB_SHA on $(date -u +%Y-%m-%d\ %H:%M) UTC by workflow run $GITHUB_RUN_ID.
+
+          Direct download: $URL"
+
+          {
+            echo "### APK ready"
+            echo
+            echo "[$APK]($URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clarity-apk
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 30
