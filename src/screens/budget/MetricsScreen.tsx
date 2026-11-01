@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ChevronDown, ChevronUp, CreditCard, Landmark, LineChart } from 'lucide-react'
 import { db } from '../../db/db'
-import { cardOutstanding, totalBankBalance } from '../../db/budget'
+import { cardOutstanding, isSelfTransfer, totalBankBalance } from '../../db/budget'
 import { monthRange } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import { PageHeader } from '../../components/ui'
@@ -26,7 +26,10 @@ export default function BudgetMetricsScreen() {
 
   const [start, end] = monthRange(year, month)
   const monthTxns = useMemo(
-    () => (transactions ?? []).filter((t) => t.date >= start && t.date <= end),
+    () =>
+      (transactions ?? []).filter(
+        (t) => t.date >= start && t.date <= end && !isSelfTransfer(t),
+      ),
     [transactions, start, end],
   )
 

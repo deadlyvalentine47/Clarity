@@ -3,10 +3,12 @@ import type {
   CardTxnType,
   CreditCardTransaction,
   Transaction,
+  TransactionType,
 } from './types'
 import { clampDay } from '../lib/dates'
 
 export const CREDIT_CARD_PAYMENT_CATEGORY = 'Credit Card Payment'
+export const SELF_TRANSFER_CATEGORY = 'Self_Transfer'
 
 // ---------------------------------------------------------------- accounts
 
@@ -24,6 +26,12 @@ export async function categoryNameExists(name: string, exceptId?: number): Promi
   const trimmed = name.trim().toLowerCase()
   const categories = await db.categories.toArray()
   return categories.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === trimmed)
+}
+
+export async function cardNameExists(name: string, exceptId?: number): Promise<boolean> {
+  const trimmed = name.trim().toLowerCase()
+  const cards = await db.creditCards.toArray()
+  return cards.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === trimmed)
 }
 
 /** Rename an account and cascade the name to every transaction. */
@@ -119,10 +127,160 @@ export async function addExpense(input: {
   })
 }
 
+/** A self-transfer moves money between your own accounts; it is not spending. */
+export function isSelfTransfer(txn: Transaction): boolean {
+  return txn.transferGroupId != null || txn.category === SELF_TRANSFER_CATEGORY
+}
+
+export interface TransactionInput {
+  type: TransactionType
+  amount: number
+  category: string
+  source: string
+  description: string
+  date: number
+}
+
+/** Edit a plain bank transaction and keep the account balance in sync. */
+export async function updateTransaction(txn: Transaction, patch: TransactionInput): Promise<void> {
+  if (txn.id == null) return
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    // Undo the old effect, apply the new one.
+    await adjustBalance(txn.source, txn.type === 'Income' ? -txn.amount : txn.amount)
+    await db.transactions.update(txn.id!, {
+      type: patch.type,
+      amount: patch.amount,
+      category: patch.category,
+      source: patch.source,
+      description: patch.description.trim(),
+      date: patch.date,
+    })
+    await adjustBalance(patch.source, patch.type === 'Income' ? patch.amount : -patch.amount)
+  })
+}
+
+/**
+ * Move money between two of your own accounts: one expense leg from the source
+ * and one income leg to the destination, sharing a group id.
+ */
+export async function addSelfTransfer(input: {
+  fromSource: string
+  toSource: string
+  amount: number
+  description: string
+  date?: number
+}): Promise<string> {
+  const now = Date.now()
+  const date = input.date ?? now
+  const groupId = crypto.randomUUID()
+  const label = input.description.trim()
+
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    await db.transactions.add({
+      type: 'Expense',
+      amount: input.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: input.fromSource,
+      description: label || `Transfer to ${input.toSource}`,
+      date,
+      isRecurring: false,
+      recurringType: null,
+      createdAt: now,
+      transferGroupId: groupId,
+    })
+    await db.transactions.add({
+      type: 'Income',
+      amount: input.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: input.toSource,
+      description: label || `Transfer from ${input.fromSource}`,
+      date,
+      isRecurring: false,
+      recurringType: null,
+      createdAt: now,
+      transferGroupId: groupId,
+    })
+    await adjustBalance(input.fromSource, -input.amount)
+    await adjustBalance(input.toSource, input.amount)
+  })
+
+  return groupId
+}
+
+/** Update both legs of a self-transfer and rebalance both accounts. */
+export async function updateSelfTransfer(
+  groupId: string,
+  patch: {
+    fromSource: string
+    toSource: string
+    amount: number
+    description: string
+    date: number
+  },
+): Promise<void> {
+  const legs = await db.transactions.filter((t) => t.transferGroupId === groupId).toArray()
+  const expenseLeg = legs.find((t) => t.type === 'Expense')
+  const incomeLeg = legs.find((t) => t.type === 'Income')
+  if (!expenseLeg || !incomeLeg || expenseLeg.id == null || incomeLeg.id == null) {
+    throw new Error('Transfer pair not found')
+  }
+
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    // Reverse the old movement before applying the new one.
+    await adjustBalance(expenseLeg.source, expenseLeg.amount)
+    await adjustBalance(incomeLeg.source, -incomeLeg.amount)
+
+    const label = patch.description.trim()
+    await db.transactions.update(expenseLeg.id!, {
+      type: 'Expense',
+      amount: patch.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: patch.fromSource,
+      description: label || `Transfer to ${patch.toSource}`,
+      date: patch.date,
+    })
+    await db.transactions.update(incomeLeg.id!, {
+      type: 'Income',
+      amount: patch.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: patch.toSource,
+      description: label || `Transfer from ${patch.fromSource}`,
+      date: patch.date,
+    })
+    await adjustBalance(patch.fromSource, -patch.amount)
+    await adjustBalance(patch.toSource, patch.amount)
+  })
+}
+
+/** Resolve the from/to accounts of a transfer leg. */
+export function transferPair(
+  transactions: Transaction[],
+  txn: Transaction,
+): { from: string; to: string } | null {
+  if (txn.transferGroupId == null) return null
+  const legs = transactions.filter((t) => t.transferGroupId === txn.transferGroupId)
+  const from = legs.find((t) => t.type === 'Expense')?.source
+  const to = legs.find((t) => t.type === 'Income')?.source
+  return from != null && to != null ? { from, to } : null
+}
+
 /** Delete a bank transaction, restore the account balance and linked card row. */
 export async function deleteTransactionCascade(txn: Transaction): Promise<void> {
   if (txn.id == null) return
   await db.transaction('rw', db.transactions, db.sources, db.creditCardTransactions, async () => {
+    // Delete both legs of a self-transfer together.
+    if (txn.transferGroupId != null) {
+      const legs = await db.transactions
+        .filter((t) => t.transferGroupId === txn.transferGroupId)
+        .toArray()
+      for (const leg of legs) {
+        if (leg.id == null) continue
+        await db.transactions.delete(leg.id)
+        await adjustBalance(leg.source, leg.type === 'Income' ? -leg.amount : leg.amount)
+      }
+      return
+    }
+
     await db.transactions.delete(txn.id!)
     await adjustBalance(txn.source, txn.type === 'Income' ? -txn.amount : txn.amount)
 
@@ -180,12 +338,30 @@ export function spendSummary(
   end: number,
 ): SpendSummary {
   const bank = transactions
-    .filter((t) => t.type === 'Expense' && !isCardPayment(t) && t.date >= start && t.date <= end)
+    .filter((t) => t.type === 'Expense' && !isCardPayment(t) && !isSelfTransfer(t) && t.date >= start && t.date <= end)
     .reduce((sum, t) => sum + t.amount, 0)
   const card = cardTransactions
     .filter((t) => t.type === 'Purchase' && t.date >= start && t.date <= end)
     .reduce((sum, t) => sum + t.amount, 0)
   return { bank, card, total: bank + card }
+}
+
+/** Record a spend/credit straight onto a card (budget quick-add). */
+export async function recordCardTransaction(
+  cardId: number,
+  type: CardTxnType,
+  amount: number,
+  description: string,
+  date: number = Date.now(),
+): Promise<number> {
+  return db.creditCardTransactions.add({
+    cardId,
+    amount,
+    description: description.trim(),
+    date,
+    type,
+    createdAt: Date.now(),
+  }) as Promise<number>
 }
 
 /** Delete a card transaction; also removes a linked bank bill payment. */

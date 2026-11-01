@@ -127,7 +127,7 @@ console.log('habit toggled:', habitToggled)
 await page.goto('http://localhost:5173/budget', { waitUntil: 'networkidle2' })
 await page.click('.fab')
 await sleep(250)
-await page.type('.dialog input[type="number"]', '12.34')
+await page.type('.dialog input[inputmode="decimal"]', '12.34')
 await page.evaluate(() => {
   const inputs = [...document.querySelectorAll('.dialog input')]
   const desc = inputs.find((i) => i.placeholder === 'Optional')

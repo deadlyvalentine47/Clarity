@@ -8,14 +8,15 @@ import {
   CreditCard,
   Landmark,
   LineChart,
+  Pencil,
   Plus,
   Settings2,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
-import { totalBankBalance, cardOutstanding } from '../db/budget'
-import type { TransactionType } from '../db/types'
+import { totalBankBalance, cardOutstanding, transferPair } from '../db/budget'
+import type { Transaction, TransactionType } from '../db/types'
 import { PageHeader, EmptyState } from '../components/ui'
 import { formatMoney } from '../lib/format'
 import { formatDate } from '../lib/dates'
@@ -25,6 +26,7 @@ export default function BudgetScreen() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState<TransactionType | null>(null)
   const [showManage, setShowManage] = useState(false)
+  const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
 
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
   const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
@@ -32,10 +34,16 @@ export default function BudgetScreen() {
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
   const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
   const transactions = useLiveQuery(
-    async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date).slice(0, 6),
+    async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date),
     [],
     [],
   )
+  const recentTransactions = (transactions ?? []).slice(0, 6)
+
+  const openEdit = (txn: Transaction) => {
+    const pair = transferPair(transactions ?? [], txn)
+    setEditingTxn({ txn, pair: pair ?? undefined })
+  }
 
   const bankBalance = totalBankBalance(sources ?? [])
   const investmentValue = (investments ?? []).reduce((sum, i) => sum + i.units * i.currentPrice, 0)
@@ -122,7 +130,7 @@ export default function BudgetScreen() {
             }}
           >
             <Icon size={18} style={{ color: tone }} />
-            <div className="stat-value" style={{ fontSize: 20, marginTop: 6, color: tone }}>
+            <div className="stat-value" style={{ marginTop: 6, color: tone }}>
               {value}
             </div>
             <div className="stat-label muted">{label}</div>
@@ -162,7 +170,7 @@ export default function BudgetScreen() {
         </div>
       </div>
 
-      {(transactions ?? []).length === 0 ? (
+      {recentTransactions.length === 0 ? (
         <div className="card">
           <EmptyState
             icon={<Wallet size={36} />}
@@ -177,7 +185,7 @@ export default function BudgetScreen() {
         </div>
       ) : (
         <div className="card flush">
-          {(transactions ?? []).map((txn, i) => (
+          {recentTransactions.map((txn, i) => (
             <div
               key={txn.id}
               className="row"
@@ -196,6 +204,16 @@ export default function BudgetScreen() {
                 {txn.type === 'Income' ? '+' : '−'}
                 {formatMoney(txn.amount)}
               </span>
+              {txn.linkedCardTxnId == null && (
+                <button
+                  className="icon-btn"
+                  style={{ width: 30, height: 30 }}
+                  aria-label="Edit transaction"
+                  onClick={() => openEdit(txn)}
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -206,6 +224,14 @@ export default function BudgetScreen() {
       </button>
 
       {showAdd && <TransactionDialog type={showAdd} onClose={() => setShowAdd(null)} />}
+      {editingTxn && (
+        <TransactionDialog
+          transaction={editingTxn.txn}
+          transferFrom={editingTxn.pair?.from}
+          transferTo={editingTxn.pair?.to}
+          onClose={() => setEditingTxn(null)}
+        />
+      )}
       {showManage && (
         <ManageSourcesCategoriesDialog
           sources={sources ?? []}

@@ -102,6 +102,8 @@ export interface Transaction {
   createdAt: number
   /** link to the credit-card payment row created for a bill payment */
   linkedCardTxnId?: number | null
+  /** shared id linking the two legs of a self-transfer */
+  transferGroupId?: string | null
 }
 
 export interface Category {

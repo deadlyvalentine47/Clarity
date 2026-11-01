@@ -22,7 +22,7 @@ import { usePreferences } from '../context/PreferencesContext'
 import { isScheduledOn, toggleHabitForDate } from '../db/habits'
 import { toggleTaskCompletion } from '../db/tasks'
 import { noteSnippet } from '../db/notes'
-import { cardOutstanding, spendSummary, totalBankBalance } from '../db/budget'
+import { cardOutstanding, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
 import {
   addDays,
   endOfDay,
@@ -124,7 +124,7 @@ export default function HomeScreen() {
   // --------------------------------------------------------------- money
   const spend = spendSummary(transactions ?? [], cardTxns ?? [], monthStart, monthEnd)
   const income = (transactions ?? [])
-    .filter((t) => t.type === 'Income' && t.date >= monthStart && t.date <= monthEnd)
+    .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
     .reduce((sum, t) => sum + t.amount, 0)
   const bankBalance = totalBankBalance(sources ?? [])
   const cardDebt = (cards ?? []).reduce(

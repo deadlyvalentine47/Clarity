@@ -1,25 +1,33 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { db } from '../../db/db'
-import type { Category, Source, TransactionType } from '../../db/types'
+import type { Category, CreditCard, Source, Transaction, TransactionType } from '../../db/types'
 import { MONTHS, MONTHS_SHORT, toDateKey } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import {
   Dialog,
   Field,
   IconButton,
+  MoneyInput,
   TextInput,
 } from '../../components/ui'
 import {
   addExpense,
   addIncome,
+  addSelfTransfer,
+  cardNameExists,
   categoryNameExists,
+  deleteCardCascade,
   deleteCategory,
   deleteSource,
+  recordCardTransaction,
   renameCategory,
   renameSource,
+  SELF_TRANSFER_CATEGORY,
   sourceNameExists,
+  updateSelfTransfer,
+  updateTransaction,
 } from '../../db/budget'
 
 export function Money({
@@ -140,7 +148,7 @@ export function MultiMonthYearFilter({
   )
 }
 
-type ItemKind = 'source' | 'category'
+type ItemKind = 'source' | 'category' | 'card'
 
 export function ManageSourcesCategoriesDialog({
   sources,
@@ -158,18 +166,28 @@ export function ManageSourcesCategoriesDialog({
   const [deleting, setDeleting] = useState<{ kind: ItemKind; id: number; name: string } | null>(null)
   const [error, setError] = useState('')
 
+  // Load cards here so callers don't have to pass them just for this dialog.
+  const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
+  const cardList: CreditCard[] = cards ?? []
+
+  useEffect(() => {
+    if (tab === 'card' && cardList.length === 0) setTab('source')
+  }, [tab, cardList.length])
+
   const items = useMemo(() => {
     const list =
       tab === 'source'
         ? sources.map((s) => ({ id: s.id!, name: s.name, meta: formatMoney(s.balance) }))
-        : categories.map((c) => ({ id: c.id!, name: c.name, meta: c.isDefault ? 'Default' : '' }))
+        : tab === 'category'
+          ? categories.map((c) => ({ id: c.id!, name: c.name, meta: c.isDefault ? 'Default' : '' }))
+          : cardList.map((c) => ({ id: c.id!, name: c.name, meta: `${formatMoney(c.creditLimit)} limit` }))
     const q = search.trim().toLowerCase()
     return list.filter((item) => !q || item.name.toLowerCase().includes(q))
-  }, [tab, sources, categories, search])
+  }, [tab, sources, categories, cardList, search])
 
   const add = async () => {
     const value = name.trim()
-    if (!value) return
+    if (!value || tab === 'card') return
     if (tab === 'source') {
       if (await sourceNameExists(value)) {
         setError('An account with that name already exists')
@@ -197,12 +215,18 @@ export function ManageSourcesCategoriesDialog({
         return
       }
       await renameSource(editing.id, value)
-    } else {
+    } else if (editing.kind === 'category') {
       if (await categoryNameExists(value, editing.id)) {
         setError('A category with that name already exists')
         return
       }
       await renameCategory(editing.id, value)
+    } else {
+      if (await cardNameExists(value, editing.id)) {
+        setError('A card with that name already exists')
+        return
+      }
+      await db.creditCards.update(editing.id, { name: value })
     }
     setEditing(null)
     setError('')
@@ -218,35 +242,49 @@ export function ManageSourcesCategoriesDialog({
           <button className={tab === 'category' ? 'active' : ''} onClick={() => { setTab('category'); setSearch('') }}>
             Categories ({categories.length})
           </button>
+          {cardList.length > 0 && (
+            <button className={tab === 'card' ? 'active' : ''} onClick={() => { setTab('card'); setSearch('') }}>
+              Cards ({cardList.length})
+            </button>
+          )}
         </div>
 
-        <div className="row" style={{ alignItems: 'flex-start' }}>
-          <div className="grow">
-            <TextInput
-              autoFocus
-              value={name}
-              placeholder={tab === 'source' ? 'New account name' : 'New category name'}
-              onChange={(e) => { setName(e.target.value); setError('') }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void add()
-              }}
-            />
+        {tab === 'card' ? (
+          <p className="tiny muted">Rename or delete a card here. Add new cards from the Credit Cards screen.</p>
+        ) : (
+          <div className="row" style={{ alignItems: 'flex-start' }}>
+            <div className="grow">
+              <TextInput
+                autoFocus
+                value={name}
+                placeholder={tab === 'source' ? 'New account name' : 'New category name'}
+                onChange={(e) => { setName(e.target.value); setError('') }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void add()
+                }}
+              />
+            </div>
+            <button className="btn btn-primary" onClick={() => void add()} disabled={!name.trim()}>
+              <Plus size={18} /> Add
+            </button>
           </div>
-          <button className="btn btn-primary" onClick={() => void add()} disabled={!name.trim()}>
-            <Plus size={18} /> Add
-          </button>
-        </div>
+        )}
         {error && <p className="tiny" style={{ color: 'var(--error)', marginTop: 6 }}>{error}</p>}
 
         <div className="search" style={{ marginTop: 12 }}>
           <Search size={16} />
-          <input className="input" placeholder={`Search ${tab === 'source' ? 'accounts' : 'categories'}`} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className="input"
+            placeholder={`Search ${tab === 'source' ? 'accounts' : tab === 'category' ? 'categories' : 'cards'}`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
         <div style={{ marginTop: 8, maxHeight: 300, overflowY: 'auto' }}>
           {items.length === 0 ? (
             <p className="small muted" style={{ padding: '12px 0' }}>
-              No {tab === 'source' ? 'accounts' : 'categories'} yet.
+              No {tab === 'source' ? 'accounts' : tab === 'category' ? 'categories' : 'cards'} yet.
             </p>
           ) : (
             items.map((item) => (
@@ -290,14 +328,18 @@ export function ManageSourcesCategoriesDialog({
           />
         </Field>
         <p className="tiny muted" style={{ marginTop: 8 }}>
-          Renaming updates every existing transaction so totals stay consistent.
+          {editing?.kind === 'card'
+            ? 'The card name is used across the app.'
+            : 'Renaming updates every existing transaction so totals stay consistent.'}
         </p>
       </Dialog>
 
       <Dialog
         open={deleting != null}
         onClose={() => setDeleting(null)}
-        title={`Delete ${deleting?.kind === 'source' ? 'Account' : 'Category'}`}
+        title={`Delete ${
+          deleting?.kind === 'source' ? 'Account' : deleting?.kind === 'category' ? 'Category' : 'Credit Card'
+        }`}
         footer={
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <button className="btn btn-outline" onClick={() => setDeleting(null)}>Cancel</button>
@@ -306,7 +348,8 @@ export function ManageSourcesCategoriesDialog({
               onClick={async () => {
                 if (!deleting) return
                 if (deleting.kind === 'source') await deleteSource(deleting.id)
-                else await deleteCategory(deleting.id)
+                else if (deleting.kind === 'category') await deleteCategory(deleting.id)
+                else await deleteCardCascade(deleting.id)
                 setDeleting(null)
               }}
             >
@@ -316,7 +359,9 @@ export function ManageSourcesCategoriesDialog({
         }
       >
         <p className="muted">
-          Delete &quot;{deleting?.name}&quot;? Existing transactions keep their label and stay in the totals.
+          {deleting?.kind === 'card'
+            ? `Delete "${deleting?.name}"? Its card transactions and any linked bill payments will be removed.`
+            : `Delete "${deleting?.name}"? Existing transactions keep their label and stay in the totals.`}
         </p>
       </Dialog>
     </>
@@ -326,41 +371,112 @@ export function ManageSourcesCategoriesDialog({
 export function TransactionDialog({
   type: initialType,
   source,
+  transaction,
+  transferFrom,
+  transferTo: initialTransferTo,
   onClose,
 }: {
-  type: TransactionType
+  type?: TransactionType
   source?: string
+  transaction?: Transaction
+  transferFrom?: string
+  transferTo?: string
   onClose: () => void
 }) {
-  const [type, setType] = useState<TransactionType>(initialType)
-  const [amount, setAmount] = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('')
-  const [sourceName, setSourceName] = useState(source ?? '')
-  const [date, setDate] = useState(toDateKey(new Date()))
+  const editing = transaction != null
+  const editingTransfer = transaction?.transferGroupId != null
+  const [type, setType] = useState<TransactionType>(transaction?.type ?? initialType ?? 'Expense')
+  const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
+  const [description, setDescription] = useState(transaction?.description ?? '')
+  const [category, setCategory] = useState(transaction?.category ?? '')
+  const [payment, setPayment] = useState<
+    { kind: 'bank'; name: string } | { kind: 'card'; id: number } | null
+  >(
+    editingTransfer
+      ? transferFrom
+        ? { kind: 'bank', name: transferFrom }
+        : null
+      : transaction
+        ? { kind: 'bank', name: transaction.source }
+        : source
+          ? { kind: 'bank', name: source }
+          : null,
+  )
+  const [transferTo, setTransferTo] = useState(initialTransferTo ?? '')
+  const [date, setDate] = useState(transaction ? toDateKey(transaction.date) : toDateKey(new Date()))
   const [error, setError] = useState('')
 
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
   const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
+  const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
   const sourceList = sources ?? []
   const categoryList = categories ?? []
+  const cardList = cards ?? []
+
+  const categoryOptions = categoryList.some((c) => c.name === SELF_TRANSFER_CATEGORY)
+    ? categoryList.map((c) => c.name)
+    : [...categoryList.map((c) => c.name), SELF_TRANSFER_CATEGORY]
 
   const amountValue = Number(amount)
+  const bankSource = payment?.kind === 'bank' ? payment.name : ''
+  const addTransfer =
+    !editing && type === 'Expense' && category === SELF_TRANSFER_CATEGORY && bankSource !== ''
+  const transferUI = editingTransfer || addTransfer
+  const transferTargets = sourceList.filter((s) => s.name !== bankSource)
+
   const valid =
     amount.trim() !== '' &&
     Number.isFinite(amountValue) &&
     amountValue > 0 &&
-    (type === 'Income' || category !== '') &&
-    sourceName !== ''
+    payment != null &&
+    (transferUI
+      ? transferTo !== '' && transferTo !== bankSource
+      : type === 'Income' || payment.kind === 'card' || category !== '')
 
   const save = async () => {
-    if (!valid) return
+    if (!valid || payment == null) return
     const when = new Date(`${date}T12:00:00`).getTime()
     try {
-      if (type === 'Income') {
-        await addIncome({ amount: amountValue, source: sourceName, category: category || 'Income', description, date: when })
+      if (editingTransfer && transaction?.transferGroupId) {
+        await updateSelfTransfer(transaction.transferGroupId, {
+          fromSource: bankSource,
+          toSource: transferTo,
+          amount: amountValue,
+          description,
+          date: when,
+        })
+      } else if (addTransfer) {
+        await addSelfTransfer({
+          fromSource: bankSource,
+          toSource: transferTo,
+          amount: amountValue,
+          description,
+          date: when,
+        })
+      } else if (editing && transaction) {
+        await updateTransaction(transaction, {
+          type,
+          amount: amountValue,
+          category,
+          source: bankSource,
+          description,
+          date: when,
+        })
+      } else if (payment.kind === 'bank') {
+        if (type === 'Income') {
+          await addIncome({ amount: amountValue, source: payment.name, category: category || 'Income', description, date: when })
+        } else {
+          await addExpense({ amount: amountValue, source: payment.name, category, description, date: when })
+        }
       } else {
-        await addExpense({ amount: amountValue, source: sourceName, category, description, date: when })
+        const card = cardList.find((c) => c.id === payment.id)
+        await recordCardTransaction(
+          payment.id,
+          type === 'Income' ? 'Credit' : 'Purchase',
+          amountValue,
+          description || card?.name || 'Card transaction',
+          when,
+        )
       }
       onClose()
     } catch (e) {
@@ -368,29 +484,50 @@ export function TransactionDialog({
     }
   }
 
+  const title = editingTransfer
+    ? 'Edit Transfer'
+    : editing
+      ? type === 'Income'
+        ? 'Edit Credit'
+        : 'Edit Spend'
+      : type === 'Income'
+        ? 'Add Credit'
+        : 'Add Spend'
+
   return (
     <Dialog
       open
       onClose={onClose}
-      title={type === 'Income' ? 'Add Credit' : 'Add Spend'}
+      title={title}
       footer={
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void save()} disabled={!valid}>Add</button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={!valid}>
+            {editing ? 'Save' : 'Add'}
+          </button>
         </div>
       }
     >
       <div className="stack">
-        <div className="chip-row wrap">
-          {(['Expense', 'Income'] as TransactionType[]).map((t) => (
-            <button key={t} className={`chip ${type === t ? 'active' : ''}`} onClick={() => setType(t)}>
-              {t === 'Expense' ? 'Spend' : 'Credit'}
-            </button>
-          ))}
-        </div>
+        {!editingTransfer && (
+          <div className="chip-row wrap">
+            {(['Expense', 'Income'] as TransactionType[]).map((t) => (
+              <button
+                key={t}
+                className={`chip ${type === t ? 'active' : ''}`}
+                onClick={() => {
+                  setType(t)
+                  if (t === 'Income') setTransferTo('')
+                }}
+              >
+                {t === 'Expense' ? 'Spend' : 'Credit'}
+              </button>
+            ))}
+          </div>
+        )}
 
         <Field label="Amount *">
-          <TextInput type="number" inputMode="decimal" min={0} step="0.01" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+          <MoneyInput value={amount} onChange={setAmount} autoFocus />
         </Field>
         <Field label="Description">
           <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
@@ -399,33 +536,124 @@ export function TransactionDialog({
           <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
 
-        {type === 'Expense' && (
+        {!editingTransfer && type === 'Expense' && payment?.kind !== 'card' && (
           <Field label="Category *">
             <div className="chip-row wrap">
-              {(categoryList ?? []).map((c) => (
-                <button key={c.id} className={`chip ${category === c.name ? 'active' : ''}`} onClick={() => setCategory(c.name)}>
-                  {c.name}
+              {categoryOptions.map((name) => (
+                <button
+                  key={name}
+                  className={`chip ${category === name ? 'active' : ''}`}
+                  onClick={() => {
+                    setCategory(name)
+                    if (name !== SELF_TRANSFER_CATEGORY) setTransferTo('')
+                  }}
+                >
+                  {name}
                 </button>
               ))}
             </div>
-            {categoryList && categoryList.length === 0 && (
+            {categoryList.length === 0 && (
               <span className="tiny muted">Add a category from Accounts → Manage first.</span>
             )}
           </Field>
         )}
 
-        <Field label="Account *">
-          <div className="chip-row wrap">
-            {(sourceList ?? []).map((s) => (
-              <button key={s.id} className={`chip ${sourceName === s.name ? 'active' : ''}`} onClick={() => setSourceName(s.name)}>
-                {s.name}
-              </button>
-            ))}
-          </div>
-          {sourceList && sourceList.length === 0 && (
-            <span className="tiny muted">Add an account from Accounts → Manage first.</span>
-          )}
-        </Field>
+        {editingTransfer && (
+          <Field label="From account *">
+            <div className="chip-row wrap">
+              {sourceList.map((s) => (
+                <button
+                  key={`from-${s.id}`}
+                  className={`chip ${payment?.kind === 'bank' && payment.name === s.name ? 'active' : ''}`}
+                  onClick={() => setPayment({ kind: 'bank', name: s.name })}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
+
+        {transferUI && (
+          <Field label="Transfer to *">
+            <div className="chip-row wrap">
+              {transferTargets.map((s) => (
+                <button
+                  key={`to-${s.id}`}
+                  className={`chip ${transferTo === s.name ? 'active' : ''}`}
+                  onClick={() => setTransferTo(s.name)}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+            {transferTargets.length === 0 && (
+              <span className="tiny muted">Add a second bank account to transfer between.</span>
+            )}
+          </Field>
+        )}
+
+        {!editingTransfer && (
+          <Field label={editing ? 'Bank account *' : 'Account or card *'}>
+            <div className="stack" style={{ gap: 8 }}>
+              {sourceList.length > 0 && (
+                <div>
+                  {!editing && <div className="tiny muted" style={{ marginBottom: 4 }}>Bank accounts</div>}
+                  <div className="chip-row wrap">
+                    {sourceList.map((s) => (
+                      <button
+                        key={`bank-${s.id}`}
+                        className={`chip ${payment?.kind === 'bank' && payment.name === s.name ? 'active' : ''}`}
+                        onClick={() => setPayment({ kind: 'bank', name: s.name })}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!editing && cardList.length > 0 && (
+                <div>
+                  <div className="tiny muted" style={{ marginBottom: 4 }}>Credit cards</div>
+                  <div className="chip-row wrap">
+                    {cardList.map((c) => (
+                      <button
+                        key={`card-${c.id}`}
+                        className={`chip ${payment?.kind === 'card' && payment.id === c.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setPayment({ kind: 'card', id: c.id! })
+                          setCategory('')
+                          setTransferTo('')
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {sourceList.length === 0 && (editing || cardList.length === 0) && (
+                <span className="tiny muted">
+                  Add a bank account{editing ? '' : ' or credit card'} first.
+                </span>
+              )}
+            </div>
+          </Field>
+        )}
+
+        {payment?.kind === 'card' && (
+          <p className="tiny muted">
+            Recorded on {cardList.find((c) => c.id === payment.id)?.name ?? 'the card'} — it appears in the card&apos;s
+            activity and outstanding balance.
+          </p>
+        )}
+
+        {transferUI && (
+          <p className="tiny muted">
+            Both accounts update together, and the transfer is excluded from spending and income totals.
+          </p>
+        )}
+
         {error && <p className="tiny" style={{ color: 'var(--error)' }}>{error}</p>}
       </div>
     </Dialog>

@@ -8,6 +8,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { ArrowLeft, Check, X } from 'lucide-react'
+import { formatAmountDisplay, formatMoney, formatMoneyWords, sanitizeAmountInput } from '../lib/format'
 
 export function IconButton({
   label,
@@ -56,6 +57,46 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input className="input" {...props} />
+}
+
+/**
+ * Money field: shows Indian-grouped commas while typing and prints the amount
+ * in words underneath (cheque style). The stored value stays a plain number
+ * string — formatting is display-only.
+ */
+export function MoneyInput({
+  value,
+  onChange,
+  placeholder = '0.00',
+  autoFocus,
+  label = 'Amount',
+}: {
+  value: string
+  onChange: (raw: string) => void
+  placeholder?: string
+  autoFocus?: boolean
+  label?: string
+}) {
+  const numeric = Number(value)
+  const showHint = value !== '' && Number.isFinite(numeric) && numeric > 0
+  return (
+    <div>
+      <input
+        className="input"
+        inputMode="decimal"
+        autoFocus={autoFocus}
+        aria-label={label}
+        placeholder={placeholder}
+        value={formatAmountDisplay(value)}
+        onChange={(e) => onChange(sanitizeAmountInput(e.target.value))}
+      />
+      {showHint && (
+        <div className="tiny muted" style={{ marginTop: 4 }}>
+          {formatMoney(numeric)} · {formatMoneyWords(numeric)}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
