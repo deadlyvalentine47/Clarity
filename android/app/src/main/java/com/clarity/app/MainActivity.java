@@ -8,9 +8,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Local plugin: read access to images in shared storage (see
-        // MediaPermissionPlugin). Must be registered before super.onCreate.
-        registerPlugin(MediaPermissionPlugin.class);
+        // Local plugin: the system "Save as" dialog used by Export data.
+        // Must be registered before super.onCreate.
+        registerPlugin(SaveFilePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

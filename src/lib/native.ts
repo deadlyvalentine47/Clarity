@@ -2,31 +2,34 @@
 // modules directly and everything degrades to a no-op in the browser.
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
-import { Filesystem } from '@capacitor/filesystem'
 import { LocalNotifications } from '@capacitor/local-notifications'
 
 export const isNative = (): boolean => Capacitor.isNativePlatform()
 
 const TIMER_NOTIFICATION_ID = 1001
 
-// Local plugin (android/app/src/main/java/com/clarity/app/MediaPermissionPlugin.java).
-interface MediaPermissionPlugin {
-  request(): Promise<{ granted: boolean }>
+// Local plugin (android/app/src/main/java/com/clarity/app/SaveFilePlugin.java):
+// the system "Save as" dialog (Storage Access Framework).
+interface SaveFilePlugin {
+  save(options: {
+    filename: string
+    data: string
+    mimeType?: string
+  }): Promise<{ uri?: string; cancelled?: boolean }>
 }
-const MediaPermission = registerPlugin<MediaPermissionPlugin>('MediaPermission')
+const SaveFile = registerPlugin<SaveFilePlugin>('SaveFile')
 
 /**
- * Read access to images in shared storage — required on Android 13+ to read
- * the old app's `clarity/pics` files by path. Returns false when refused.
+ * Open Android's "Save as" picker and write `data` to the chosen file.
+ * Returns false when the user backs out. No storage permission is involved.
  */
-export async function requestImageReadAccess(): Promise<boolean> {
-  if (!isNative()) return false
-  try {
-    const { granted } = await MediaPermission.request()
-    return granted
-  } catch {
-    return false
-  }
+export async function saveTextFile(
+  filename: string,
+  data: string,
+  mimeType = 'application/json',
+): Promise<boolean> {
+  const result = await SaveFile.save({ filename, data, mimeType })
+  return !result.cancelled
 }
 
 // ---------------------------------------------------------------- notifications
@@ -54,10 +57,9 @@ export async function requestNotifications(): Promise<boolean> {
 const PERMISSIONS_ASKED_KEY = 'clarity.permissionsAsked'
 
 /**
- * Ask for the permissions the app can actually use, once per install:
- * notifications (Pomodoro alarms) and read access to shared storage (re-linking
- * the old app's note images). Both are optional — the app works without them,
- * and Settings → Permissions re-opens the notification prompt.
+ * Ask for the permission the app can actually use, once per install:
+ * notifications (Pomodoro alarms). It is optional — the app works without it,
+ * and Settings → Permissions re-opens the prompt.
  */
 export async function requestStartupPermissions(): Promise<void> {
   if (!isNative()) return
@@ -65,15 +67,6 @@ export async function requestStartupPermissions(): Promise<void> {
   localStorage.setItem(PERMISSIONS_ASKED_KEY, '1')
 
   await requestNotifications()
-
-  // Read access to shared storage, used to re-link note images imported from
-  // the old app. If it is refused the repair flow falls back to the picker.
-  await requestImageReadAccess()
-  try {
-    await Filesystem.requestPermissions()
-  } catch {
-    // denied or unsupported
-  }
 }
 
 /** Fire a notification when the Pomodoro phase ends, even if the app is backgrounded. */

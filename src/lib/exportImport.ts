@@ -25,6 +25,7 @@ import type {
   Transaction,
 } from '../db/types'
 import { HOME_SECTIONS, type HomeSection, type ThemeMode } from '../db/types'
+import { saveTextFile } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
 
 export interface BackupSettings {
@@ -444,13 +445,21 @@ export function downloadJson(filename: string, json: string) {
 
 /**
  * Save a backup on whatever platform we run on. Android WebView ignores
- * `<a download>`, so the APK writes the file to its cache and hands it to the
- * system share sheet (Files, Drive, email…). Returns a short status message.
+ * `<a download>`, so the APK opens the system "Save as" dialog (Storage Access
+ * Framework) — the user picks Downloads, a folder, Drive… Returns a short
+ * status message.
  */
 export async function saveJsonFile(filename: string, json: string): Promise<string> {
   if (!Capacitor.isNativePlatform()) {
     downloadJson(filename, json)
     return 'Downloaded'
+  }
+
+  try {
+    const saved = await saveTextFile(filename, json)
+    return saved ? `Saved ${filename}` : 'Export cancelled'
+  } catch {
+    // Older build without the local plugin: fall back to the share sheet.
   }
 
   const { uri } = await Filesystem.writeFile({

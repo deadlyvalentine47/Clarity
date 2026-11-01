@@ -107,27 +107,26 @@ Requested at first launch (Settings → Permissions shows the notification state
 | Permission | Why | If refused |
 | --- | --- | --- |
 | `POST_NOTIFICATIONS` | Pomodoro phase alarms while the app is in the background | the in-app alarm still plays |
-| `READ_MEDIA_IMAGES` (13+) / `READ_EXTERNAL_STORAGE` (≤12) | read the old app's note pictures from `clarity/pics` | pick the files once via *Settings → Data → Repair note images* |
 | `VIBRATE` | alarm vibration | silent alarm |
 | `SCHEDULE_EXACT_ALARM` | exact alarm delivery | Android may delay the notification |
 
-`MediaPermissionPlugin.java` is the only hand-written Java: the Filesystem
-plugin only knows the pre-Android-13 storage permission, so it asks for
-`READ_MEDIA_IMAGES` itself.
+No storage permission is needed anywhere: backups are written through the
+Storage Access Framework (`SaveFilePlugin.java`), and pictures picked in a note
+come back from the system picker as readable copies.
 
-## Note images after an import
+## Note images
 
 Backups made by **this** app embed the pictures as base64 data URLs, so a
-restore brings them back with no extra step. Backups made by the **old Kotlin
-app** contain only `![img:uuid]` markers — it kept the JPEGs as files in
-`/storage/emulated/0/clarity/pics/<uuid>.jpg`. After importing one, *Settings →
-Data → Repair note images* re-links them: it first tries that folder, and if the
-OS refuses access it opens the file picker (pick the files inside
-`clarity/pics`; they are matched by name).
+restore brings them back with no extra step. Pictures added in the app are
+downscaled to 1280 px JPEG and stored as blobs in IndexedDB — no storage
+permission is involved, because the system picker hands the WebView a readable
+copy.
 
-Pictures added in the app are downscaled to 1280 px JPEG and stored as blobs in
-IndexedDB — no storage permission is involved, because the system picker hands
-the WebView a readable copy.
+Backups made by the **old Kotlin app** contain only `![img:uuid]` markers; its
+JPEGs stayed as files in `/storage/emulated/0/clarity/pics/`. They cannot be
+read back automatically (Android 11+ blocks path access to files the old app
+wrote outside MediaStore), so migrating from it means re-attaching the pictures
+once — after that they live in the database and in every new backup.
 
 ## Clearing data
 
@@ -138,8 +137,9 @@ the WebView a readable copy.
 
 - **Storage** is per-app (WebView IndexedDB), not shared with the browser. The
   in-app *Settings → Data → Export* is the backup; uninstalling wipes the data.
-- **Export** writes the JSON to the app cache and opens the system share sheet
-  (Files, Drive, email…), because `<a download>` does nothing in a WebView.
+- **Export** opens Android's "Save as" dialog (`SaveFilePlugin`, Storage Access
+  Framework), so you choose the folder — Downloads, Documents, Drive… `<a
+  download>` does nothing in a WebView and the share sheet has no save target.
 - **Import** uses the normal file picker and works unchanged.
 - **Routing** switches to `HashRouter` on native (`src/main.tsx`), since there is
   no server to fall back to `index.html` on deep links.

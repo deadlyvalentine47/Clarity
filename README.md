@@ -91,9 +91,8 @@ Everything is local to the browser profile:
   and bill-payment links. A failed import leaves the previous data intact.
 - **Note images are included** in the backup as base64 data URLs (extra field
   `noteImages`, ignored by the old Android app), so a restore is self-contained.
-  Backups made by the old app have no images — importing one keeps the images
-  already stored locally and *Settings → Data → Repair note images* re-links
-  the files it left in `clarity/pics`.
+  Backups made by the old Kotlin app only carry the `![img:uuid]` markers — its
+  pictures were files in `clarity/pics` and are not part of that JSON.
 - Clearing site data for the origin wipes the database — export first.
 - The **port is part of the origin**: `localhost:5173`, `localhost:5174` and
   `http://<your-ip>:5173` each get their own database. If data seems to vanish

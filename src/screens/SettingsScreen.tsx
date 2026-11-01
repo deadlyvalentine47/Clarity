@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  ImageOff,
   Moon,
   Palette,
   Sun,
@@ -19,7 +18,6 @@ import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { clearAllData } from '../db/db'
 import { isNative, notificationsGranted, requestNotifications } from '../lib/native'
-import { findMissingImages, repairImagesFromFiles, repairImagesFromFolder } from '../lib/noteImages'
 import { clearActiveSession } from '../lib/pomodoroStore'
 import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
 
@@ -54,23 +52,12 @@ export default function SettingsScreen() {
     permissions: true,
     data: true,
   })
-  const [missingImages, setMissingImages] = useState(0)
-  const [repairing, setRepairing] = useState(false)
-  const [imageNote, setImageNote] = useState('')
   const [notifications, setNotifications] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const pendingImageIds = useRef<string[]>([])
-
-  const refreshMissingImages = async () => {
-    const { ids } = await findMissingImages()
-    setMissingImages(ids.length)
-  }
 
   useEffect(() => {
-    void refreshMissingImages()
     void notificationsGranted().then(setNotifications)
   }, [])
 
@@ -97,69 +84,14 @@ export default function SettingsScreen() {
     }
   }
 
-  /** Try the old app's folder first, then fall back to the system file picker. */
-  const doRepairImages = async () => {
-    setRepairing(true)
-    setImageNote('')
-    try {
-      const { ids } = await findMissingImages()
-      if (ids.length === 0) {
-        setMissingImages(0)
-        setImageNote('Every note image is already available.')
-        return
-      }
-
-      if (isNative()) {
-        const folder = await repairImagesFromFolder(ids)
-        if (folder.recovered > 0) {
-          const left = ids.length - folder.recovered
-          setMissingImages(left)
-          setImageNote(
-            `Restored ${folder.recovered} image${folder.recovered === 1 ? '' : 's'} from clarity/pics` +
-              (left > 0 ? ` — ${left} still missing.` : '.'),
-          )
-          return
-        }
-      }
-
-      // No folder access (or nothing found): let the user pick the files.
-      pendingImageIds.current = ids
-      imageInputRef.current?.click()
-    } finally {
-      setRepairing(false)
-    }
-  }
-
-  const doRepairFromPicker = async (files: File[]) => {
-    setRepairing(true)
-    setImageNote('')
-    try {
-      const result = await repairImagesFromFiles(files, pendingImageIds.current)
-      await refreshMissingImages()
-      if (result.recovered === 0) {
-        setImageNote('No picked file matched a note image. Pick the files from clarity/pics.')
-      } else {
-        setImageNote(
-          `Restored ${result.recovered} image${result.recovered === 1 ? '' : 's'}` +
-            (result.unmatched > 0 ? `, ${result.unmatched} file(s) did not match.` : '.'),
-        )
-      }
-    } finally {
-      setRepairing(false)
-      pendingImageIds.current = []
-    }
-  }
-
   const doClearData = async () => {
     setClearing(true)
     try {
       await clearAllData()
       clearActiveSession()
-      setMissingImages(0)
       setConfirmClear(false)
       setImportState({ kind: 'idle' })
       setExportNote('')
-      setImageNote('')
       setOpen((v) => ({ ...v, data: true }))
     } finally {
       setClearing(false)
@@ -380,25 +312,6 @@ export default function SettingsScreen() {
             <button
               className="list-item"
               style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
-              onClick={() => void doRepairImages()}
-              disabled={repairing}
-            >
-              <div className="avatar"><ImageOff size={19} /></div>
-              <div className="grow">
-                <div className="bold">Repair note images</div>
-                <div className="small muted">
-                  {repairing
-                    ? 'Looking for images…'
-                    : imageNote ||
-                      (missingImages > 0
-                        ? `${missingImages} image${missingImages === 1 ? '' : 's'} referenced by notes but not stored — tap to re-link from clarity/pics`
-                        : 'All note images are present')}
-                </div>
-              </div>
-            </button>
-            <button
-              className="list-item"
-              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
               onClick={() => setConfirmClear(true)}
             >
               <div className="avatar" style={{ background: 'var(--error-container)', color: 'var(--error)' }}>
@@ -416,19 +329,6 @@ export default function SettingsScreen() {
       <p className="tiny muted" style={{ textAlign: 'center' }}>
         Clarity 1.0.0 · data stored locally on this device
       </p>
-
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        onChange={(e) => {
-          const files = Array.from(e.target.files ?? [])
-          if (files.length > 0) void doRepairFromPicker(files)
-          e.target.value = ''
-        }}
-      />
 
       <ConfirmDialog
         open={confirmClear}

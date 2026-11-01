@@ -44,9 +44,4 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Exact delivery of the Pomodoro alarm; falls back to inexact if refused -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- Read the old app's note images from /storage/emulated/0/clarity/pics.
-         Android 12 and older grant this at runtime; on 13+ the app asks the
-         user to pick the files instead, which needs no permission. -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 </manifest>
