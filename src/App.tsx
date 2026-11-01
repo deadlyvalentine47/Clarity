@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import { usePreferences } from './context/PreferencesContext'
 import { markMissedDaysForAll } from './db/habits'
+import { clearHabitsIfDue, startHabitMonthlyCleanup } from './db/housekeeping'
 import { exitApp, registerBackButton, requestStartupPermissions } from './lib/native'
 import OnboardingScreen from './screens/OnboardingScreen'
 import HomeScreen from './screens/HomeScreen'
@@ -40,11 +41,20 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }, [])
 
-  // Same as the Android HabitViewModel init: fill in missing past days as
-  // missed without overwriting explicit completions.
+  // Delete last month's habits before doing anything else, then fill in
+  // missing past days as missed without overwriting explicit completions.
   useEffect(() => {
-    void markMissedDaysForAll()
+    let cancelled = false
+    void (async () => {
+      await clearHabitsIfDue()
+      if (!cancelled) await markMissedDaysForAll()
+    })()
     void requestStartupPermissions()
+    const stopCleanup = startHabitMonthlyCleanup()
+    return () => {
+      cancelled = true
+      stopCleanup()
+    }
   }, [])
 
   // Android back: leave the screen first, only quit from home (and only after
