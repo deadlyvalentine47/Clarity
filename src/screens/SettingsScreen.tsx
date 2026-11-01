@@ -20,6 +20,7 @@ import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { clearAllData } from '../db/db'
 import { isNative, notificationsGranted, requestNotifications } from '../lib/native'
+import { backupStatus, type BackupStatus } from '../lib/backupScheduler'
 import { clearActiveSession } from '../lib/pomodoroStore'
 import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
 
@@ -56,6 +57,7 @@ export default function SettingsScreen() {
     data: true,
   })
   const [notifications, setNotifications] = useState(false)
+  const [backupInfo, setBackupInfo] = useState<BackupStatus | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [pendingImport, setPendingImport] = useState<File | null>(null)
@@ -63,6 +65,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void notificationsGranted().then(setNotifications)
+    if (isNative()) void backupStatus().then(setBackupInfo)
   }, [])
 
   const runExport = async (mode: 'save' | 'share') => {
@@ -321,6 +324,22 @@ export default function SettingsScreen() {
                 <div className="small muted">{importState.kind === 'loading' ? 'Importing…' : 'Restore from a JSON backup (replaces current data)'}</div>
               </div>
             </button>
+            {isNative() && (
+              <div className="list-item" style={{ padding: 16 }}>
+                <div className="avatar"><FolderDown size={19} /></div>
+                <div className="grow">
+                  <div className="bold">Nightly backup</div>
+                  <div className="small muted">
+                    {backupInfo?.lastBackupAt
+                      ? `Last: ${new Date(backupInfo.lastBackupAt).toLocaleString()} · ${backupInfo.lastBackupFile}`
+                      : 'Runs daily at 11:30 PM to Downloads/Clarity'}
+                  </div>
+                  {backupInfo?.lastError ? (
+                    <div className="tiny" style={{ color: 'var(--error)' }}>{backupInfo.lastError}</div>
+                  ) : null}
+                </div>
+              </div>
+            )}
             <button
               className="list-item"
               style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}

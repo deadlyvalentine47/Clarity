@@ -100,6 +100,19 @@ Everything is local to the browser profile:
   `http://<your-ip>:5173` each get their own database. If data seems to vanish
   after restarting the dev server, check which port it opened on.
 
+## Automation (Android)
+
+- **Monthly habit reset** — at 11:30 PM (device local time) on the last day of
+  each month every habit is deleted, so a fresh set can be created on the 1st.
+  Only the `habits` table is touched — tasks, notes, money data and journals are
+  left alone. If the app was closed at the boundary, the reset is applied on the
+  next launch or when the app becomes visible, so it can't be missed.
+- **Nightly backup** — a WorkManager job runs every night at 11:30 PM and copies
+  the latest snapshot to `Downloads/Clarity/clarity_backup_<timestamp>.json`,
+  deleting the previous backup so only the most recent one remains. The web
+  layer keeps the snapshot in the app cache (on launch, when the app is
+  backgrounded, and every 15 minutes); the worker runs without the WebView.
+
 ## Differences from the Android app (intentional fixes)
 
 The port fixes upstream bugs instead of reproducing them:
