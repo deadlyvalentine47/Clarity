@@ -251,6 +251,16 @@ function EventItem({ event, onEdit }: { event: Event; onEdit: () => void }) {
   )
 }
 
+function timeValue(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function combineDateTime(date: Date, time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h || 0, m || 0, 0, 0).getTime()
+}
+
 function EventDialog({
   event,
   date,
@@ -263,18 +273,28 @@ function EventDialog({
   const editing = event != null
   const [title, setTitle] = useState(event?.title ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
+  const [startTime, setStartTime] = useState(event ? timeValue(event.startDate) : '09:00')
+  const [endTime, setEndTime] = useState(event ? timeValue(event.endDate) : '10:00')
 
   const save = () => {
     if (!title.trim()) return
+    const start = combineDateTime(date, startTime)
+    let end = combineDateTime(date, endTime)
+    if (end <= start) end = start + 3_600_000
     if (editing && event) {
-      void db.events.put({ ...event, title: title.trim(), description: description.trim() })
+      void db.events.put({
+        ...event,
+        title: title.trim(),
+        description: description.trim(),
+        startDate: start,
+        endDate: end,
+      })
     } else {
-      const start = startOfDay(date.getTime())
       void db.events.add({
         title: title.trim(),
         description: description.trim(),
         startDate: start,
-        endDate: start + 3_600_000,
+        endDate: end,
         category: '',
         color: '#4A90D9',
         isAllDay: false,
@@ -308,6 +328,14 @@ function EventDialog({
         <Field label="Description">
           <TextArea value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 80 }} />
         </Field>
+        <div className="grid-2">
+          <Field label="Start time">
+            <TextInput type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          </Field>
+          <Field label="End time">
+            <TextInput type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+          </Field>
+        </div>
         <div className="tiny muted">
           {date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </div>
