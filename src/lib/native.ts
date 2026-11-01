@@ -51,13 +51,19 @@ export async function requestNotifications(): Promise<boolean> {
   }
 }
 
+const PERMISSIONS_ASKED_KEY = 'clarity.permissionsAsked'
+
 /**
- * Ask for the permissions the app can actually use, once, at startup:
+ * Ask for the permissions the app can actually use, once per install:
  * notifications (Pomodoro alarms) and read access to shared storage (re-linking
- * the old app's note images). Both are optional — the app works without them.
+ * the old app's note images). Both are optional — the app works without them,
+ * and Settings → Permissions re-opens the notification prompt.
  */
 export async function requestStartupPermissions(): Promise<void> {
   if (!isNative()) return
+  if (localStorage.getItem(PERMISSIONS_ASKED_KEY) === '1') return
+  localStorage.setItem(PERMISSIONS_ASKED_KEY, '1')
+
   await requestNotifications()
 
   // Read access to shared storage, used to re-link note images imported from
