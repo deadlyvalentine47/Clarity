@@ -25,7 +25,7 @@ import type {
   Transaction,
 } from '../db/types'
 import { HOME_SECTIONS, type HomeSection, type ThemeMode } from '../db/types'
-import { saveTextFile } from './native'
+import { saveFileToDevice } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
 
 export interface BackupSettings {
@@ -165,7 +165,8 @@ export async function exportData(prefs: Preferences): Promise<string> {
       sectionEnabled: prefs.sectionEnabled,
     },
   }
-  return JSON.stringify(data, null, 2)
+  // Compact: a backup with note images is large enough without indentation.
+  return JSON.stringify(data)
 }
 
 const arr = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -444,40 +445,55 @@ export function downloadJson(filename: string, json: string) {
 }
 
 /**
- * Save a backup on whatever platform we run on. Android WebView ignores
- * `<a download>`, so the APK opens the system "Save as" dialog (Storage Access
- * Framework) — the user picks Downloads, a folder, Drive… Returns a short
- * status message.
+ * Write the backup to the app cache. On native this is the file the "Save as"
+ * picker copies and the share sheet attaches, so the payload is written once,
+ * up front, instead of being carried through a plugin call.
  */
-export async function saveJsonFile(filename: string, json: string): Promise<string> {
-  if (!Capacitor.isNativePlatform()) {
-    downloadJson(filename, json)
-    return 'Downloaded'
-  }
-
-  try {
-    const saved = await saveTextFile(filename, json)
-    return saved ? `Saved ${filename}` : 'Export cancelled'
-  } catch {
-    // Older build without the local plugin: fall back to the share sheet.
-  }
-
+async function writeExportToCache(filename: string, json: string): Promise<string> {
   const { uri } = await Filesystem.writeFile({
     path: filename,
     data: json,
     directory: Directory.Cache,
     encoding: Encoding.UTF8,
   })
+  return uri
+}
 
-  try {
-    await Share.share({
-      title: filename,
-      files: [uri],
-      dialogTitle: 'Save Clarity backup',
-    })
-    return 'Backup ready to save'
-  } catch {
-    // No share target (or the user dismissed it): the file still exists.
-    return `Saved to the app cache as ${filename}`
+function describeWrite(result: { bytes: number; location: string }, json: string): string {
+  const expected = new Blob([json]).size
+  const where = result.location || 'the chosen location'
+  if (result.bytes === expected) return `Saved to ${where}`
+  return `Only ${result.bytes} of ${expected} bytes were written to ${where} — try Share instead`
+}
+
+/**
+ * "Save to device": the Android picker (Storage Access Framework) or a browser
+ * download. Returns a short status message for the settings row.
+ */
+export async function exportToDevice(filename: string, json: string): Promise<string> {
+  if (!Capacitor.isNativePlatform()) {
+    downloadJson(filename, json)
+    return 'Downloaded'
   }
+
+  const uri = await writeExportToCache(filename, json)
+  const result = await saveFileToDevice(filename, uri)
+  if (!result) return 'Export cancelled'
+  return describeWrite(result, json)
+}
+
+/** "Share": hand the cached file to another app (Files, Drive, email…). */
+export async function shareExport(filename: string, json: string): Promise<string> {
+  if (!Capacitor.isNativePlatform()) {
+    downloadJson(filename, json)
+    return 'Downloaded'
+  }
+
+  const uri = await writeExportToCache(filename, json)
+  await Share.share({
+    title: filename,
+    files: [uri],
+    dialogTitle: 'Share Clarity backup',
+  })
+  return 'Backup ready to share'
 }

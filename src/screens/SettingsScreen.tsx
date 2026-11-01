@@ -5,15 +5,17 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
+  FolderDown,
   Moon,
   Palette,
+  Share2,
   Sun,
   Trash2,
   Upload,
   User,
 } from 'lucide-react'
 import { usePreferences } from '../context/PreferencesContext'
-import { exportData, importData, saveJsonFile } from '../lib/exportImport'
+import { exportData, exportToDevice, importData, shareExport } from '../lib/exportImport'
 import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { clearAllData } from '../db/db'
@@ -44,6 +46,7 @@ export default function SettingsScreen() {
   const [editValue, setEditValue] = useState('')
   const [exporting, setExporting] = useState(false)
   const [exportNote, setExportNote] = useState('')
+  const [showExport, setShowExport] = useState(false)
   const [importState, setImportState] = useState<ImportState>({ kind: 'idle' })
   const [open, setOpen] = useState({
     profile: true,
@@ -61,11 +64,16 @@ export default function SettingsScreen() {
     void notificationsGranted().then(setNotifications)
   }, [])
 
-  const doExport = async () => {
+  const runExport = async (mode: 'save' | 'share') => {
+    setShowExport(false)
     setExporting(true)
+    setExportNote('')
     try {
       const json = await exportData(prefs)
-      setExportNote(await saveJsonFile(`clarity_export_${new Date().toISOString().slice(0, 10)}.json`, json))
+      const filename = `clarity_export_${new Date().toISOString().slice(0, 10)}.json`
+      setExportNote(mode === 'save' ? await exportToDevice(filename, json) : await shareExport(filename, json))
+    } catch (e) {
+      setExportNote(`Export failed: ${e instanceof Error ? e.message : 'unknown error'}`)
     } finally {
       setExporting(false)
     }
@@ -286,14 +294,17 @@ export default function SettingsScreen() {
             <button
               className="list-item"
               style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
-              onClick={() => void doExport()}
+              onClick={() => (isNative() ? setShowExport(true) : void runExport('save'))}
               disabled={exporting}
             >
               <div className="avatar"><Download size={19} /></div>
               <div className="grow">
                 <div className="bold">Export data</div>
                 <div className="small muted">
-                  {exporting ? 'Exporting…' : exportNote || 'Save everything as JSON (Android compatible)'}
+                  {exporting
+                    ? 'Exporting…'
+                    : exportNote ||
+                      'Save to this device or share it — JSON, Android compatible'}
                 </div>
               </div>
             </button>
@@ -342,6 +353,20 @@ export default function SettingsScreen() {
         onConfirm={() => void doClearData()}
         onCancel={() => setConfirmClear(false)}
       />
+
+      <Dialog open={showExport} onClose={() => setShowExport(false)} title="Export data">
+        <p className="small muted" style={{ marginBottom: 12 }}>
+          The backup is a single JSON file with everything, including note pictures.
+        </p>
+        <div className="stack" style={{ gap: 10 }}>
+          <button className="btn btn-primary btn-block" onClick={() => void runExport('save')}>
+            <FolderDown size={18} /> Save to this device
+          </button>
+          <button className="btn btn-outline btn-block" onClick={() => void runExport('share')}>
+            <Share2 size={18} /> Share
+          </button>
+        </div>
+      </Dialog>
 
       <input
         ref={fileRef}

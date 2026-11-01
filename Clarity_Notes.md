@@ -84,8 +84,9 @@ larger backup format, while fixing the bugs/duplications in master.
 - 2026-11-01 Capacitor/APK (commit `368be51` + follow-ups):
   - `android/` project (appId `com.clarity.app`, minSdk 24, compile/target 36), versionCode 2.
   - `HashRouter` on native, safe-area insets for Android 15 edge-to-edge.
-  - Export on native opens Android's "Save as" dialog (`SaveFilePlugin`, SAF); `<a download>` and
-    the share sheet have no usable save target in a WebView.
+  - Export on native offers Save to this device (`SaveFilePlugin`, SAF) and Share. The JSON is
+    written to the cache first and only its path crosses the bridge; passing the payload through
+    the plugin call killed the app on large backups and left a 0-byte file.
   - Back button steps through screens; only exits from Home after a second press (toast).
   - Onboarding now tracks `onboarded` separately from the username, so importing a backup lands on
     Home instead of asking for a name again.
@@ -97,6 +98,12 @@ larger backup format, while fixing the bugs/duplications in master.
   - Uploading a picture needs no permission (system picker -> copy); it is downscaled to 1280px
     JPEG and kept as a blob in IndexedDB, and is now included in backups.
   - Debug signing key committed (`android/app/clarity-debug.p12`) so CI builds upgrade in place.
+- 2026-11-01 export crash fix: `SaveFilePlugin` took the whole JSON as a call argument and held it
+  across the "Save as" activity — the process died and the picked file stayed 0 bytes. It now takes
+  `sourcePath` and stream-copies the cached file (and reports the byte count, which the UI checks).
+  Export shows a dialog with both **Save to this device** (MediaStore -> `Downloads/Clarity/` on
+  Android 10+, SAF picker on 7-9) and **Share**. Compact JSON (no indent) keeps large backups
+  smaller. versionCode 3.
 - 2026-11-01 home revamp: hero (date/greeting/today progress ring) + quick actions
   (task, spend, focus, note), section cards with persisted collapse, inline task
   completion and habit check-off, "No date" task group, agenda-style events, money

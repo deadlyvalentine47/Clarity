@@ -110,9 +110,15 @@ Requested at first launch (Settings → Permissions shows the notification state
 | `VIBRATE` | alarm vibration | silent alarm |
 | `SCHEDULE_EXACT_ALARM` | exact alarm delivery | Android may delay the notification |
 
-No storage permission is needed anywhere: backups are written through the
-Storage Access Framework (`SaveFilePlugin.java`), and pictures picked in a note
-come back from the system picker as readable copies.
+No storage permission is needed anywhere.
+
+- *Export → Save to this device* writes the backup to `Downloads/Clarity/`
+  through MediaStore on Android 10+ (no permission, no picker). Android 7–9
+  falls back to the Storage Access Framework (`ACTION_CREATE_DOCUMENT`), which
+  grants access to the one file the user picks.
+- *Export → Share* hands a copy in the app cache to another app through
+  Capacitor's `FileProvider`.
+- Pictures picked in a note come back from the system picker as readable copies.
 
 ## Note images
 
@@ -137,9 +143,11 @@ once — after that they live in the database and in every new backup.
 
 - **Storage** is per-app (WebView IndexedDB), not shared with the browser. The
   in-app *Settings → Data → Export* is the backup; uninstalling wipes the data.
-- **Export** opens Android's "Save as" dialog (`SaveFilePlugin`, Storage Access
-  Framework), so you choose the folder — Downloads, Documents, Drive… `<a
-  download>` does nothing in a WebView and the share sheet has no save target.
+- **Export** offers *Save to this device* (`Downloads/Clarity/`) or *Share*
+  (share sheet: Files, Drive, email…). `<a download>` does nothing in a WebView.
+  The backup is written to the app cache first and only its *path* is passed to
+  the plugin, so a large backup never has to survive an activity switch or a
+  bridge call in memory.
 - **Import** uses the normal file picker and works unchanged.
 - **Routing** switches to `HashRouter` on native (`src/main.tsx`), since there is
   no server to fall back to `index.html` on deep links.

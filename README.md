@@ -84,8 +84,10 @@ Everything is local to the browser profile:
 - No rows are seeded. Like the Android app, accounts and categories start empty
   and are created by the user, so a fresh database can never contain duplicate
   defaults.
-- **Export data** downloads a dated `clarity_export_<date>.json` in the exact
-  shape the Android app reads (`ignoreUnknownKeys = true` on both sides).
+- **Export data** writes a dated `clarity_export_<date>.json` in the exact shape
+  the Android app reads (`ignoreUnknownKeys = true` on both sides). In the
+  browser it downloads; in the APK it offers *Save to this device* (system
+  *Save to this device* (`Downloads/Clarity/`) or *Share*.
 - **Import data** replaces everything in a single Dexie transaction and remaps
   IDs for subtasks, notes (parent links), card transactions, pomodoro task links
   and bill-payment links. A failed import leaves the previous data intact.

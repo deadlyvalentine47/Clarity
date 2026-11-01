@@ -13,23 +13,26 @@ const TIMER_NOTIFICATION_ID = 1001
 interface SaveFilePlugin {
   save(options: {
     filename: string
-    data: string
+    /** Path of the file to copy — the contents never cross the bridge. */
+    sourcePath: string
     mimeType?: string
-  }): Promise<{ uri?: string; cancelled?: boolean }>
+  }): Promise<{ uri?: string; bytes?: number; location?: string; cancelled?: boolean }>
 }
 const SaveFile = registerPlugin<SaveFilePlugin>('SaveFile')
 
 /**
- * Open Android's "Save as" picker and write `data` to the chosen file.
- * Returns false when the user backs out. No storage permission is involved.
+ * Open Android's "Save as" picker and copy `sourcePath` into the chosen file.
+ * Returns the number of bytes written, or null when the user backs out.
+ * No storage permission is involved: the picker grants access to that one file.
  */
-export async function saveTextFile(
+export async function saveFileToDevice(
   filename: string,
-  data: string,
+  sourcePath: string,
   mimeType = 'application/json',
-): Promise<boolean> {
-  const result = await SaveFile.save({ filename, data, mimeType })
-  return !result.cancelled
+): Promise<{ bytes: number; location: string } | null> {
+  const result = await SaveFile.save({ filename, sourcePath, mimeType })
+  if (result.cancelled) return null
+  return { bytes: result.bytes ?? 0, location: result.location ?? '' }
 }
 
 // ---------------------------------------------------------------- notifications
