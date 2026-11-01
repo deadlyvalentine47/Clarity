@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Download, Moon, Palette, Sun, Upload, User } from 'lucide-react'
 import { usePreferences } from '../context/PreferencesContext'
-import { downloadJson, exportData, importData } from '../lib/exportImport'
+import { exportData, importData, saveJsonFile } from '../lib/exportImport'
 import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { Dialog, Field, PageHeader, TextInput } from '../components/ui'
@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const [showEdit, setShowEdit] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [exportNote, setExportNote] = useState('')
   const [importState, setImportState] = useState<ImportState>({ kind: 'idle' })
   const [open, setOpen] = useState({ profile: true, appearance: true, home: true, data: true })
   const fileRef = useRef<HTMLInputElement>(null)
@@ -36,7 +37,7 @@ export default function SettingsScreen() {
     setExporting(true)
     try {
       const json = await exportData(prefs)
-      downloadJson(`clarity_export_${new Date().toISOString().slice(0, 10)}.json`, json)
+      setExportNote(await saveJsonFile(`clarity_export_${new Date().toISOString().slice(0, 10)}.json`, json))
     } finally {
       setExporting(false)
     }
@@ -211,7 +212,9 @@ export default function SettingsScreen() {
               <div className="avatar"><Download size={19} /></div>
               <div className="grow">
                 <div className="bold">Export data</div>
-                <div className="small muted">{exporting ? 'Exporting…' : 'Download everything as JSON (Android compatible)'}</div>
+                <div className="small muted">
+                  {exporting ? 'Exporting…' : exportNote || 'Save everything as JSON (Android compatible)'}
+                </div>
               </div>
             </button>
             <button

@@ -11,9 +11,15 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:interact": "node scripts/interact.mjs",
     "smoke:logic": "node scripts/logic.mjs",
-    "smoke:flows": "node scripts/interact2.mjs"
+    "smoke:flows": "node scripts/interact2.mjs",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
     "dexie": "^4.2.0",
     "dexie-react-hooks": "^4.2.0",
     "lucide-react": "^0.468.0",
@@ -22,6 +28,7 @@
     "react-router-dom": "^7.1.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

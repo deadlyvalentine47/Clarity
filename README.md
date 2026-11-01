@@ -33,6 +33,7 @@ npm run typecheck  # tsc --noEmit
 | DataStore preferences | `localStorage` (`clarity.preferences`) |
 | Navigation Compose | React Router |
 | Vico charts | CSS/SVG bars |
+| — | Capacitor WebView wrapper for the APK (`android/`) |
 | AlarmManager / notifications | Web Audio alarm + in-app banner + `navigator.vibrate` |
 | Note images in `clarity/pics` | IndexedDB `noteImages`, referenced as `![img:uuid]` |
 
@@ -156,16 +157,16 @@ npm run smoke:flows     # account/card/investment CRUD, habit day status, child 
 
 Set `BRAVE_PATH` if your Chromium binary lives somewhere other than `/usr/bin/brave`.
 
-## Optional: ship as an Android app
+## Android APK
 
-The React build is a normal static SPA, so it can be wrapped with Capacitor later
-without changing the UI:
+The same app ships as an APK through Capacitor: `android/` is a standard native
+project and `npm run build && npx cap sync android` copies `dist/` into it.
 
-```bash
-npm i -D @capacitor/cli && npm i @capacitor/core @capacitor/android
-npx cap init Clarity com.clarity.app --web-dir=dist
-npm run build && npx cap add android && npx cap sync
-```
+The APK is built in GitHub Actions, so no Android SDK or JDK is needed locally:
 
-That path still needs the Android SDK for the final APK, but day-to-day development
-stays in the browser.
+- Actions → **Android APK** → *Run workflow* → download the `clarity-apk`
+  artifact (debug-signed and installable), or push a `v*` tag.
+- Local builds need JDK 17+ and the Android SDK: `npm run android:apk`.
+
+Details — signing secrets, app id, versioning and WebView differences — are in
+[`android/README.md`](android/README.md).

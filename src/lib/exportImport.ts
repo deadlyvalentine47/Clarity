@@ -1,6 +1,9 @@
 // Port of util/DataExportImport.kt, extended for the phase-2 schema.
 // Backups stay compatible with the Android app: extra fields (darkMode, links)
 // are ignored by its kotlinx.serialization `ignoreUnknownKeys = true` config.
+import { Capacitor } from '@capacitor/core'
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { db } from '../db/db'
 import type {
   BudgetLimit,
@@ -378,4 +381,35 @@ export function downloadJson(filename: string, json: string) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Save a backup on whatever platform we run on. Android WebView ignores
+ * `<a download>`, so the APK writes the file to its cache and hands it to the
+ * system share sheet (Files, Drive, email…). Returns a short status message.
+ */
+export async function saveJsonFile(filename: string, json: string): Promise<string> {
+  if (!Capacitor.isNativePlatform()) {
+    downloadJson(filename, json)
+    return 'Downloaded'
+  }
+
+  const { uri } = await Filesystem.writeFile({
+    path: filename,
+    data: json,
+    directory: Directory.Cache,
+    encoding: Encoding.UTF8,
+  })
+
+  try {
+    await Share.share({
+      title: filename,
+      files: [uri],
+      dialogTitle: 'Save Clarity backup',
+    })
+    return 'Backup ready to save'
+  } catch {
+    // No share target (or the user dismissed it): the file still exists.
+    return `Saved to the app cache as ${filename}`
+  }
 }
