@@ -1,12 +1,10 @@
 import { db } from './db'
 import type {
   CardTxnType,
-  CreditCard,
   CreditCardTransaction,
   Transaction,
-  TransactionType,
 } from './types'
-import { clampDay, monthRange } from '../lib/dates'
+import { clampDay } from '../lib/dates'
 
 export const CREDIT_CARD_PAYMENT_CATEGORY = 'Credit Card Payment'
 
@@ -53,10 +51,6 @@ export async function renameCategory(id: number, newName: string): Promise<void>
       await db.transactions.where('category').equals(oldName).modify({ category: name })
     }
   })
-}
-
-export async function countTransactionsForSource(name: string): Promise<number> {
-  return db.transactions.where('source').equals(name).count()
 }
 
 export async function deleteSource(id: number): Promise<void> {
@@ -194,41 +188,6 @@ export function spendSummary(
   return { bank, card, total: bank + card }
 }
 
-export async function getCardOutstanding(cardId: number): Promise<number> {
-  const txns = await db.creditCardTransactions.where('cardId').equals(cardId).toArray()
-  return cardOutstanding(txns)
-}
-
-export async function getCardOutstandingInRange(
-  cardId: number,
-  start: number,
-  end: number,
-): Promise<number> {
-  const txns = await db.creditCardTransactions
-    .where('cardId')
-    .equals(cardId)
-    .filter((t) => t.date >= start && t.date <= end)
-    .toArray()
-  return cardOutstanding(txns)
-}
-
-export async function addCardTransaction(
-  cardId: number,
-  type: CardTxnType,
-  amount: number,
-  description: string,
-  date: number = Date.now(),
-): Promise<number> {
-  return db.creditCardTransactions.add({
-    cardId,
-    amount,
-    description: description.trim(),
-    date,
-    type,
-    createdAt: Date.now(),
-  }) as Promise<number>
-}
-
 /** Delete a card transaction; also removes a linked bank bill payment. */
 export async function deleteCardTransaction(txnId: number): Promise<void> {
   await db.transaction('rw', db.creditCardTransactions, db.transactions, db.sources, async () => {
@@ -346,72 +305,3 @@ export function billingCycle(year: number, month: number, cycleDay: number): Bil
   return { start: start.getTime(), end: end.getTime(), startLabel: fmt(start), endLabel: fmt(new Date(end.getTime() - 1)) }
 }
 
-// ---------------------------------------------------------------- metrics
-
-export interface BudgetMetrics {
-  income: number
-  expenses: number
-  net: number
-  incomeBySource: [string, number][]
-  expensesBySource: [string, number][]
-  categorySpending: [string, number][]
-  cardSpending: [string, number][]
-  totalInvested: number
-  totalCurrent: number
-  profitLoss: number
-}
-
-function groupSum(items: Transaction[], key: (t: Transaction) => string): [string, number][] {
-  const map = new Map<string, number>()
-  for (const item of items) {
-    const k = key(item) || 'Unknown'
-    map.set(k, (map.get(k) ?? 0) + item.amount)
-  }
-  return [...map.entries()].sort((a, b) => b[1] - a[1])
-}
-
-export async function getBudgetMetrics(year: number, month: number): Promise<BudgetMetrics> {
-  const [start, end] = monthRange(year, month)
-  const [transactions, cards, investments, cardTxns] = await Promise.all([
-    db.transactions.toArray(),
-    db.creditCards.toArray(),
-    db.investments.toArray(),
-    db.creditCardTransactions.toArray(),
-  ])
-
-  const monthTxns = transactions.filter((t) => t.date >= start && t.date <= end)
-  const incomeTxns = monthTxns.filter((t) => t.type === 'Income')
-  const expenseTxns = monthTxns.filter((t) => t.type === 'Expense')
-  const income = incomeTxns.reduce((s, t) => s + t.amount, 0)
-  const expenses = expenseTxns.reduce((s, t) => s + t.amount, 0)
-
-  const cardSpending: [string, number][] = cards
-    .map((card) => {
-      const spends = cardTxns
-        .filter((t) => t.cardId === card.id && t.type === 'Purchase' && t.date >= start && t.date <= end)
-        .reduce((s, t) => s + t.amount, 0)
-      return [card.name, spends] as [string, number]
-    })
-    .filter(([, amount]) => amount > 0)
-    .sort((a, b) => b[1] - a[1])
-
-  const totalInvested = investments.reduce((s, i) => s + i.units * i.purchasePrice, 0)
-  const totalCurrent = investments.reduce((s, i) => s + i.units * i.currentPrice, 0)
-
-  return {
-    income,
-    expenses,
-    net: income - expenses,
-    incomeBySource: groupSum(incomeTxns, (t) => t.source),
-    expensesBySource: groupSum(expenseTxns, (t) => t.source),
-    categorySpending: groupSum(expenseTxns, (t) => t.category),
-    cardSpending,
-    totalInvested,
-    totalCurrent,
-    profitLoss: totalCurrent - totalInvested,
-  }
-}
-
-export function transactionLabel(txn: Transaction): string {
-  return txn.description.trim() || txn.category || txn.source || txn.type
-}

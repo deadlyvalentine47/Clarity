@@ -7,21 +7,11 @@ export function formatMoney(amount: number, currency = '₹'): string {
   })}`
 }
 
-export function formatMoneyShort(amount: number, currency = '₹'): string {
-  if (Math.abs(amount) >= 1_000_000) return `${currency}${(amount / 1_000_000).toFixed(1)}M`
-  if (Math.abs(amount) >= 1_000) return `${currency}${(amount / 1_000).toFixed(1)}k`
-  return `${currency}${Math.round(amount)}`
-}
-
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes}m`
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
-
-export function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n))
 }
 
 /** 1 -> 1st, 2 -> 2nd, 11 -> 11th … */

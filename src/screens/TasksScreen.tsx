@@ -149,7 +149,7 @@ export default function TasksScreen() {
                       {task.category && <span>{task.category}</span>}
                       {task.dueDate != null && <span>• {formatDate(task.dueDate)}</span>}
                       {task.isRecurring && task.recurringType && (
-                        <span className="badge soft">{task.recurringType}</span>
+                        <span className="badge">{task.recurringType}</span>
                       )}
                     </div>
                     {task.description && (

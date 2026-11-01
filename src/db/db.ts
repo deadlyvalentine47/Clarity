@@ -127,16 +127,3 @@ export async function clearAllData(): Promise<void> {
     for (const table of db.tables) await table.clear()
   })
 }
-
-/** True when a table has no rows — used for first-run empty states. */
-export async function isEmptyDatabase(): Promise<boolean> {
-  const [tasks, notes, habits, transactions, goals, events] = await Promise.all([
-    db.tasks.count(),
-    db.notes.count(),
-    db.habits.count(),
-    db.transactions.count(),
-    db.goals.count(),
-    db.events.count(),
-  ])
-  return tasks + notes + habits + transactions + goals + events === 0
-}

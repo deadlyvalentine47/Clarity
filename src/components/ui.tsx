@@ -290,31 +290,6 @@ export function ProgressRing({
   )
 }
 
-export function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: readonly T[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div className="segmented">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          className={o === value ? 'active' : ''}
-          onClick={() => onChange(o)}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export function ChipRow<T extends string>({
   options,
   value,
@@ -336,26 +311,6 @@ export function ChipRow<T extends string>({
           {o}
         </button>
       ))}
-    </div>
-  )
-}
-
-export function StatCard({
-  label,
-  value,
-  hint,
-  tone = 'primary',
-}: {
-  label: string
-  value: ReactNode
-  hint?: string
-  tone?: 'primary' | 'plain'
-}) {
-  return (
-    <div className={`card ${tone === 'primary' ? 'primary' : ''}`} style={{ padding: 14 }}>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-      {hint && <div className="tiny" style={{ opacity: 0.8, marginTop: 2 }}>{hint}</div>}
     </div>
   )
 }
@@ -427,10 +382,4 @@ export function priorityClass(priority: string): string {
   if (priority === 'High') return 'high'
   if (priority === 'Low') return 'low'
   return 'medium'
-}
-
-export const PRIORITY_COLORS: Record<string, string> = {
-  High: 'var(--error)',
-  Medium: 'var(--warning)',
-  Low: 'var(--success)',
 }

@@ -1,7 +1,9 @@
 import puppeteer from 'puppeteer-core'
 import fs from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-const OUT = '/tmp/opencode/clarity-shots'
+const OUT = process.env.CLARITY_SHOTS || join(tmpdir(), 'clarity-shots')
 fs.mkdirSync(OUT, { recursive: true })
 
 const browser = await puppeteer.launch({

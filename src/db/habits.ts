@@ -58,24 +58,6 @@ export function isScheduledOn(habit: Habit, date: Date): boolean {
   }
 }
 
-/** Inclusive list of scheduled dates between two dates (capped for safety). */
-export function scheduledDatesBetween(habit: Habit, from: Date, to: Date): Date[] {
-  const out: Date[] = []
-  let cursor = fromDateKey(toDateKey(from))
-  const end = fromDateKey(toDateKey(to))
-  let guard = 0
-  while (cursor <= end && guard < 3660) {
-    if (isScheduledOn(habit, cursor)) out.push(new Date(cursor))
-    cursor = addDays(cursor, 1)
-    guard++
-  }
-  return out
-}
-
-export function isLate(habit: Habit, dateKey: string): boolean {
-  return habit.completionHistory[dateKey] === true && habit.lateCompletions.includes(dateKey)
-}
-
 /**
  * Streak: walk backwards from today (or yesterday when today isn't done yet),
  * skip non-scheduled days, stop at the first scheduled day that isn't complete.
