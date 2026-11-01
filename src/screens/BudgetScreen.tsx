@@ -16,17 +16,22 @@ import {
 } from 'lucide-react'
 import { db } from '../db/db'
 import { totalBankBalance, cardOutstanding, transferPair } from '../db/budget'
-import type { Transaction, TransactionType } from '../db/types'
+import type { CreditCardTransaction, Transaction, TransactionType } from '../db/types'
 import { PageHeader, EmptyState } from '../components/ui'
 import { formatMoney } from '../lib/format'
 import { formatDate } from '../lib/dates'
-import { ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
+import { CardTransactionDialog, ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
+
+type RecentActivity =
+  | { kind: 'bank'; date: number; bank: Transaction }
+  | { kind: 'card'; date: number; card: CreditCardTransaction }
 
 export default function BudgetScreen() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState<TransactionType | null>(null)
   const [showManage, setShowManage] = useState(false)
   const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
+  const [editingCardTxn, setEditingCardTxn] = useState<CreditCardTransaction | null>(null)
 
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
   const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
@@ -38,7 +43,16 @@ export default function BudgetScreen() {
     [],
     [],
   )
-  const recentTransactions = (transactions ?? []).slice(0, 6)
+  const cardNameById = new Map((cards ?? []).map((c) => [c.id!, c.name]))
+  const recentActivity: RecentActivity[] = [
+    ...(transactions ?? []).map((t) => ({ kind: 'bank' as const, date: t.date, bank: t })),
+    ...(cardTxns ?? [])
+      // The card side of a bill payment is already represented by its bank row.
+      .filter((t) => !(t.type === 'Payment' && t.linkedTransactionId != null))
+      .map((t) => ({ kind: 'card' as const, date: t.date, card: t })),
+  ]
+    .sort((a, b) => b.date - a.date)
+    .slice(0, 6)
 
   const openEdit = (txn: Transaction) => {
     const pair = transferPair(transactions ?? [], txn)
@@ -170,7 +184,7 @@ export default function BudgetScreen() {
         </div>
       </div>
 
-      {recentTransactions.length === 0 ? (
+      {recentActivity.length === 0 ? (
         <div className="card">
           <EmptyState
             icon={<Wallet size={36} />}
@@ -185,37 +199,73 @@ export default function BudgetScreen() {
         </div>
       ) : (
         <div className="card flush">
-          {recentTransactions.map((txn, i) => (
-            <div
-              key={txn.id}
-              className="row"
-              style={{ padding: '12px 16px', borderTop: i === 0 ? 'none' : '1px solid var(--outline)' }}
-            >
-              <div className={`avatar ${txn.type === 'Income' ? 'primary' : 'error'}`} style={{ width: 34, height: 34 }}>
-                {txn.type === 'Income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-              </div>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="truncate">{txn.description || txn.category || txn.type}</div>
-                <div className="tiny muted">
-                  {txn.source} · {txn.category} · {formatDate(txn.date)}
+          {recentActivity.map((item, i) => {
+            const borderTop = i === 0 ? 'none' : '1px solid var(--outline)'
+            if (item.kind === 'bank') {
+              const txn = item.bank
+              return (
+                <div key={`bank-${txn.id}`} className="row" style={{ padding: '12px 16px', borderTop }}>
+                  <div className={`avatar ${txn.type === 'Income' ? 'primary' : 'error'}`} style={{ width: 34, height: 34 }}>
+                    {txn.type === 'Income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                  </div>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="truncate">{txn.description || txn.category || txn.type}</div>
+                    <div className="tiny muted">
+                      {txn.source} · {txn.category} · {formatDate(txn.date)}
+                    </div>
+                  </div>
+                  <span className={txn.type === 'Income' ? 'money-positive' : 'money-negative'}>
+                    {txn.type === 'Income' ? '+' : '−'}
+                    {formatMoney(txn.amount)}
+                  </span>
+                  {txn.linkedCardTxnId == null && (
+                    <button
+                      className="icon-btn"
+                      style={{ width: 30, height: 30 }}
+                      aria-label="Edit transaction"
+                      onClick={() => openEdit(txn)}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
                 </div>
+              )
+            }
+
+            const txn = item.card
+            const spent = txn.type === 'Purchase'
+            return (
+              <div
+                key={`card-${txn.id}`}
+                className="row"
+                style={{ padding: '12px 16px', borderTop }}
+              >
+                <div className={`avatar ${spent ? 'error' : 'primary'}`} style={{ width: 34, height: 34 }}>
+                  <CreditCard size={16} />
+                </div>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="truncate">{txn.description || txn.type}</div>
+                  <div className="tiny muted">
+                    {cardNameById.get(txn.cardId) ?? 'Card'} · {txn.type} · {formatDate(txn.date)}
+                  </div>
+                </div>
+                <span className={spent ? 'money-negative' : 'money-positive'}>
+                  {spent ? '−' : '+'}
+                  {formatMoney(txn.amount)}
+                </span>
+                {txn.linkedTransactionId == null && (
+                  <button
+                    className="icon-btn"
+                    style={{ width: 30, height: 30 }}
+                    aria-label="Edit card transaction"
+                    onClick={() => setEditingCardTxn(txn)}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
-              <span className={txn.type === 'Income' ? 'money-positive' : 'money-negative'}>
-                {txn.type === 'Income' ? '+' : '−'}
-                {formatMoney(txn.amount)}
-              </span>
-              {txn.linkedCardTxnId == null && (
-                <button
-                  className="icon-btn"
-                  style={{ width: 30, height: 30 }}
-                  aria-label="Edit transaction"
-                  onClick={() => openEdit(txn)}
-                >
-                  <Pencil size={14} />
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -230,6 +280,13 @@ export default function BudgetScreen() {
           transferFrom={editingTxn.pair?.from}
           transferTo={editingTxn.pair?.to}
           onClose={() => setEditingTxn(null)}
+        />
+      )}
+      {editingCardTxn && (
+        <CardTransactionDialog
+          cardId={editingCardTxn.cardId}
+          transaction={editingCardTxn}
+          onClose={() => setEditingCardTxn(null)}
         />
       )}
       {showManage && (

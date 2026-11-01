@@ -21,7 +21,7 @@ import {
   deleteCardTransaction,
   payCardBill,
 } from '../../db/budget'
-import { formatDate, toDateKey } from '../../lib/dates'
+import { formatDate } from '../../lib/dates'
 import { formatMoney, ordinal } from '../../lib/format'
 import {
   ConfirmDialog,
@@ -34,7 +34,7 @@ import {
   Select,
   TextInput,
 } from '../../components/ui'
-import { Money, MonthYearPicker } from './shared'
+import { CardTransactionDialog, Money, MonthYearPicker } from './shared'
 
 export default function CreditCardDetailScreen() {
   const { cardId } = useParams()
@@ -48,6 +48,7 @@ export default function CreditCardDetailScreen() {
   const [addType, setAddType] = useState<CardTxnType | null>(null)
   const [showPay, setShowPay] = useState(false)
   const [deletingTxn, setDeletingTxn] = useState<CreditCardTransaction | null>(null)
+  const [editingTxn, setEditingTxn] = useState<CreditCardTransaction | null>(null)
 
   const card = useLiveQuery(async () => (id ? ((await db.creditCards.get(id)) ?? null) : null), [id])
   const allTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
@@ -182,6 +183,16 @@ export default function CreditCardDetailScreen() {
                   </div>
                 </div>
                 <Money value={t.type === 'Purchase' ? -t.amount : t.amount} />
+                {t.linkedTransactionId == null && (
+                  <button
+                    className="icon-btn"
+                    style={{ width: 30, height: 30 }}
+                    aria-label="Edit transaction"
+                    onClick={() => setEditingTxn(t)}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
                 <button className="icon-btn" style={{ width: 30, height: 30 }} aria-label="Delete transaction" onClick={() => setDeletingTxn(t)}>
                   <X size={15} color="var(--error)" />
                 </button>
@@ -194,7 +205,14 @@ export default function CreditCardDetailScreen() {
         <Plus size={26} />
       </button>
 
-      {addType && <AddCardTxnDialog type={addType} cardId={card.id!} onClose={() => setAddType(null)} />}
+      {addType && <CardTransactionDialog type={addType} cardId={card.id!} onClose={() => setAddType(null)} />}
+      {editingTxn && (
+        <CardTransactionDialog
+          cardId={card.id!}
+          transaction={editingTxn}
+          onClose={() => setEditingTxn(null)}
+        />
+      )}
       {showPay && <PayBillDialog card={card} onClose={() => setShowPay(false)} />}
       {showEdit && <EditCardDialog card={card} onClose={() => setShowEdit(false)} />}
 
@@ -219,74 +237,6 @@ export default function CreditCardDetailScreen() {
         }}
       />
     </>
-  )
-}
-
-function AddCardTxnDialog({
-  type,
-  cardId,
-  onClose,
-}: {
-  type: CardTxnType
-  cardId: number
-  onClose: () => void
-}) {
-  const [amount, setAmount] = useState('')
-  const [description, setDescription] = useState('')
-  const [date, setDate] = useState(toDateKey(new Date()))
-  const [typeValue, setTypeValue] = useState<CardTxnType>(type)
-  const amountValue = Number(amount)
-  const valid = Number.isFinite(amountValue) && amountValue > 0
-
-  const save = async () => {
-    if (!valid) return
-    await db.creditCardTransactions.add({
-      cardId,
-      amount: amountValue,
-      description: description.trim(),
-      date: new Date(`${date}T12:00:00`).getTime(),
-      type: typeValue,
-      createdAt: Date.now(),
-    })
-    onClose()
-  }
-
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={`Add ${typeValue}`}
-      footer={
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void save()} disabled={!valid}>Add</button>
-        </div>
-      }
-    >
-      <div className="stack">
-        <div className="chip-row">
-          {(['Purchase', 'Credit', 'Payment'] as CardTxnType[]).map((t) => (
-            <button key={t} className={`chip ${typeValue === t ? 'active' : ''}`} onClick={() => setTypeValue(t)}>
-              {t}
-            </button>
-          ))}
-        </div>
-        <Field label="Amount *">
-          <MoneyInput value={amount} onChange={setAmount} autoFocus />
-        </Field>
-        <Field label="Description">
-          <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
-        </Field>
-        <Field label="Date">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        {typeValue === 'Payment' && (
-          <p className="tiny muted">
-            Recording a payment here only reduces the card balance. Use &quot;Pay bill&quot; to also deduct it from a bank account.
-          </p>
-        )}
-      </div>
-    </Dialog>
   )
 }
 

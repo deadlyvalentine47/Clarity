@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { db } from '../../db/db'
-import type { Category, CreditCard, Source, Transaction, TransactionType } from '../../db/types'
+import type {
+  CardTxnType,
+  Category,
+  CreditCard,
+  CreditCardTransaction,
+  Source,
+  Transaction,
+  TransactionType,
+} from '../../db/types'
 import { MONTHS, MONTHS_SHORT, toDateKey } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import {
@@ -655,6 +663,94 @@ export function TransactionDialog({
         )}
 
         {error && <p className="tiny" style={{ color: 'var(--error)' }}>{error}</p>}
+      </div>
+    </Dialog>
+  )
+}
+
+/** Add or edit a credit-card transaction (purchase, credit or payment). */
+export function CardTransactionDialog({
+  cardId,
+  type: initialType = 'Purchase',
+  transaction,
+  onClose,
+}: {
+  cardId: number
+  type?: CardTxnType
+  transaction?: CreditCardTransaction
+  onClose: () => void
+}) {
+  const editing = transaction != null
+  // A bill payment is linked to a bank expense; editing one side would desync.
+  const linked = transaction?.linkedTransactionId != null
+  const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
+  const [description, setDescription] = useState(transaction?.description ?? '')
+  const [date, setDate] = useState(transaction ? toDateKey(transaction.date) : toDateKey(new Date()))
+  const [typeValue, setTypeValue] = useState<CardTxnType>(transaction?.type ?? initialType)
+  const amountValue = Number(amount)
+  const valid = Number.isFinite(amountValue) && amountValue > 0 && !linked
+
+  const save = async () => {
+    if (!valid) return
+    const payload = {
+      cardId,
+      amount: amountValue,
+      description: description.trim(),
+      date: new Date(`${date}T12:00:00`).getTime(),
+      type: typeValue,
+    }
+    if (editing && transaction?.id != null) {
+      await db.creditCardTransactions.update(transaction.id, payload)
+    } else {
+      await db.creditCardTransactions.add({ ...payload, createdAt: Date.now() })
+    }
+    onClose()
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={editing ? `Edit ${typeValue}` : `Add ${typeValue}`}
+      footer={
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={!valid}>
+            {editing ? 'Save' : 'Add'}
+          </button>
+        </div>
+      }
+    >
+      <div className="stack">
+        <div className="chip-row">
+          {(['Purchase', 'Credit', 'Payment'] as CardTxnType[]).map((t) => (
+            <button
+              key={t}
+              className={`chip ${typeValue === t ? 'active' : ''}`}
+              onClick={() => setTypeValue(t)}
+              disabled={linked}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <Field label="Amount *">
+          <MoneyInput value={amount} onChange={setAmount} autoFocus />
+        </Field>
+        <Field label="Description">
+          <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+        </Field>
+        <Field label="Date">
+          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
+        {linked && (
+          <p className="tiny muted">This is the card side of a bill payment. Delete it from either side instead of editing.</p>
+        )}
+        {typeValue === 'Payment' && !linked && (
+          <p className="tiny muted">
+            Recording a payment here only reduces the card balance. Use &quot;Pay bill&quot; to also deduct it from a bank account.
+          </p>
+        )}
       </div>
     </Dialog>
   )
