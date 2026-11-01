@@ -53,6 +53,21 @@ a zip.)
 Install it with `adb install -r clarity-debug.apk`, or copy it to the phone and
 open it (allow "install unknown apps" for the file manager).
 
+## Debug signing key
+
+`android/app/clarity-debug.p12` is committed on purpose. A runner without it
+generates a fresh debug keystore for every build, which means each new APK has a
+different signature and refuses to install over the previous one
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) — and uninstalling wipes the WebView's
+IndexedDB. With a pinned key, CI builds upgrade in place:
+
+```bash
+adb install -r clarity-debug.apk
+```
+
+It is a debug key (alias `claritydebugkey`, password `android`), public by
+convention. Never sign a Play Store release with it — see below.
+
 ## Signing (optional, for release builds)
 
 Generate a keystore once:

@@ -172,7 +172,8 @@ https://github.com/deadlyvalentine47/Clarity/releases/download/apk-latest/clarit
 ```
 
 - Approve a run in Actions → **Android APK** (PRs to `master` and manual runs
-  both stop at the `apk-build` environment).
+  both stop at the `apk-build` environment). Debug builds share one committed
+  key, so a new APK installs over the old one without losing data.
 - Local builds need JDK 17+ and the Android SDK: `npm run android:apk`.
 
 Details — signing secrets, app id, versioning and WebView differences — are in

@@ -16,7 +16,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        // Committed on purpose: a stable key means CI debug builds install over
+        // each other (adb install -r) and over the previous release. Debug keys
+        // are public by convention — never use this for a Play Store release.
+        debug {
+            storeFile file('clarity-debug.p12')
+            storeType 'PKCS12'
+            storePassword 'android'
+            keyAlias 'claritydebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
