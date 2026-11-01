@@ -113,6 +113,22 @@ export class ClarityDB extends Dexie {
             s.balance ??= 0
           })
       })
+
+    // v3 adds manual habit ordering. Seed existing habits from creation order
+    // so the list doesn't jump around after the upgrade.
+    this.version(3)
+      .stores({
+        habits: '++id, createdAt, archivedAt',
+      })
+      .upgrade(async (tx) => {
+        const habits = await tx.table('habits').toArray()
+        habits.sort(
+          (a: Habit, b: Habit) => a.createdAt - b.createdAt || (a.id ?? 0) - (b.id ?? 0),
+        )
+        for (let i = 0; i < habits.length; i += 1) {
+          await tx.table('habits').update(habits[i].id, { sortOrder: (i + 1) * 10 })
+        }
+      })
   }
 }
 

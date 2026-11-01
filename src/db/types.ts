@@ -58,6 +58,8 @@ export interface Habit {
   deadlineMinute?: number | null
   /** date -> note text */
   dailyNotes: Record<string, string>
+  /** manual list position; lower comes first */
+  sortOrder: number
   createdAt: number
 }
 

@@ -7,6 +7,7 @@ import {
   ArchiveRestore,
   BarChart3,
   Check,
+  GripVertical,
   Pencil,
   Plus,
   Search,
@@ -18,12 +19,14 @@ import {
   HABIT_FREQUENCIES,
   WEEKDAY_NAMES,
   archiveHabit,
+  compareHabits,
   computeBestStreak,
   computeStreak,
   habitFrequencyLabel,
   isDeadlinePassedToday,
   isScheduledOn,
   latestMissed,
+  moveHabit,
   softDeleteHabit,
   toggleHabitForDate,
   unarchiveHabit,
@@ -42,6 +45,8 @@ export default function HabitsScreen() {
   const [editing, setEditing] = useState<Habit | null>(null)
   const [archiving, setArchiving] = useState<Habit | null>(null)
   const [deleting, setDeleting] = useState<Habit | null>(null)
+  const [dragged, setDragged] = useState<number | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: number; pos: 'above' | 'below' } | null>(null)
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
   const today = new Date()
@@ -53,8 +58,32 @@ export default function HabitsScreen() {
       .filter((h) => (filter === 'Archived' ? h.isArchived && !h.isDeleted : !h.isArchived && !h.isDeleted))
       .filter((h) => !q || h.name.toLowerCase().includes(q) || h.description.toLowerCase().includes(q))
       .filter((h) => filter !== 'Today' || isScheduledOn(h, today))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort(compareHabits)
   }, [habits, query, filter, today])
+
+  const drop = (targetId: number, position: 'above' | 'below') => {
+    if (dragged == null || dragged === targetId) {
+      setDragged(null)
+      setDropTarget(null)
+      return
+    }
+    const id = dragged
+    setDragged(null)
+    setDropTarget(null)
+    void moveHabit(id, targetId, position === 'above' ? 'before' : 'after')
+  }
+
+  /** Append the dragged habit to the end of the list. */
+  const dropToEnd = () => {
+    if (dragged == null) return
+    const id = dragged
+    const all = (habits ?? []).slice().sort(compareHabits)
+    const last = all[all.length - 1]
+    setDragged(null)
+    setDropTarget(null)
+    if (!last?.id || last.id === id) return
+    void moveHabit(id, last.id, 'after')
+  }
 
   return (
     <>
@@ -119,8 +148,35 @@ export default function HabitsScreen() {
               onArchive={() => setArchiving(habit)}
               onUnarchive={() => void unarchiveHabit(habit.id!)}
               onDelete={() => setDeleting(habit)}
+              dragging={dragged === habit.id}
+              dropPos={dropTarget != null && dropTarget.id === habit.id ? dropTarget.pos : null}
+              onDragStart={() => {
+                setDragged(habit.id!)
+                setDropTarget(null)
+              }}
+              onDragEnd={() => {
+                setDragged(null)
+                setDropTarget(null)
+              }}
+              onDragOver={(pos) => setDropTarget({ id: habit.id!, pos })}
+              onDrop={(pos) => drop(habit.id!, pos)}
             />
           ))}
+          {dragged != null && (
+            <div
+              className="drop-end"
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                dropToEnd()
+              }}
+            >
+              Move to the end
+            </div>
+          )}
         </div>
       )}
 
@@ -164,6 +220,12 @@ function HabitCard({
   onArchive,
   onUnarchive,
   onDelete,
+  dragging,
+  dropPos,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
 }: {
   habit: Habit
   todayKey: string
@@ -172,6 +234,12 @@ function HabitCard({
   onArchive: () => void
   onUnarchive: () => void
   onDelete: () => void
+  dragging: boolean
+  dropPos: 'above' | 'below' | null
+  onDragStart: () => void
+  onDragEnd: () => void
+  onDragOver: (pos: 'above' | 'below') => void
+  onDrop: (pos: 'above' | 'below') => void
 }) {
   const [busy, setBusy] = useState(false)
   const isCompleted = habit.completionHistory[todayKey] === true
@@ -191,8 +259,33 @@ function HabitCard({
   }
 
   return (
-    <div className="card">
+    <div
+      className={`card habit-card ${dragging ? 'dragging' : ''} ${dropPos ? `drop-${dropPos}` : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', String(habit.id))
+        onDragStart()
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        const rect = e.currentTarget.getBoundingClientRect()
+        onDragOver(e.clientY < rect.top + rect.height / 2 ? 'above' : 'below')
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        // Recompute from the drop event so a quick release can't use a stale
+        // hover position.
+        const rect = e.currentTarget.getBoundingClientRect()
+        onDrop(e.clientY < rect.top + rect.height / 2 ? 'above' : 'below')
+      }}
+    >
       <div className="row-between" style={{ alignItems: 'flex-start' }}>
+        <span className="drag-handle" title="Drag to reorder" aria-hidden>
+          <GripVertical size={16} />
+        </span>
         <button
           className="grow"
           style={{ background: 'none', border: 'none', textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0 }}
@@ -288,6 +381,8 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
       })
     } else {
       const now = Date.now()
+      const existing = await db.habits.toArray()
+      const maxOrder = existing.reduce((max, h) => Math.max(max, h.sortOrder ?? 0), 0)
       const created: Habit = {
         name: payload.name!,
         description: payload.description!,
@@ -307,6 +402,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
         deadlineHour: payload.deadlineHour ?? null,
         deadlineMinute: payload.deadlineMinute ?? null,
         dailyNotes: {},
+        sortOrder: maxOrder + 10,
         createdAt: now,
       }
       await db.habits.add(created)

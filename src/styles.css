@@ -1234,6 +1234,58 @@ p {
   position: relative;
 }
 
+.habit-card {
+  position: relative;
+}
+
+.habit-card.dragging {
+  opacity: 0.4;
+}
+
+.habit-card.drop-above::before,
+.habit-card.drop-below::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--secondary);
+}
+
+.habit-card.drop-above::before {
+  top: -6px;
+}
+
+.habit-card.drop-below::after {
+  bottom: -6px;
+}
+
+.habit-card .drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  flex: 0 0 auto;
+  padding-top: 2px;
+  touch-action: none;
+}
+
+.habit-card .drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Shown while dragging: drop here to append at the very end. */
+.drop-end {
+  margin-top: 2px;
+  padding: 12px;
+  border: 1.5px dashed var(--outline);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
 .note-card.drop-inside {
   outline: 2px solid var(--primary);
   background: var(--primary-container);

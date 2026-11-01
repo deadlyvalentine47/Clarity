@@ -197,6 +197,7 @@ function habitDefaults(h: Partial<Habit>): Habit {
     deadlineHour: h.deadlineHour ?? null,
     deadlineMinute: h.deadlineMinute ?? null,
     dailyNotes: h.dailyNotes && typeof h.dailyNotes === 'object' ? h.dailyNotes : {},
+    sortOrder: Number(h.sortOrder ?? 0),
     createdAt: Number(h.createdAt ?? Date.now()),
   }
 }
