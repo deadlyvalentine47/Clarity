@@ -14,7 +14,7 @@ import type { Source, Transaction } from '../../db/types'
 import { deleteSource } from '../../db/budget'
 import { formatDate } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, Field, PageHeader, TextInput } from '../../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, Field, MoneyInput, PageHeader, TextInput } from '../../components/ui'
 import { ManageSourcesCategoriesDialog, Money, MultiMonthYearFilter } from './shared'
 
 export default function AccountsScreen() {
@@ -278,7 +278,7 @@ function AddAccountDialog({ onClose }: { onClose: () => void }) {
           <TextInput autoFocus value={name} onChange={(e) => { setName(e.target.value); setError('') }} placeholder="e.g. HDFC Savings" />
         </Field>
         <Field label="Opening balance" hint="Used as the current balance until you add transactions.">
-          <TextInput type="number" inputMode="decimal" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0.00" />
+          <MoneyInput value={balance} onChange={setBalance} label="Opening balance" />
         </Field>
         {error && <p className="tiny" style={{ color: 'var(--error)' }}>{error}</p>}
       </div>

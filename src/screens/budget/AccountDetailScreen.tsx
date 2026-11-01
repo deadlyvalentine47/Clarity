@@ -21,6 +21,7 @@ import {
   Dialog,
   EmptyState,
   Field,
+  MoneyInput,
   PageHeader,
   TextInput,
 } from '../../components/ui'
@@ -361,7 +362,7 @@ function EditAccountDialog({ source, onClose }: { source: Source; onClose: () =>
           <TextInput autoFocus value={name} onChange={(e) => { setName(e.target.value); setError('') }} />
         </Field>
         <Field label="Current balance" hint="Use this to reconcile the account with your bank.">
-          <TextInput type="number" inputMode="decimal" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} />
+          <MoneyInput value={balance} onChange={setBalance} label="Current balance" />
         </Field>
         {error && <p className="tiny" style={{ color: 'var(--error)' }}>{error}</p>}
       </div>

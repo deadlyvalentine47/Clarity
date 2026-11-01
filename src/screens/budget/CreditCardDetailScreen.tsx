@@ -28,6 +28,7 @@ import {
   Dialog,
   EmptyState,
   Field,
+  MoneyInput,
   PageHeader,
   ProgressBar,
   Select,
@@ -271,7 +272,7 @@ function AddCardTxnDialog({
           ))}
         </div>
         <Field label="Amount *">
-          <TextInput type="number" inputMode="decimal" step="0.01" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+          <MoneyInput value={amount} onChange={setAmount} autoFocus />
         </Field>
         <Field label="Description">
           <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
@@ -330,7 +331,7 @@ function PayBillDialog({ card, onClose }: { card: CreditCard; onClose: () => voi
           This creates a card payment and a matching bank expense, so both balances stay in sync.
         </p>
         <Field label="Amount *">
-          <TextInput type="number" inputMode="decimal" step="0.01" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+          <MoneyInput value={amount} onChange={setAmount} autoFocus />
         </Field>
         <Field label="Pay from *">
           <Select value={source} onChange={(e) => setSource(e.target.value)}>
@@ -393,7 +394,7 @@ function EditCardDialog({ card, onClose }: { card: CreditCard; onClose: () => vo
           <TextInput autoFocus value={name} onChange={(e) => { setName(e.target.value); setError('') }} />
         </Field>
         <Field label="Credit limit *">
-          <TextInput type="number" inputMode="decimal" step="0.01" value={limit} onChange={(e) => setLimit(e.target.value)} />
+          <MoneyInput value={limit} onChange={setLimit} label="Credit limit" />
         </Field>
         <Field label="Billing cycle day (1–31) *">
           <TextInput type="number" inputMode="numeric" min={1} max={31} value={cycleDay} onChange={(e) => setCycleDay(e.target.value)} />

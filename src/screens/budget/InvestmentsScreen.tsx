@@ -11,6 +11,7 @@ import {
   Dialog,
   EmptyState,
   Field,
+  MoneyInput,
   PageHeader,
   TextArea,
   TextInput,
@@ -274,10 +275,10 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
             <TextInput type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
           </Field>
           <Field label="Purchase price / unit *">
-            <TextInput type="number" inputMode="decimal" step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+            <MoneyInput value={purchasePrice} onChange={setPurchasePrice} label="Purchase price" />
           </Field>
           <Field label="Current price / unit *">
-            <TextInput type="number" inputMode="decimal" step="0.01" value={currentPrice} onChange={(e) => setCurrentPrice(e.target.value)} />
+            <MoneyInput value={currentPrice} onChange={setCurrentPrice} label="Current price" />
           </Field>
         </div>
         <Field label="Notes">
