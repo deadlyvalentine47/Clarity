@@ -5,8 +5,10 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.datastore.UserPreferences
+import com.clarity.app.data.local.datastore.UserPreferences.Companion.ALL_SECTIONS
 import com.clarity.app.data.local.database.ClarityDatabase
 import com.clarity.app.util.DataExporter
+import com.clarity.app.ui.theme.allThemes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,12 +33,28 @@ class SettingsViewModel @Inject constructor(
             initialValue = ""
         )
 
-    val isDarkMode: StateFlow<Boolean?> = userPreferences.isDarkMode
+    val selectedTheme: StateFlow<String> = userPreferences.themeName
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
+            initialValue = "Ocean"
         )
+
+    val sectionOrder: StateFlow<List<String>> = userPreferences.sectionOrder
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ALL_SECTIONS
+        )
+
+    val sectionEnabled: StateFlow<Set<String>> = userPreferences.sectionEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ALL_SECTIONS.toSet()
+        )
+
+    val availableThemes: List<String> = allThemes.keys.toList()
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
@@ -44,15 +62,35 @@ class SettingsViewModel @Inject constructor(
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
+    fun moveSection(section: String, direction: Int) {
+        val current = sectionOrder.value.toMutableList()
+        val index = current.indexOf(section)
+        val newIndex = index + direction
+        if (newIndex < 0 || newIndex >= current.size) return
+        current.removeAt(index)
+        current.add(newIndex, section)
+        viewModelScope.launch {
+            userPreferences.setSectionOrder(current)
+        }
+    }
+
+    fun toggleSection(section: String) {
+        val current = sectionEnabled.value.toMutableSet()
+        if (!current.remove(section)) current.add(section)
+        viewModelScope.launch {
+            userPreferences.setSectionEnabled(current)
+        }
+    }
+
     fun updateUsername(name: String) {
         viewModelScope.launch {
             userPreferences.setUsername(name)
         }
     }
 
-    fun setDarkMode(enabled: Boolean) {
+    fun setTheme(name: String) {
         viewModelScope.launch {
-            userPreferences.setDarkMode(enabled)
+            userPreferences.setTheme(name)
         }
     }
 
@@ -60,7 +98,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _exportState.value = ExportState.Loading
             try {
-                val json = DataExporter.exportToJson(context, database)
+                val json = DataExporter.exportToJson(context, database, userPreferences)
                 _exportState.value = ExportState.Success(json)
             } catch (e: Exception) {
                 _exportState.value = ExportState.Error(e.message ?: "Export failed")
@@ -72,7 +110,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _importState.value = ImportState.Loading
             try {
-                DataExporter.importFromJson(context, database, uri)
+                DataExporter.importFromJson(context, database, uri, userPreferences)
                     .onSuccess {
                         _importState.value = ImportState.Success
                     }

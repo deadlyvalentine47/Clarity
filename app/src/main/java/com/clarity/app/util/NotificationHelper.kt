@@ -1,13 +1,11 @@
 package com.clarity.app.util
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.clarity.app.MainActivity
 import com.clarity.app.R
@@ -19,18 +17,6 @@ class HabitReminderReceiver : BroadcastReceiver() {
         val habitId = intent.getLongExtra("habit_id", 0)
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Create notification channel for Android 8.0+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "habit_reminders",
-                "Habit Reminders",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Reminders for your daily habits"
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
 
         // Create intent to open app when notification is tapped
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -56,21 +42,6 @@ class HabitReminderReceiver : BroadcastReceiver() {
 }
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "habit_reminders"
-
-    fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Habit Reminders",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Reminders for your daily habits"
-            }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
 
     fun scheduleHabitReminder(context: Context, habitId: Long, habitName: String, hour: Int, minute: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -112,17 +83,6 @@ object NotificationHelper {
 
     fun showQuickNoteNotification(context: Context) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "quick_notes",
-                "Quick Notes",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Quick note creation"
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
 
         val notification = NotificationCompat.Builder(context, "quick_notes")
             .setSmallIcon(R.drawable.ic_launcher_foreground)

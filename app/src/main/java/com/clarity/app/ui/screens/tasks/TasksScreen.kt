@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -80,7 +81,6 @@ fun TasksScreen(
     val subtasks by viewModel.subtasks.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
-    var showSearch by remember { mutableStateOf(false) }
     var expandedTaskId by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
@@ -95,26 +95,23 @@ fun TasksScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (showSearch) {
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = { Text("Search tasks...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            viewModel.setSearchQuery("")
-                            showSearch = false
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close search")
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                placeholder = { Text("Search tasks...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (uiState.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    singleLine = true
-                )
-            }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true
+            )
 
             Row(
                 modifier = Modifier
@@ -157,7 +154,8 @@ fun TasksScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(uiState.tasks, key = { it.id }) { task ->
                         SwipeToDeleteTaskItem(
@@ -226,16 +224,30 @@ fun SwipeToDeleteTaskItem(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
+                showDeleteDialog = true
+                false
             } else {
                 false
             }
         }
     )
+
+    if (showDeleteDialog) {
+        DeleteConfirmationDialog(
+            title = "Delete Task",
+            message = "Are you sure you want to delete \"${task.title}\"?",
+            onConfirm = {
+                showDeleteDialog = false
+                onDelete()
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
 
     SwipeToDismissBox(
         state = dismissState,
@@ -354,6 +366,17 @@ fun TaskItem(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                    if (task.tags.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            task.tags.forEach { tag ->
+                                Text(
+                                    text = "#$tag",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -494,6 +517,7 @@ fun AddEditTaskDialog(
     var dueDate by remember { mutableStateOf(task?.dueDate) }
     var isRecurring by remember { mutableStateOf(task?.isRecurring ?: false) }
     var recurringType by remember { mutableStateOf(task?.recurringType ?: "Daily") }
+    var tagsInput by remember { mutableStateOf(task?.tags?.joinToString(", ") ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     var priorityExpanded by remember { mutableStateOf(false) }
     var recurringExpanded by remember { mutableStateOf(false) }
@@ -623,12 +647,21 @@ fun AddEditTaskDialog(
                         }
                     }
                 }
+
+                OutlinedTextField(
+                    value = tagsInput,
+                    onValueChange = { tagsInput = it },
+                    label = { Text("Tags (comma-separated)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
+                        val tags = tagsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
                         if (isEditing) {
                             onConfirm(
                                 task!!.copy(
@@ -637,6 +670,7 @@ fun AddEditTaskDialog(
                                     priority = priority,
                                     category = category.trim(),
                                     dueDate = dueDate,
+                                    tags = tags,
                                     updatedAt = System.currentTimeMillis()
                                 )
                             )
@@ -648,6 +682,7 @@ fun AddEditTaskDialog(
                                     priority = priority,
                                     category = category.trim(),
                                     dueDate = dueDate,
+                                    tags = tags,
                                     isRecurring = isRecurring,
                                     recurringType = if (isRecurring) recurringType else null
                                 )

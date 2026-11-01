@@ -5,14 +5,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.outlined.Note
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Note
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,8 +44,22 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.clarity.app.ui.screens.budget.BudgetScreen
+import com.clarity.app.ui.screens.budget.BankScreen
+import com.clarity.app.ui.screens.budget.BanksScreen
+import com.clarity.app.ui.screens.budget.BudgetMainScreen
+import com.clarity.app.ui.screens.budget.ComingSoonScreen
+import com.clarity.app.ui.screens.budget.CCSpendsScreen
+import com.clarity.app.ui.screens.budget.CreditCardDetailScreen
+import com.clarity.app.ui.screens.budget.CreditCardsScreen
+import com.clarity.app.ui.screens.budget.IncomeScreen
+import com.clarity.app.ui.screens.budget.InvestmentScreen
+import com.clarity.app.ui.screens.budget.MetricsScreen
+import com.clarity.app.ui.screens.budget.SourceDetailScreen
+import com.clarity.app.ui.screens.budget.SpendingScreen
 import com.clarity.app.ui.screens.calendar.CalendarScreen
+import com.clarity.app.ui.screens.habits.HabitDetailScreen
+import com.clarity.app.ui.screens.habits.HabitMetricsDayScreen
+import com.clarity.app.ui.screens.habits.HabitMetricsScreen
 import com.clarity.app.ui.screens.habits.HabitsScreen
 import com.clarity.app.ui.screens.home.HomeScreen
 import com.clarity.app.ui.screens.home.OnboardingScreen
@@ -61,16 +75,30 @@ import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Default.Home)
-    data object Tasks : Screen("tasks", "Tasks", Icons.Default.List)
+    data object Tasks : Screen("tasks", "Tasks", Icons.AutoMirrored.Filled.List)
     data object Calendar : Screen("calendar", "Calendar", Icons.Default.DateRange)
     data object Habits : Screen("habits", "Habits", Icons.Default.Notifications)
     data object Budget : Screen("budget", "Budget", Icons.Outlined.AccountBalance)
-    data object Notes : Screen("notes", "Notes", Icons.Outlined.Note)
-    data object NoteDetail : Screen("note_detail/{noteId}", "Note Detail", Icons.Outlined.Note)
+    data object Notes : Screen("notes", "Notes", Icons.AutoMirrored.Outlined.Note)
+    data object NoteDetail : Screen("note_detail/{noteId}", "Note Detail", Icons.AutoMirrored.Outlined.Note)
     data object Goals : Screen("goals", "Goals", Icons.Outlined.Flag)
     data object Pomodoro : Screen("pomodoro", "Pomodoro", Icons.Outlined.Timer)
     data object PomodoroSession : Screen("pomodoro_session/{focusSessionId}", "Pomodoro Session", Icons.Outlined.Timer)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    data object HabitDetail : Screen("habit_detail/{habitId}", "Habit Detail", Icons.Default.Notifications)
+    data object HabitMetrics : Screen("habit_metrics", "Habit Metrics", Icons.Default.Notifications)
+    data object HabitMetricsDay : Screen("habit_metrics/{date}", "Habit Metrics Day", Icons.Default.Notifications)
+    data object BudgetBank : Screen("budget_bank", "Bank", Icons.Default.Home)
+    data object BudgetIncome : Screen("budget_income", "Income", Icons.Default.Home)
+    data object BudgetSpending : Screen("budget_spending", "Spending", Icons.Default.Home)
+    data object BudgetCreditCards : Screen("budget_credit_cards", "Credit Cards", Icons.Default.Home)
+    data object BudgetCreditCardDetail : Screen("budget_credit_card/{cardId}", "Card Detail", Icons.Default.Home)
+    data object BudgetInvestments : Screen("budget_investments", "Investments", Icons.Default.Home)
+    data object BudgetComingSoon : Screen("budget_coming_soon", "Coming Soon", Icons.Default.Home)
+    data object BudgetSources : Screen("budget_sources", "Sources", Icons.Default.Home)
+    data object BudgetMetrics : Screen("budget_metrics", "Metrics", Icons.Default.Home)
+    data object BudgetCCSpends : Screen("budget_cc_spends", "CC Spends", Icons.Default.Home)
+    data object BudgetBanks : Screen("budget_banks", "Banks", Icons.Default.Home)
 }
 
 val drawerItems = listOf(
@@ -143,11 +171,71 @@ fun ClarityNavHost() {
                     navController = navController,
                     startDestination = Screen.Home.route
                 ) {
-                    composable(Screen.Home.route) { HomeScreen() }
+                    composable(Screen.Home.route) {
+                        HomeScreen(
+                            onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
+                            onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
+                            onNavigateToEvents = { navController.navigate(Screen.Calendar.route) },
+                            onNavigateToBudget = { navController.navigate(Screen.Budget.route) },
+                            onNavigateToNotes = { navController.navigate(Screen.Notes.route) },
+                            onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
+                            onNavigateToPomodoro = { navController.navigate(Screen.Pomodoro.route) }
+                        )
+                    }
                     composable(Screen.Tasks.route) { TasksScreen() }
                     composable(Screen.Calendar.route) { CalendarScreen() }
-                    composable(Screen.Habits.route) { HabitsScreen() }
-                    composable(Screen.Budget.route) { BudgetScreen() }
+                    composable(Screen.Habits.route) {
+                        HabitsScreen(
+                            onHabitClick = { habitId ->
+                                navController.navigate("habit_detail/$habitId")
+                            },
+                            onMetricsClick = { navController.navigate(Screen.HabitMetrics.route) }
+                        )
+                    }
+                    composable(Screen.HabitDetail.route) { backStackEntry ->
+                        val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
+                        HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                    }
+                    composable(Screen.HabitMetrics.route) {
+                        HabitMetricsScreen(
+                            onBack = { navController.popBackStack() },
+                            onDayClick = { date -> navController.navigate("habit_metrics/$date") }
+                        )
+                    }
+                    composable(Screen.HabitMetricsDay.route) { backStackEntry ->
+                        val date = backStackEntry.arguments?.getString("date") ?: ""
+                        HabitMetricsDayScreen(date = date, onBack = { navController.popBackStack() })
+                    }
+                    composable(Screen.Budget.route) {
+                        BudgetMainScreen(
+                            onNavigateToBank = { navController.navigate(Screen.BudgetBank.route) },
+                            onNavigateToCreditCards = { navController.navigate(Screen.BudgetCreditCards.route) },
+                            onNavigateToInvestments = { navController.navigate(Screen.BudgetComingSoon.route) },
+                            onNavigateToSources = { navController.navigate(Screen.BudgetSources.route) },
+                            onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) },
+                            onNavigateToCCSpends = { navController.navigate(Screen.BudgetCCSpends.route) },
+                            onNavigateToBanks = { navController.navigate(Screen.BudgetBanks.route) }
+                        )
+                    }
+                    composable(Screen.BudgetBank.route) { BankScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetIncome.route) { IncomeScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetSpending.route) { SpendingScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetCreditCards.route) {
+                        CreditCardsScreen(
+                            onBack = { navController.popBackStack() },
+                            onCardClick = { cardId -> navController.navigate("budget_credit_card/$cardId") }
+                        )
+                    }
+                    composable(Screen.BudgetCreditCardDetail.route) { backStackEntry ->
+                        val cardId = backStackEntry.arguments?.getString("cardId")?.toLongOrNull() ?: 0L
+                        CreditCardDetailScreen(cardId = cardId, onBack = { navController.popBackStack() })
+                    }
+                    composable(Screen.BudgetInvestments.route) { InvestmentScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetComingSoon.route) { ComingSoonScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetSources.route) { SourceDetailScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetMetrics.route) { MetricsScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetCCSpends.route) { CCSpendsScreen(onBack = { navController.popBackStack() }) }
+                    composable(Screen.BudgetBanks.route) { BanksScreen(onBack = { navController.popBackStack() }) }
                     composable(Screen.Notes.route) {
                         NotesScreen(onNoteClick = { noteId ->
                             navController.navigate("note_detail/$noteId")
@@ -155,7 +243,21 @@ fun ClarityNavHost() {
                     }
                     composable(Screen.NoteDetail.route) { backStackEntry ->
                         val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: 0L
-                        NoteDetailNavigation(noteId = noteId, onBack = { navController.popBackStack() })
+                        NoteDetailNavigation(
+                            noteId = noteId,
+                            onBack = { navController.popBackStack() },
+                            onGoToNotes = {
+                                val popped = navController.popBackStack(Screen.Notes.route, inclusive = false)
+                                if (!popped) {
+                                    navController.navigate(Screen.Notes.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            onOpenChild = { childId -> navController.navigate("note_detail/$childId") }
+                        )
                     }
                     composable(Screen.Goals.route) { GoalsScreen() }
                     composable(Screen.Pomodoro.route) {
@@ -199,7 +301,9 @@ fun ClarityNavHost() {
                 }
             ) {
                 val isDetailScreen = currentDestination?.route?.startsWith("pomodoro_session") == true ||
-                        currentDestination?.route?.startsWith("note_detail") == true
+                        currentDestination?.route?.startsWith("note_detail") == true ||
+                        currentDestination?.route?.startsWith("habit_detail") == true ||
+                        currentDestination?.route?.startsWith("habit_metrics") == true
 
                 Scaffold(
                     topBar = {
@@ -209,7 +313,7 @@ fun ClarityNavHost() {
                                 navigationIcon = {
                                     IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                         Icon(
-                                            imageVector = Icons.Default.List,
+                                            imageVector = Icons.AutoMirrored.Filled.List,
                                             contentDescription = "Menu"
                                         )
                                     }
@@ -240,11 +344,71 @@ fun ClarityNavHost() {
                         startDestination = Screen.Home.route,
                         modifier = if (isDetailScreen) Modifier else Modifier.padding(innerPadding)
                     ) {
-                        composable(Screen.Home.route) { HomeScreen() }
+                        composable(Screen.Home.route) {
+                            HomeScreen(
+                                onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
+                                onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
+                                onNavigateToEvents = { navController.navigate(Screen.Calendar.route) },
+                                onNavigateToBudget = { navController.navigate(Screen.Budget.route) },
+                                onNavigateToNotes = { navController.navigate(Screen.Notes.route) },
+                                onNavigateToGoals = { navController.navigate(Screen.Goals.route) },
+                                onNavigateToPomodoro = { navController.navigate(Screen.Pomodoro.route) }
+                            )
+                        }
                         composable(Screen.Tasks.route) { TasksScreen() }
                         composable(Screen.Calendar.route) { CalendarScreen() }
-                        composable(Screen.Habits.route) { HabitsScreen() }
-                        composable(Screen.Budget.route) { BudgetScreen() }
+                        composable(Screen.Habits.route) {
+                            HabitsScreen(
+                                onHabitClick = { habitId ->
+                                    navController.navigate("habit_detail/$habitId")
+                                },
+                                onMetricsClick = { navController.navigate(Screen.HabitMetrics.route) }
+                            )
+                        }
+                        composable(Screen.HabitDetail.route) { backStackEntry ->
+                            val habitId = backStackEntry.arguments?.getString("habitId")?.toLongOrNull() ?: 0L
+                            HabitDetailScreen(habitId = habitId, onBack = { navController.popBackStack() })
+                        }
+                        composable(Screen.HabitMetrics.route) {
+                            HabitMetricsScreen(
+                                onBack = { navController.popBackStack() },
+                                onDayClick = { date -> navController.navigate("habit_metrics/$date") }
+                            )
+                        }
+                        composable(Screen.HabitMetricsDay.route) { backStackEntry ->
+                            val date = backStackEntry.arguments?.getString("date") ?: ""
+                            HabitMetricsDayScreen(date = date, onBack = { navController.popBackStack() })
+                        }
+                        composable(Screen.Budget.route) {
+                            BudgetMainScreen(
+                                onNavigateToBank = { navController.navigate(Screen.BudgetBank.route) },
+                                onNavigateToCreditCards = { navController.navigate(Screen.BudgetCreditCards.route) },
+                                onNavigateToInvestments = { navController.navigate(Screen.BudgetComingSoon.route) },
+                                onNavigateToSources = { navController.navigate(Screen.BudgetSources.route) },
+                                onNavigateToMetrics = { navController.navigate(Screen.BudgetMetrics.route) },
+                                onNavigateToCCSpends = { navController.navigate(Screen.BudgetCCSpends.route) },
+                                onNavigateToBanks = { navController.navigate(Screen.BudgetBanks.route) }
+                            )
+                        }
+                        composable(Screen.BudgetBank.route) { BankScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetIncome.route) { IncomeScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetSpending.route) { SpendingScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetCreditCards.route) {
+                            CreditCardsScreen(
+                                onBack = { navController.popBackStack() },
+                                onCardClick = { cardId -> navController.navigate("budget_credit_card/$cardId") }
+                            )
+                        }
+                        composable(Screen.BudgetCreditCardDetail.route) { backStackEntry ->
+                            val cardId = backStackEntry.arguments?.getString("cardId")?.toLongOrNull() ?: 0L
+                            CreditCardDetailScreen(cardId = cardId, onBack = { navController.popBackStack() })
+                        }
+                        composable(Screen.BudgetInvestments.route) { InvestmentScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetComingSoon.route) { ComingSoonScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetSources.route) { SourceDetailScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetMetrics.route) { MetricsScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetCCSpends.route) { CCSpendsScreen(onBack = { navController.popBackStack() }) }
+                        composable(Screen.BudgetBanks.route) { BanksScreen(onBack = { navController.popBackStack() }) }
                         composable(Screen.Notes.route) {
                             NotesScreen(onNoteClick = { noteId ->
                                 navController.navigate("note_detail/$noteId")
@@ -252,7 +416,21 @@ fun ClarityNavHost() {
                         }
                         composable(Screen.NoteDetail.route) { backStackEntry ->
                             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: 0L
-                            NoteDetailNavigation(noteId = noteId, onBack = { navController.popBackStack() })
+                            NoteDetailNavigation(
+                                noteId = noteId,
+                                onBack = { navController.popBackStack() },
+                                onGoToNotes = {
+                                    val popped = navController.popBackStack(Screen.Notes.route, inclusive = false)
+                                    if (!popped) {
+                                        navController.navigate(Screen.Notes.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                },
+                                onOpenChild = { childId -> navController.navigate("note_detail/$childId") }
+                            )
                         }
                         composable(Screen.Goals.route) { GoalsScreen() }
                         composable(Screen.Pomodoro.route) {

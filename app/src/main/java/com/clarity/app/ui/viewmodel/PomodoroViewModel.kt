@@ -1,6 +1,5 @@
 package com.clarity.app.ui.viewmodel
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
@@ -12,17 +11,14 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.clarity.app.R
-import com.clarity.app.data.local.database.PomodoroFocusSessionDao
 import com.clarity.app.data.local.database.PomodoroFocusSessionEntity
-import com.clarity.app.data.local.database.PomodoroSessionDao
 import com.clarity.app.data.local.database.PomodoroSessionEntity
+import com.clarity.app.domain.repository.PomodoroRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +45,6 @@ data class PomodoroState(
 )
 
 object PomodoroTimerManager {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     var timerJob: Job? = null
     var state = PomodoroState()
     private val _state = MutableStateFlow(PomodoroState())
@@ -71,6 +66,12 @@ object PomodoroTimerManager {
         } catch (_: Exception) {}
     }
 
+    fun releaseMediaPlayer() {
+        stopAlarm()
+        timerJob?.cancel()
+        timerJob = null
+    }
+
     fun syncFromSession(session: PomodoroFocusSessionEntity) {
         if (state.focusSessionId == session.id && (state.isRunning || state.isPaused)) return
         state = PomodoroState(
@@ -88,11 +89,11 @@ object PomodoroTimerManager {
         emit()
     }
 
-    fun startTimer(onComplete: () -> Unit) {
+    fun startTimer(coroutineScope: kotlinx.coroutines.CoroutineScope, onComplete: () -> Unit) {
         timerJob?.cancel()
         state = state.copy(isRunning = true, isPaused = false)
         emit()
-        timerJob = scope.launch {
+        timerJob = coroutineScope.launch {
             while (state.timeLeftSeconds > 0) {
                 delay(1000)
                 state = state.copy(timeLeftSeconds = state.timeLeftSeconds - 1)
@@ -118,8 +119,7 @@ object PomodoroTimerManager {
 
 @HiltViewModel
 class PomodoroViewModel @Inject constructor(
-    private val sessionDao: PomodoroSessionDao,
-    private val focusSessionDao: PomodoroFocusSessionDao,
+    private val pomodoroRepository: PomodoroRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -127,7 +127,6 @@ class PomodoroViewModel @Inject constructor(
     val state: StateFlow<PomodoroState> = manager.stateFlow
 
     init {
-        createNotificationChannel()
         manager.emit()
     }
 
@@ -137,8 +136,8 @@ class PomodoroViewModel @Inject constructor(
             manager.emit()
             return
         }
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            val session = focusSessionDao.getSessionById(sessionId).firstOrNull()
+        viewModelScope.launch {
+            val session = pomodoroRepository.getFocusSessionById(sessionId).firstOrNull()
             session?.let { manager.syncFromSession(it) }
         }
     }
@@ -146,7 +145,7 @@ class PomodoroViewModel @Inject constructor(
     fun startTimer() {
         val s = manager.state
         if (s.focusDurationMinutes <= 0 || s.breakDurationMinutes <= 0) return
-        manager.startTimer(onComplete = { onTimerComplete() })
+        manager.startTimer(coroutineScope = viewModelScope, onComplete = { onTimerComplete() })
     }
 
     fun pauseTimer() {
@@ -203,8 +202,8 @@ class PomodoroViewModel @Inject constructor(
     private fun saveSession() {
         val s = manager.state
         if (s.focusSessionId <= 0) return
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            focusSessionDao.updateSession(
+        viewModelScope.launch {
+            pomodoroRepository.updateFocusSession(
                 PomodoroFocusSessionEntity(
                     id = s.focusSessionId,
                     title = s.title,
@@ -232,8 +231,8 @@ class PomodoroViewModel @Inject constructor(
                 timeLeftSeconds = manager.state.breakDurationMinutes * 60
             )
             manager.emit()
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                sessionDao.insertSession(PomodoroSessionEntity(duration = duration, type = "Focus"))
+            viewModelScope.launch {
+                pomodoroRepository.insertTimerSession(PomodoroSessionEntity(duration = duration, type = "Focus"))
             }
             showNotification("Focus session complete!", "Time for a ${manager.state.breakDurationMinutes}-minute break")
         } else {
@@ -247,21 +246,6 @@ class PomodoroViewModel @Inject constructor(
             showNotification("Break over!", "Ready for another focus session?")
         }
         saveSession()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "pomodoro", "Pomodoro Timer", NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications when Pomodoro timer completes"
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
-                setBypassDnd(true)
-            }
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
-        }
     }
 
     private fun showNotification(title: String, message: String) {
@@ -336,7 +320,8 @@ class PomodoroViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         saveSession()
+        manager.releaseMediaPlayer()
+        super.onCleared()
     }
 }

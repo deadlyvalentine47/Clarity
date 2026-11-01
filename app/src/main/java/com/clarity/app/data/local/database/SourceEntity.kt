@@ -8,6 +8,7 @@ data class SourceEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
+    val balance: Double = 0.0,
     val isDefault: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )

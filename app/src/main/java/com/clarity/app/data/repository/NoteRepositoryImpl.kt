@@ -20,6 +20,9 @@ class NoteRepositoryImpl @Inject constructor(
     override suspend fun insertNote(note: NoteEntity): Long = noteDao.insertNote(note)
     override suspend fun updateNote(note: NoteEntity) = noteDao.updateNote(note)
     override suspend fun deleteNote(note: NoteEntity) = noteDao.deleteNote(note)
+    override suspend fun deleteNoteWithDescendants(noteId: Long) = noteDao.deleteNoteWithDescendants(noteId)
+    override suspend fun setParentNote(noteId: Long, parentId: Long?) = noteDao.setParentNote(noteId, parentId)
+    override suspend fun setSortOrder(noteId: Long, sortOrder: Int) = noteDao.setSortOrder(noteId, sortOrder)
 
     override fun getAllCategories(): Flow<List<NoteCategoryEntity>> = noteCategoryDao.getAllCategories()
     override suspend fun insertCategory(category: NoteCategoryEntity): Long = noteCategoryDao.insertCategory(category)

@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GoalDao {
+    @Query("SELECT * FROM goals ORDER BY createdAt DESC")
+    fun getAllGoals(): Flow<List<GoalEntity>>
+
     @Query("SELECT * FROM goals WHERE isCompleted = 0 ORDER BY targetDate ASC")
     fun getActiveGoals(): Flow<List<GoalEntity>>
 
@@ -26,4 +29,7 @@ interface GoalDao {
 
     @Delete
     suspend fun deleteGoal(goal: GoalEntity)
+
+    @Query("DELETE FROM goals")
+    suspend fun deleteAllGoals()
 }

@@ -10,6 +10,8 @@ import com.clarity.app.ui.viewmodel.NoteViewModel
 fun NoteDetailNavigation(
     noteId: Long,
     onBack: () -> Unit,
+    onGoToNotes: () -> Unit = {},
+    onOpenChild: (Long) -> Unit = {},
     viewModel: NoteViewModel = hiltViewModel()
 ) {
     val notes by viewModel.notes.collectAsStateWithLifecycle()
@@ -17,8 +19,10 @@ fun NoteDetailNavigation(
     val note = notes.find { it.id == noteId }
 
     if (note != null) {
+        val children = notes.filter { it.parentNoteId == noteId }
         NoteDetailScreen(
             note = note,
+            children = children,
             availableCategories = categories.map { it.name },
             onBack = onBack,
             onEdit = { updatedNote ->
@@ -26,8 +30,16 @@ fun NoteDetailNavigation(
             },
             onPin = { viewModel.togglePin(note) },
             onDelete = {
-                viewModel.deleteNote(note)
+                viewModel.deleteNoteWithDescendants(note.id)
                 onBack()
+            },
+            onGoToNotes = onGoToNotes,
+            onOpenChild = onOpenChild,
+            onAddChild = { title ->
+                viewModel.addChildNote(note.id, title)
+            },
+            onDeleteChild = { childId ->
+                viewModel.deleteNoteWithDescendants(childId)
             }
         )
     }

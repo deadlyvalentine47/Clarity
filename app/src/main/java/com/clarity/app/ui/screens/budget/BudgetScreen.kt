@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -28,6 +29,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -65,15 +67,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.clarity.app.data.local.database.BudgetLimitEntity
 import com.clarity.app.data.local.database.CategoryEntity
 import com.clarity.app.data.local.database.SourceEntity
 import com.clarity.app.data.local.database.TransactionEntity
 import com.clarity.app.ui.components.DeleteConfirmationDialog
 import com.clarity.app.ui.viewmodel.BudgetViewModel
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+private val indianFormat = DecimalFormat(
+    "##,##,##0.00",
+    DecimalFormatSymbols(Locale("en", "IN"))
+)
+private val indianFormatNoDecimal = DecimalFormat(
+    "##,##,##0",
+    DecimalFormatSymbols(Locale("en", "IN"))
+)
+
+private fun formatIndian(amount: Double): String = indianFormat.format(amount)
+private fun formatIndianNoDecimal(amount: Double): String = indianFormatNoDecimal.format(amount)
 
 private fun getDayName(dayOfMonth: Int): String {
     val cal = Calendar.getInstance()
@@ -98,6 +115,7 @@ fun BudgetScreen(
     val totalExpenses by viewModel.totalExpenses.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val sources by viewModel.sources.collectAsStateWithLifecycle()
+    val budgetLimits by viewModel.budgetLimits.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf("Overview") }
 
@@ -149,10 +167,21 @@ fun BudgetScreen(
                 "Manage" -> ManageTab(
                     categories = categories,
                     sources = sources,
+                    transactions = transactions,
+                    budgetLimits = budgetLimits,
                     onAddCategory = { viewModel.addCategory(it) },
                     onDeleteCategory = { viewModel.deleteCategory(it) },
                     onAddSource = { viewModel.addSource(it) },
-                    onDeleteSource = { viewModel.deleteSource(it) }
+                    onDeleteSource = { viewModel.deleteSource(it) },
+                    onSetBudgetLimit = { categoryName, amount ->
+                        viewModel.addBudgetLimit(BudgetLimitEntity(
+                            category = categoryName,
+                            limitAmount = amount,
+                            month = java.time.LocalDate.now().monthValue,
+                            year = java.time.LocalDate.now().year
+                        ))
+                    },
+                    onDeleteBudgetLimit = { viewModel.deleteBudgetLimit(it) }
                 )
             }
         }
@@ -175,10 +204,14 @@ fun BudgetScreen(
 fun ManageTab(
     categories: List<CategoryEntity>,
     sources: List<SourceEntity>,
+    transactions: List<TransactionEntity>,
+    budgetLimits: List<BudgetLimitEntity>,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (CategoryEntity) -> Unit,
     onAddSource: (String) -> Unit,
-    onDeleteSource: (SourceEntity) -> Unit
+    onDeleteSource: (SourceEntity) -> Unit,
+    onSetBudgetLimit: (String, Double) -> Unit,
+    onDeleteBudgetLimit: (BudgetLimitEntity) -> Unit
 ) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddSourceDialog by remember { mutableStateOf(false) }
@@ -188,6 +221,8 @@ fun ManageTab(
     var sourcesExpanded by remember { mutableStateOf(true) }
     var categorySearch by remember { mutableStateOf("") }
     var sourceSearch by remember { mutableStateOf("") }
+    var limitCategory by remember { mutableStateOf<String?>(null) }
+    var limitToDelete by remember { mutableStateOf<BudgetLimitEntity?>(null) }
 
     val filteredCategories = categories.filter {
         it.name.contains(categorySearch, ignoreCase = true)
@@ -242,6 +277,7 @@ fun ManageTab(
             }
 
             items(filteredCategories) { category ->
+                val categoryLimit = budgetLimits.find { it.category == category.name }
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -255,21 +291,30 @@ fun ManageTab(
                                 text = category.name,
                                 style = MaterialTheme.typography.bodyLarge
                             )
-                            if (category.isDefault) {
+                            if (categoryLimit != null) {
                                 Text(
-                                    text = "Default",
+                                    text = "Limit: \u20B9${formatIndianNoDecimal(categoryLimit.limitAmount)}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
-                        if (!category.isDefault) {
-                            IconButton(onClick = { categoryToDelete = category }) {
+                        Row {
+                            IconButton(onClick = { limitCategory = category.name }) {
                                 Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Delete Category",
-                                    tint = MaterialTheme.colorScheme.error
+                                    Icons.Default.AccountBalance,
+                                    contentDescription = if (categoryLimit != null) "Edit Limit" else "Set Limit",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                            if (!category.isDefault) {
+                                IconButton(onClick = { categoryToDelete = category }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete Category",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
@@ -379,9 +424,27 @@ fun ManageTab(
     }
 
     categoryToDelete?.let { category ->
+        val txCount = transactions.count { it.category == category.name }
+        val budgetCount = budgetLimits.count { it.category == category.name }
+        val refCount = txCount + budgetCount
+        val message = buildString {
+            append("Are you sure you want to delete \"${category.name}\"?")
+            if (refCount > 0) {
+                append("\n\nThis category is used in $refCount ")
+                append(if (refCount == 1) "record" else "records")
+                append(" (")
+                append(
+                    listOfNotNull(
+                        if (txCount > 0) "${txCount} transaction${if (txCount != 1) "s" else ""}" else null,
+                        if (budgetCount > 0) "${budgetCount} budget limit${if (budgetCount != 1) "s" else ""}" else null
+                    ).joinToString(", ")
+                )
+                append("). Deleting it may orphan this data.")
+            }
+        }
         DeleteConfirmationDialog(
             title = "Delete Category",
-            message = "Are you sure you want to delete \"${category.name}\"?",
+            message = message,
             onConfirm = {
                 onDeleteCategory(category)
                 categoryToDelete = null
@@ -391,14 +454,64 @@ fun ManageTab(
     }
 
     sourceToDelete?.let { source ->
+        val txCount = transactions.count { it.source == source.name }
+        val message = buildString {
+            append("Are you sure you want to delete \"${source.name}\"?")
+            if (txCount > 0) {
+                append("\n\nThis source is used in $txCount transaction${if (txCount != 1) "s" else ""}. Deleting it may orphan this data.")
+            }
+        }
         DeleteConfirmationDialog(
             title = "Delete Source",
-            message = "Are you sure you want to delete \"${source.name}\"?",
+            message = message,
             onConfirm = {
                 onDeleteSource(source)
                 sourceToDelete = null
             },
             onDismiss = { sourceToDelete = null }
+        )
+    }
+
+    limitCategory?.let { catName ->
+        val existingLimit = budgetLimits.find { it.category == catName }
+        var limitAmount by remember(catName) { mutableStateOf(existingLimit?.limitAmount?.toString() ?: "") }
+        AlertDialog(
+            onDismissRequest = { limitCategory = null },
+            title = { Text("Set Monthly Limit for $catName") },
+            text = {
+                OutlinedTextField(
+                    value = limitAmount,
+                    onValueChange = { limitAmount = it },
+                    label = { Text("Limit Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val amount = limitAmount.toDoubleOrNull()
+                        if (amount != null && amount > 0) {
+                            onSetBudgetLimit(catName, amount)
+                            limitCategory = null
+                        }
+                    },
+                    enabled = limitAmount.toDoubleOrNull() != null && (limitAmount.toDoubleOrNull() ?: 0.0) > 0
+                ) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { limitCategory = null }) { Text("Cancel") } }
+        )
+    }
+
+    limitToDelete?.let { limit ->
+        DeleteConfirmationDialog(
+            title = "Delete Budget Limit",
+            message = "Are you sure you want to remove the limit for \"${limit.category}\"?",
+            onConfirm = {
+                onDeleteBudgetLimit(limit)
+                limitToDelete = null
+            },
+            onDismiss = { limitToDelete = null }
         )
     }
 }
@@ -457,7 +570,8 @@ fun ChartsTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         item {
             Text(
@@ -517,7 +631,7 @@ fun ChartsTab(
                                     )
                                 }
                                 Text(
-                                    text = "\u20B9${String.format("%.0f", amount)}",
+                                    text = "\u20B9${formatIndianNoDecimal(amount)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
@@ -573,7 +687,7 @@ fun ChartsTab(
                                         )
                                     }
                                     Text(
-                                        text = "\u20B9${String.format("%.0f", amount)}",
+                                        text = "\u20B9${formatIndianNoDecimal(amount)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
@@ -632,7 +746,7 @@ fun ChartsTab(
                                         )
                                     }
                                     Text(
-                                        text = "\u20B9${String.format("%.0f", amount)}",
+                                        text = "\u20B9${formatIndianNoDecimal(amount)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
@@ -679,7 +793,8 @@ fun OverviewTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         item {
             Card(
@@ -706,7 +821,7 @@ fun OverviewTab(
                         Column {
                             Text("Income", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "\u20B9${String.format("%.2f", totalIncome)}",
+                                text = "\u20B9${formatIndian(totalIncome)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -714,7 +829,7 @@ fun OverviewTab(
                         Column {
                             Text("Expenses", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "-\u20B9${String.format("%.2f", totalExpenses)}",
+                                text = "-\u20B9${formatIndian(totalExpenses)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -722,7 +837,7 @@ fun OverviewTab(
                         Column {
                             Text("Balance", style = MaterialTheme.typography.bodySmall)
                             Text(
-                                text = "\u20B9${String.format("%.2f", balance)}",
+                                text = "\u20B9${formatIndian(balance)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = if (balance >= 0) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.error
@@ -753,7 +868,7 @@ fun OverviewTab(
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", todayExpenses)}",
+                            text = "\u20B9${formatIndian(todayExpenses)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -774,7 +889,7 @@ fun OverviewTab(
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", monthExpenses)}",
+                            text = "\u20B9${formatIndian(monthExpenses)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
@@ -825,7 +940,7 @@ fun OverviewTab(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = "\u20B9${String.format("%.2f", amount)}",
+                            text = "\u20B9${formatIndian(amount)}",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
@@ -1079,7 +1194,8 @@ fun TransactionsTab(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 if (groupedTransactions.isEmpty()) {
                     item {
@@ -1109,7 +1225,7 @@ fun TransactionsTab(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "\u20B9${String.format("%.2f", dayTotal)}",
+                                        text = "\u20B9${formatIndian(dayTotal)}",
                                         style = MaterialTheme.typography.titleSmall,
                                         color = if (dayTotal >= 0) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.error
@@ -1506,8 +1622,8 @@ fun TransactionItem(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (transaction.type == "Income") "+\u20B9${String.format("%.2f", transaction.amount)}"
-                    else "-\u20B9${String.format("%.2f", transaction.amount)}",
+                    text = if (transaction.type == "Income") "+\u20B9${formatIndian(transaction.amount)}"
+                    else "-\u20B9${formatIndian(transaction.amount)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (transaction.type == "Income") MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.error

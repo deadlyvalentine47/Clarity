@@ -3,7 +3,6 @@ package com.clarity.app.data.local.datastore
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -19,10 +18,15 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "us
 class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    companion object {
+        val ALL_SECTIONS = listOf("Tasks", "Events", "Habits", "Budget", "Notes", "Goals", "Pomodoro")
+    }
+
     private object Keys {
         val USERNAME = stringPreferencesKey("username")
-        val DARK_MODE = booleanPreferencesKey("dark_mode")
-        val DARK_MODE_SET = booleanPreferencesKey("dark_mode_set")
+        val THEME_NAME = stringPreferencesKey("theme_name")
+        val SECTION_ORDER = stringPreferencesKey("section_order")
+        val SECTION_ENABLED = stringPreferencesKey("section_enabled")
     }
 
     val username: Flow<String> = context.dataStore.data.map { preferences ->
@@ -33,11 +37,35 @@ class UserPreferences @Inject constructor(
         preferences[Keys.USERNAME] == null
     }
 
-    val isDarkMode: Flow<Boolean?> = context.dataStore.data.map { preferences ->
-        if (preferences[Keys.DARK_MODE_SET] == true) {
-            preferences[Keys.DARK_MODE] ?: false
+    val themeName: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[Keys.THEME_NAME] ?: "Ocean"
+    }
+
+    val sectionOrder: Flow<List<String>> = context.dataStore.data.map { preferences ->
+        val stored = preferences[Keys.SECTION_ORDER]?.split(",")?.filter { it.isNotBlank() }
+        if (stored != null) {
+            val known = stored.toSet()
+            val newSections = ALL_SECTIONS.filter { it !in known }
+            stored + newSections
         } else {
-            null // Not set yet - use system default
+            ALL_SECTIONS
+        }
+    }
+
+    val sectionEnabled: Flow<Set<String>> = context.dataStore.data.map { preferences ->
+        preferences[Keys.SECTION_ENABLED]?.split(",")?.filter { it.isNotBlank() }?.toSet()
+            ?: ALL_SECTIONS.toSet()
+    }
+
+    suspend fun setSectionOrder(order: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[Keys.SECTION_ORDER] = order.joinToString(",")
+        }
+    }
+
+    suspend fun setSectionEnabled(enabled: Set<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[Keys.SECTION_ENABLED] = enabled.joinToString(",")
         }
     }
 
@@ -47,10 +75,9 @@ class UserPreferences @Inject constructor(
         }
     }
 
-    suspend fun setDarkMode(enabled: Boolean) {
+    suspend fun setTheme(name: String) {
         context.dataStore.edit { preferences ->
-            preferences[Keys.DARK_MODE] = enabled
-            preferences[Keys.DARK_MODE_SET] = true
+            preferences[Keys.THEME_NAME] = name
         }
     }
 }

@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -93,32 +96,17 @@ fun GoalsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(goals, key = { it.id }) { goal ->
                         GoalItem(
                             goal = goal,
                             onEdit = { editingGoal = goal },
                             onDelete = { viewModel.deleteGoal(goal) },
-                            onUpdateProgress = { progress ->
-                                viewModel.updateGoal(goal.copy(progress = progress))
-                            },
+                            onUpdateProgress = {},
                             onToggleMilestone = { milestone, isCompleted ->
-                                val newCompleted = if (isCompleted) {
-                                    goal.completedMilestones + milestone
-                                } else {
-                                    goal.completedMilestones - milestone
-                                }
-                                val newProgress = if (goal.milestones.isNotEmpty()) {
-                                    newCompleted.size.toFloat() / goal.milestones.size
-                                } else {
-                                    goal.progress
-                                }
-                                viewModel.updateGoal(goal.copy(
-                                    completedMilestones = newCompleted,
-                                    progress = newProgress,
-                                    isCompleted = newProgress >= 1f
-                                ))
+                                viewModel.toggleMilestone(goal, milestone, isCompleted)
                             }
                         )
                     }
@@ -228,8 +216,39 @@ fun AddGoalDialog(
     var title by remember { mutableStateOf(goal?.title ?: "") }
     var description by remember { mutableStateOf(goal?.description ?: "") }
     var type by remember { mutableStateOf(goal?.type ?: "Short-term") }
-    var milestonesText by remember { mutableStateOf(goal?.milestones?.joinToString("\n") ?: "") }
-    var progress by remember { mutableStateOf(goal?.progress ?: 0f) }
+    var milestones by remember { mutableStateOf(goal?.milestones ?: emptyList()) }
+    var completedMilestones by remember { mutableStateOf(goal?.completedMilestones ?: emptyList()) }
+    var showAddMilestone by remember { mutableStateOf(false) }
+    var newMilestone by remember { mutableStateOf("") }
+
+    if (showAddMilestone) {
+        AlertDialog(
+            onDismissRequest = { showAddMilestone = false; newMilestone = "" },
+            title = { Text("Add Milestone") },
+            text = {
+                OutlinedTextField(
+                    value = newMilestone,
+                    onValueChange = { newMilestone = it },
+                    label = { Text("Milestone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newMilestone.isNotBlank()) {
+                            milestones = milestones + newMilestone.trim()
+                            newMilestone = ""
+                            showAddMilestone = false
+                        }
+                    },
+                    enabled = newMilestone.isNotBlank()
+                ) { Text("Add") }
+            },
+            dismissButton = { TextButton(onClick = { showAddMilestone = false; newMilestone = "" }) { Text("Cancel") } }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -243,46 +262,44 @@ fun AddGoalDialog(
                         FilterChip(selected = type == option, onClick = { type = option }, label = { Text(option) })
                     }
                 }
-                
-                OutlinedTextField(
-                    value = milestonesText,
-                    onValueChange = { milestonesText = it },
-                    label = { Text("Milestones (one per line)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
-                )
-                
-                if (goal != null) {
-                    Text("Progress: ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = progress,
-                        onValueChange = { progress = it },
-                        valueRange = 0f..1f,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
+                Text("Milestones", style = MaterialTheme.typography.bodyMedium)
+                milestones.forEach { milestone ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(milestone, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        if (goal == null) {
+                            IconButton(onClick = { milestones = milestones - milestone }) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+                IconButton(onClick = { showAddMilestone = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Milestone")
                 }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (title.isNotBlank()) {
-                        val milestones = milestonesText.lines().filter { it.isNotBlank() }
+                    if (title.isNotBlank() && milestones.isNotEmpty()) {
+                        val computedProgress = if (milestones.isEmpty()) 0f
+                            else completedMilestones.size.toFloat() / milestones.size.toFloat()
                         onConfirm(
                             GoalEntity(
                                 id = goal?.id ?: 0,
                                 title = title.trim(),
                                 description = description.trim(),
                                 type = type,
-                                progress = if (goal != null) progress else 0f,
+                                progress = computedProgress,
                                 milestones = milestones,
-                                completedMilestones = goal?.completedMilestones ?: emptyList(),
+                                completedMilestones = if (goal != null) completedMilestones else emptyList(),
                                 createdAt = goal?.createdAt ?: System.currentTimeMillis()
                             )
                         )
                     }
                 },
-                enabled = title.isNotBlank()
+                enabled = title.isNotBlank() && milestones.isNotEmpty()
             ) { Text(if (goal != null) "Save" else "Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }

@@ -1,20 +1,25 @@
 package com.clarity.app.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clarity.app.data.local.database.NoteCategoryEntity
 import com.clarity.app.data.local.database.NoteEntity
 import com.clarity.app.domain.repository.NoteRepository
+import com.clarity.app.util.ImageStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class NoteViewModel @Inject constructor(
-    private val noteRepository: NoteRepository
+    private val noteRepository: NoteRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val notes: StateFlow<List<NoteEntity>> = noteRepository.getAllNotes()
@@ -32,7 +37,45 @@ class NoteViewModel @Inject constructor(
     }
 
     fun deleteNote(note: NoteEntity) {
-        viewModelScope.launch { noteRepository.deleteNote(note) }
+        viewModelScope.launch {
+            ImageStorage.deleteImages(context, note.content)
+            noteRepository.deleteNote(note)
+        }
+    }
+
+    fun deleteNoteWithDescendants(noteId: Long) {
+        viewModelScope.launch {
+            val all = notes.value
+            val ids = mutableSetOf(noteId)
+            var changed = true
+            while (changed) {
+                changed = false
+                all.forEach { note ->
+                    val parent = note.parentNoteId
+                    if (parent != null && parent in ids && note.id !in ids) {
+                        ids.add(note.id)
+                        changed = true
+                    }
+                }
+            }
+            all.filter { it.id in ids }.forEach { ImageStorage.deleteImages(context, it.content) }
+            noteRepository.deleteNoteWithDescendants(noteId)
+        }
+    }
+
+    fun addChildNote(parentId: Long, title: String, content: String = "", onCreated: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val newId = noteRepository.insertNote(
+                NoteEntity(
+                    title = title.ifBlank { "Untitled" },
+                    content = content,
+                    parentNoteId = parentId,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            onCreated(newId)
+        }
     }
 
     fun togglePin(note: NoteEntity) {
@@ -45,5 +88,16 @@ class NoteViewModel @Inject constructor(
 
     fun deleteCategory(category: NoteCategoryEntity) {
         viewModelScope.launch { noteRepository.deleteCategory(category) }
+    }
+
+    fun reorderNote(noteId: Long, newParentId: Long?, newSortOrder: Int) {
+        viewModelScope.launch {
+            noteRepository.setParentNote(noteId, newParentId)
+            noteRepository.setSortOrder(noteId, newSortOrder)
+            val note = noteRepository.getNoteById(noteId).first()
+            if (note != null) {
+                noteRepository.updateNote(note.copy(updatedAt = System.currentTimeMillis()))
+            }
+        }
     }
 }
