@@ -2,6 +2,8 @@
 
 A personal management Android app built with Jetpack Compose and Material 3. Manage tasks, habits, budgets, notes, goals, events, and Pomodoro sessions — all stored locally.
 
+> **Web version:** a browser port lives in [`web/`](web/README.md). Same screens and data model, no Android Studio required — `cd web && npm install && npm run dev`.
+
 ## Tech Stack
 
 - **Language:** Kotlin 2.1+
