@@ -16,6 +16,7 @@ function inline(text: string): ReactNode[] {
 
 function NoteImage({ id }: { id: string }) {
   const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
   useEffect(() => {
     let alive = true
     void getNoteImageUrl(id).then((next) => {
@@ -27,7 +28,17 @@ function NoteImage({ id }: { id: string }) {
   }, [id])
 
   if (!url) return <span className="tiny muted">[missing image]</span>
-  return <img src={url} alt="Note attachment" style={{ maxWidth: '100%', borderRadius: 10, margin: '6px 0' }} />
+  // The bytes are there but the WebView cannot decode them (e.g. HEIC on an
+  // older Android); say so instead of showing a broken image.
+  if (failed) return <span className="tiny muted">[image format not supported]</span>
+  return (
+    <img
+      src={url}
+      alt="Note attachment"
+      onError={() => setFailed(true)}
+      style={{ maxWidth: '100%', borderRadius: 10, margin: '6px 0' }}
+    />
+  )
 }
 
 /** Port of MarkdownPreview in NotesScreen.kt (line-based markdown) + image markers. */

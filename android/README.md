@@ -117,12 +117,17 @@ plugin only knows the pre-Android-13 storage permission, so it asks for
 
 ## Note images after an import
 
-Backups (from this app and from the old Kotlin one) contain only `![img:uuid]`
-markers, never the JPEG bytes — the old app kept them as files in
-`/storage/emulated/0/clarity/pics/<uuid>.jpg`. After importing, *Settings →
+Backups made by **this** app embed the pictures as base64 data URLs, so a
+restore brings them back with no extra step. Backups made by the **old Kotlin
+app** contain only `![img:uuid]` markers — it kept the JPEGs as files in
+`/storage/emulated/0/clarity/pics/<uuid>.jpg`. After importing one, *Settings →
 Data → Repair note images* re-links them: it first tries that folder, and if the
 OS refuses access it opens the file picker (pick the files inside
 `clarity/pics`; they are matched by name).
+
+Pictures added in the app are downscaled to 1280 px JPEG and stored as blobs in
+IndexedDB — no storage permission is involved, because the system picker hands
+the WebView a readable copy.
 
 ## Clearing data
 

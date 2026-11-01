@@ -35,6 +35,13 @@ export interface BackupSettings {
   sectionEnabled: string[]
 }
 
+/** Note pictures travel as data URLs so a backup is self-contained. */
+export interface ExportedImage {
+  id: string
+  data: string
+  createdAt: number
+}
+
 export interface AppData {
   tasks: Task[]
   habits: Habit[]
@@ -53,7 +60,34 @@ export interface AppData {
   creditCardTransactions: CreditCardTransaction[]
   investments: Investment[]
   dayJournals: DayJournal[]
+  noteImages?: ExportedImage[]
   settings: BackupSettings
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read image'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+function dataUrlToBlob(data: string): Blob | null {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(data)
+  if (!match) return null
+  const type = match[1] || 'image/jpeg'
+  try {
+    if (match[2]) {
+      const binary = atob(match[3])
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+      return new Blob([bytes], { type })
+    }
+    return new Blob([decodeURIComponent(match[3])], { type })
+  } catch {
+    return null
+  }
 }
 
 export async function exportData(prefs: Preferences): Promise<string> {
@@ -75,6 +109,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCardTransactions,
     investments,
     dayJournals,
+    noteImages,
   ] = await Promise.all([
     db.tasks.toArray(),
     db.habits.toArray(),
@@ -93,6 +128,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.creditCardTransactions.toArray(),
     db.investments.toArray(),
     db.dayJournals.toArray(),
+    db.noteImages.toArray(),
   ])
 
   const data: AppData = {
@@ -113,6 +149,13 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCardTransactions,
     investments,
     dayJournals,
+    noteImages: await Promise.all(
+      noteImages.map(async (image) => ({
+        id: image.id,
+        data: await blobToDataUrl(image.blob),
+        createdAt: image.createdAt,
+      })),
+    ),
     settings: {
       username: prefs.username,
       theme: prefs.theme,
@@ -169,12 +212,28 @@ export async function importData(jsonText: string): Promise<ImportResult> {
 
   await db.transaction('rw', db.tables, async () => {
     for (const table of db.tables) {
-      // Backups never contain binary note images (same as Android, where they
-      // live as files), so keep whatever is already stored locally instead of
-      // orphaning every ![img:…] marker in the imported notes.
+      // Images are not cleared: a backup from the old Kotlin app has none (its
+      // pictures were files in clarity/pics), and wiping local ones would
+      // orphan every ![img:…] marker. Images inside the backup are merged in
+      // below, keyed by uuid.
       if (table === db.noteImages) continue
       await table.clear()
     }
+
+    const images = arr<ExportedImage>(raw.noteImages)
+    let restoredImages = 0
+    for (const image of images) {
+      if (!image || typeof image.id !== 'string' || typeof image.data !== 'string') continue
+      const blob = dataUrlToBlob(image.data)
+      if (!blob) continue
+      await db.noteImages.put({
+        id: image.id,
+        blob,
+        createdAt: Number(image.createdAt ?? Date.now()),
+      })
+      restoredImages += 1
+    }
+    if (images.length > 0) counts.noteImages = restoredImages
 
     const taskMap = new Map<number, number>()
     for (const task of arr<Task>(raw.tasks)) {
