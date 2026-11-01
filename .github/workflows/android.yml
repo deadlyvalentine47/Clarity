@@ -1,6 +1,15 @@
 name: Android APK
 
+# Two ways in:
+#   - a pull request targeting master (the merge gate), and
+#   - a manual run from the Actions tab on any branch.
+# Every run stops at the `apk-build` environment and waits for a reviewer to
+# approve it, so pushing commits never burns build minutes: the newest commit
+# cancels the pending run and queues a fresh one awaiting approval.
 on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       build_type:
@@ -8,17 +17,22 @@ on:
         type: choice
         options: [debug, release]
         default: debug
-  push:
-    tags:
-      - 'v*'
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: build
     runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft != true }}
+    # Required reviewer lives on this environment. The job stays "waiting" —
+    # and the required status check stays pending — until it is approved.
+    environment: apk-build
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +61,6 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Release builds need a keystore; see android/README.md → Signing.
       - name: Check for signing secrets
         id: signing
         env:
@@ -60,11 +73,11 @@ jobs:
           fi
 
       - name: Warn when a release build falls back to debug
-        if: ${{ steps.signing.outputs.enabled != 'true' && (inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/v')) }}
+        if: ${{ steps.signing.outputs.enabled != 'true' && inputs.build_type == 'release' }}
         run: echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building a debug APK instead."
 
       - name: Build release APK
-        if: ${{ steps.signing.outputs.enabled == 'true' && (inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/v')) }}
+        if: ${{ steps.signing.outputs.enabled == 'true' && inputs.build_type == 'release' }}
         env:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -79,7 +92,7 @@ jobs:
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
       - name: Build debug APK
-        if: ${{ steps.signing.outputs.enabled != 'true' || inputs.build_type == 'debug' }}
+        if: ${{ inputs.build_type != 'release' || steps.signing.outputs.enabled != 'true' }}
         run: cd android && ./gradlew assembleDebug
 
       - name: Collect APK
