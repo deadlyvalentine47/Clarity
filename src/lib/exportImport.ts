@@ -74,10 +74,15 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+// SVG is deliberately excluded: it can carry script if ever rendered directly.
+const SAFE_IMAGE_TYPE = /^image\/(png|jpeg|jpg|gif|webp|bmp|avif)$/
+
 function dataUrlToBlob(data: string): Blob | null {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(data)
   if (!match) return null
-  const type = match[1] || 'image/jpeg'
+  // Never trust the MIME type from a backup beyond a small image allowlist.
+  const declared = (match[1] || 'image/jpeg').toLowerCase()
+  const type = SAFE_IMAGE_TYPE.test(declared) ? declared : 'image/jpeg'
   try {
     if (match[2]) {
       const binary = atob(match[3])
@@ -206,7 +211,14 @@ export interface ImportResult {
  * Dexie transaction; parent/child IDs are remapped (subtasks, notes, cards,
  * pomodoro task links, bill-payment links).
  */
+// A backup with note images can be large, but parsing an unbounded file would
+// freeze or crash the WebView before the try/catch can help.
+const MAX_BACKUP_CHARS = 50 * 1024 * 1024
+
 export async function importData(jsonText: string): Promise<ImportResult> {
+  if (jsonText.length > MAX_BACKUP_CHARS) {
+    throw new Error('Backup file is too large (max 50 MB)')
+  }
   const raw = JSON.parse(jsonText) as Partial<AppData> & Record<string, unknown>
   if (!raw || typeof raw !== 'object') throw new Error('Invalid backup file')
 
