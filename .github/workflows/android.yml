@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -98,8 +98,43 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p out
-          find android/app/build/outputs/apk -name '*.apk' -exec cp {} out/ \;
+          for apk in $(find android/app/build/outputs/apk -name '*.apk'); do
+            case "$apk" in
+              *release*) name=clarity-release.apk ;;
+              *) name=clarity-debug.apk ;;
+            esac
+            cp "$apk" "out/$name"
+          done
           ls -lh out
+
+      # Artifacts are always delivered as a zip, so the APK is also attached to
+      # a rolling "apk-latest" release, where it downloads as a plain .apk.
+      - name: Publish APK to the latest release
+        # Fork PRs only get a read-only token; don't fail the build over it.
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(basename "$(ls out/*.apk | head -1)")
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/apk-latest/$APK"
+
+          gh release view apk-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create apk-latest --repo "$GITHUB_REPOSITORY" \
+              --title "Clarity APK (latest build)" \
+              --notes "Built from the latest approved commit. Install with adb or by opening the file on the phone." \
+              --prerelease
+          gh release upload apk-latest out/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit apk-latest --repo "$GITHUB_REPOSITORY" \
+            --notes "Built from commit $GITHUB_SHA on $(date -u +%Y-%m-%d\ %H:%M) UTC by workflow run $GITHUB_RUN_ID.
+
+          Direct download: $URL"
+
+          {
+            echo "### APK ready"
+            echo
+            echo "[$APK]($URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:

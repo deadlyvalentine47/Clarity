@@ -31,14 +31,24 @@ npm run android:apk         # -> android/app/build/outputs/apk/debug/app-debug.a
 
 ## Getting an APK from CI
 
-Actions → **Android APK** → *Run workflow*:
+Actions → **Android APK** → *Run workflow* (or open a PR against `master`).
+Every run pauses at the `apk-build` environment until a reviewer approves it, so
+commits pushed before you are done cost nothing. Approving builds the latest
+commit.
 
 - **debug** (default) — signed with the debug key, installable via sideload.
 - **release** — only when the signing secrets below exist, otherwise it warns
   and builds debug instead.
 
-Pushing a `v*` tag also triggers a build. Download the APK from the run's
-**Artifacts** section (`clarity-apk`).
+The finished APK is attached to the rolling **apk-latest** release, where it
+downloads as a plain file:
+
+```
+https://github.com/deadlyvalentine47/Clarity/releases/download/apk-latest/clarity-debug.apk
+```
+
+(The run's *Artifacts* section also has it, but GitHub always wraps artifacts in
+a zip.)
 
 Install it with `adb install -r clarity-debug.apk`, or copy it to the phone and
 open it (allow "install unknown apps" for the file manager).
@@ -75,6 +85,35 @@ time and it is git-ignored.
 
 Bump `versionCode` for every APK you install over an older one.
 
+## Permissions
+
+Requested at first launch (Settings → Permissions shows the notification state):
+
+| Permission | Why | If refused |
+| --- | --- | --- |
+| `POST_NOTIFICATIONS` | Pomodoro phase alarms while the app is in the background | the in-app alarm still plays |
+| `READ_MEDIA_IMAGES` (13+) / `READ_EXTERNAL_STORAGE` (≤12) | read the old app's note pictures from `clarity/pics` | pick the files once via *Settings → Data → Repair note images* |
+| `VIBRATE` | alarm vibration | silent alarm |
+| `SCHEDULE_EXACT_ALARM` | exact alarm delivery | Android may delay the notification |
+
+`MediaPermissionPlugin.java` is the only hand-written Java: the Filesystem
+plugin only knows the pre-Android-13 storage permission, so it asks for
+`READ_MEDIA_IMAGES` itself.
+
+## Note images after an import
+
+Backups (from this app and from the old Kotlin one) contain only `![img:uuid]`
+markers, never the JPEG bytes — the old app kept them as files in
+`/storage/emulated/0/clarity/pics/<uuid>.jpg`. After importing, *Settings →
+Data → Repair note images* re-links them: it first tries that folder, and if the
+OS refuses access it opens the file picker (pick the files inside
+`clarity/pics`; they are matched by name).
+
+## Clearing data
+
+*Settings → Data → Clear data* empties every table but keeps the preferences
+(name, theme, home layout) in `localStorage`.
+
 ## Things that behave differently in the WebView
 
 - **Storage** is per-app (WebView IndexedDB), not shared with the browser. The
@@ -86,8 +125,10 @@ Bump `versionCode` for every APK you install over an older one.
   no server to fall back to `index.html` on deep links.
 - **Status/navigation bars** are handled with `env(safe-area-inset-*)` in
   `src/styles.css` (Android 15+ draws edge-to-edge).
-- **Reminders** are in-app only (Web Audio + vibration). Background
-  notifications would need `@capacitor/local-notifications` and a scheduler.
+- **Reminders** are in-app only. The Pomodoro alarm also posts a local
+  notification so it fires while the app is backgrounded.
+- **Back button** steps back through the screens and only leaves the app from
+  Home, after a second press ("Press back again to exit").
 - **Data from the old Kotlin app** cannot be read directly (Room/SQLite vs
   IndexedDB). Export JSON from the old app first, then import it here. Same
   `applicationId` with a different signing key also requires uninstalling the

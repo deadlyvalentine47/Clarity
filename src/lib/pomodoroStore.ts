@@ -2,6 +2,7 @@
 // timer in a process-wide object; here a module-level store does the same and
 // also persists to localStorage so a reload doesn't lose the session.
 import { db } from '../db/db'
+import { cancelTimerNotification, scheduleTimerNotification } from './native'
 import type { PomodoroFocusSession } from '../db/types'
 
 export interface PomodoroState {
@@ -119,17 +120,20 @@ export function startTimer() {
   state = { ...state, isRunning: true, isPaused: false }
   emit()
   intervalId = window.setInterval(tick, 250)
+  void scheduleTimerNotification(state.timeLeftSeconds, state.isBreak)
 }
 
 export function pauseTimer() {
   clearTicker()
   setState({ isRunning: false, isPaused: true })
+  void cancelTimerNotification()
 }
 
 export function resetTimer() {
   clearTicker()
   const duration = (state.isBreak ? state.breakDurationMinutes : state.focusDurationMinutes) * 60
   setState({ isRunning: false, isPaused: false, timeLeftSeconds: duration })
+  void cancelTimerNotification()
 }
 
 function complete() {
@@ -170,6 +174,7 @@ function complete() {
 export function dismissAlarm() {
   stopAlarm()
   setState({ isAlarmPlaying: false })
+  void cancelTimerNotification()
 }
 
 export function stopAlarm() {

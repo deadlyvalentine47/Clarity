@@ -162,10 +162,17 @@ Set `BRAVE_PATH` if your Chromium binary lives somewhere other than `/usr/bin/br
 The same app ships as an APK through Capacitor: `android/` is a standard native
 project and `npm run build && npx cap sync android` copies `dist/` into it.
 
-The APK is built in GitHub Actions, so no Android SDK or JDK is needed locally:
+The APK is built in GitHub Actions, so no Android SDK or JDK is needed locally.
+Every build waits for an approval, then is attached to the rolling
+[`apk-latest` release](https://github.com/deadlyvalentine47/Clarity/releases/tag/apk-latest)
+as a plain `.apk` (artifacts are always zips, release assets are not):
 
-- Actions → **Android APK** → *Run workflow* → download the `clarity-apk`
-  artifact (debug-signed and installable), or push a `v*` tag.
+```
+https://github.com/deadlyvalentine47/Clarity/releases/download/apk-latest/clarity-debug.apk
+```
+
+- Approve a run in Actions → **Android APK** (PRs to `master` and manual runs
+  both stop at the `apk-build` environment).
 - Local builds need JDK 17+ and the Android SDK: `npm run android:apk`.
 
 Details — signing secrets, app id, versioning and WebView differences — are in

@@ -4,6 +4,9 @@ import { DEFAULT_THEME, THEME_NAMES } from './themes'
 
 export interface Preferences {
   username: string
+  /** Onboarding finished. Kept separate from the name so importing a backup
+   *  without a username doesn't drop the user back into onboarding. */
+  onboarded: boolean
   theme: string
   darkMode: ThemeMode
   sectionOrder: HomeSection[]
@@ -14,6 +17,7 @@ const KEY = 'clarity.preferences'
 
 export const DEFAULT_PREFERENCES: Preferences = {
   username: '',
+  onboarded: false,
   theme: DEFAULT_THEME,
   darkMode: 'system',
   sectionOrder: [...HOME_SECTIONS],
@@ -43,8 +47,12 @@ export function normalizePreferences(input: Partial<Preferences> | null | undefi
       ? [...HOME_SECTIONS]
       : [...new Set([...storedEnabled, ...HOME_SECTIONS.filter((s) => !storedOrder.includes(s))])]
 
+  const username = typeof raw.username === 'string' ? raw.username : ''
+
   return {
-    username: typeof raw.username === 'string' ? raw.username : '',
+    username,
+    // Existing installs (which always had a name) migrate to "onboarded".
+    onboarded: raw.onboarded === true || username !== '',
     theme,
     darkMode,
     sectionOrder,
@@ -67,5 +75,5 @@ export function savePreferences(prefs: Preferences) {
 }
 
 export function isFirstLaunch(prefs: Preferences): boolean {
-  return prefs.username === ''
+  return !prefs.onboarded
 }

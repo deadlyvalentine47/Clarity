@@ -185,6 +185,16 @@ export async function saveNoteImage(file: File): Promise<string> {
   return id
 }
 
+/** Store an image we already have bytes for (e.g. re-linked from the old app's folder). */
+export async function saveNoteImageBlob(id: string, blob: Blob): Promise<void> {
+  const cached = urlCache.get(id)
+  if (cached) {
+    URL.revokeObjectURL(cached)
+    urlCache.delete(id)
+  }
+  await db.noteImages.put({ id, blob, createdAt: Date.now() })
+}
+
 export async function getNoteImageUrl(id: string): Promise<string | null> {
   const cached = urlCache.get(id)
   if (cached) return cached
@@ -223,7 +233,7 @@ export function insertImageMarker(
   return { content: next, cursor: pos + prefix.length + marker.length }
 }
 
-async function downscaleImage(file: File, maxSide = 1280, quality = 0.82): Promise<Blob> {
+export async function downscaleImage(file: Blob, maxSide = 1280, quality = 0.82): Promise<Blob> {
   if (!file.type.startsWith('image/')) return file
   try {
     const bitmap = await createImageBitmap(file)

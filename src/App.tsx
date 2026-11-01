@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import { usePreferences } from './context/PreferencesContext'
 import { markMissedDaysForAll } from './db/habits'
+import { exitApp, registerBackButton, requestStartupPermissions } from './lib/native'
 import OnboardingScreen from './screens/OnboardingScreen'
 import HomeScreen from './screens/HomeScreen'
 import TasksScreen from './screens/TasksScreen'
@@ -28,19 +29,50 @@ import NotFoundScreen from './screens/NotFoundScreen'
 
 export default function App() {
   const { firstLaunch } = usePreferences()
+  const [toast, setToast] = useState('')
+  const toastTimer = useRef<number | undefined>(undefined)
+  const backArmed = useRef(false)
+  const backTimer = useRef<number | undefined>(undefined)
+
+  const showToast = useCallback((message: string) => {
+    setToast(message)
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(''), 2400)
+  }, [])
 
   // Same as the Android HabitViewModel init: fill in missing past days as
   // missed without overwriting explicit completions.
   useEffect(() => {
     void markMissedDaysForAll()
+    void requestStartupPermissions()
   }, [])
+
+  // Android back: leave the screen first, only quit from home (and only after
+  // a second press, so one stray press doesn't close the app).
+  useEffect(
+    () =>
+      registerBackButton(() => {
+        if (backArmed.current) {
+          void exitApp()
+          return
+        }
+        backArmed.current = true
+        showToast('Press back again to exit')
+        window.clearTimeout(backTimer.current)
+        backTimer.current = window.setTimeout(() => {
+          backArmed.current = false
+        }, 2000)
+      }),
+    [showToast],
+  )
 
   if (firstLaunch) {
     return <OnboardingScreen />
   }
 
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomeScreen />} />
         <Route path="tasks" element={<TasksScreen />} />
@@ -67,6 +99,8 @@ export default function App() {
         <Route path="settings" element={<SettingsScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Route>
-    </Routes>
+      </Routes>
+      {toast && <div className="toast">{toast}</div>}
+    </>
   )
 }

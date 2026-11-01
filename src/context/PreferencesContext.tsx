@@ -13,6 +13,7 @@ interface PreferencesContextValue {
   prefs: Preferences
   firstLaunch: boolean
   setUsername: (name: string) => void
+  completeOnboarding: () => void
   setTheme: (name: string) => void
   setDarkMode: (mode: ThemeMode) => void
   setSectionOrder: (order: HomeSection[]) => void
@@ -43,7 +44,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     () => ({
       prefs,
       firstLaunch: isFirstLaunch(prefs),
-      setUsername: (name) => setPrefs((p) => ({ ...p, username: name })),
+      setUsername: (name) => setPrefs((p) => ({ ...p, username: name, onboarded: true })),
+      completeOnboarding: () => setPrefs((p) => ({ ...p, onboarded: true })),
       setTheme: (theme) => setPrefs((p) => ({ ...p, theme })),
       setDarkMode: (darkMode) => setPrefs((p) => ({ ...p, darkMode })),
       setSectionOrder: (sectionOrder) => setPrefs((p) => ({ ...p, sectionOrder })),
@@ -71,7 +73,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             (HOME_SECTIONS as readonly string[]).includes(s)
           const order = (next.sectionOrder ?? p.sectionOrder).filter(isSection)
           const enabled = (next.sectionEnabled ?? p.sectionEnabled).filter(isSection)
-          return { ...p, ...next, sectionOrder: order, sectionEnabled: enabled }
+          // A backup never carries the onboarding flag, and importing one means
+          // the user is set up — never send them back to the welcome screen.
+          return { ...p, ...next, onboarded: true, sectionOrder: order, sectionEnabled: enabled }
         }),
     }),
     [prefs],

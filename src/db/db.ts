@@ -118,6 +118,16 @@ export class ClarityDB extends Dexie {
 
 export const db = new ClarityDB()
 
+/**
+ * Wipe every table (Settings → Data → Clear data). Preferences live in
+ * localStorage and are deliberately untouched, so the name and theme stay.
+ */
+export async function clearAllData(): Promise<void> {
+  await db.transaction('rw', db.tables, async () => {
+    for (const table of db.tables) await table.clear()
+  })
+}
+
 /** True when a table has no rows — used for first-run empty states. */
 export async function isEmptyDatabase(): Promise<boolean> {
   const [tasks, notes, habits, transactions, goals, events] = await Promise.all([

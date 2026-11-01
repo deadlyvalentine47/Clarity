@@ -1,10 +1,27 @@
-import { useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Download, Moon, Palette, Sun, Upload, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  BellRing,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  ImageOff,
+  Moon,
+  Palette,
+  Sun,
+  Trash2,
+  Upload,
+  User,
+} from 'lucide-react'
 import { usePreferences } from '../context/PreferencesContext'
 import { exportData, importData, saveJsonFile } from '../lib/exportImport'
 import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
-import { Dialog, Field, PageHeader, TextInput } from '../components/ui'
+import { clearAllData } from '../db/db'
+import { isNative, notificationsGranted, requestNotifications } from '../lib/native'
+import { findMissingImages, repairImagesFromFiles, repairImagesFromFolder } from '../lib/noteImages'
+import { clearActiveSession } from '../lib/pomodoroStore'
+import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
 
 type ImportState =
   | { kind: 'idle' }
@@ -30,8 +47,32 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false)
   const [exportNote, setExportNote] = useState('')
   const [importState, setImportState] = useState<ImportState>({ kind: 'idle' })
-  const [open, setOpen] = useState({ profile: true, appearance: true, home: true, data: true })
+  const [open, setOpen] = useState({
+    profile: true,
+    appearance: true,
+    home: true,
+    permissions: true,
+    data: true,
+  })
+  const [missingImages, setMissingImages] = useState(0)
+  const [repairing, setRepairing] = useState(false)
+  const [imageNote, setImageNote] = useState('')
+  const [notifications, setNotifications] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const pendingImageIds = useRef<string[]>([])
+
+  const refreshMissingImages = async () => {
+    const { ids } = await findMissingImages()
+    setMissingImages(ids.length)
+  }
+
+  useEffect(() => {
+    void refreshMissingImages()
+    void notificationsGranted().then(setNotifications)
+  }, [])
 
   const doExport = async () => {
     setExporting(true)
@@ -53,6 +94,75 @@ export default function SettingsScreen() {
       setImportState({ kind: 'success', summary: `${total} records restored across ${Object.keys(result.counts).length} tables.` })
     } catch (e) {
       setImportState({ kind: 'error', message: e instanceof Error ? e.message : 'Import failed' })
+    }
+  }
+
+  /** Try the old app's folder first, then fall back to the system file picker. */
+  const doRepairImages = async () => {
+    setRepairing(true)
+    setImageNote('')
+    try {
+      const { ids } = await findMissingImages()
+      if (ids.length === 0) {
+        setMissingImages(0)
+        setImageNote('Every note image is already available.')
+        return
+      }
+
+      if (isNative()) {
+        const folder = await repairImagesFromFolder(ids)
+        if (folder.recovered > 0) {
+          const left = ids.length - folder.recovered
+          setMissingImages(left)
+          setImageNote(
+            `Restored ${folder.recovered} image${folder.recovered === 1 ? '' : 's'} from clarity/pics` +
+              (left > 0 ? ` — ${left} still missing.` : '.'),
+          )
+          return
+        }
+      }
+
+      // No folder access (or nothing found): let the user pick the files.
+      pendingImageIds.current = ids
+      imageInputRef.current?.click()
+    } finally {
+      setRepairing(false)
+    }
+  }
+
+  const doRepairFromPicker = async (files: File[]) => {
+    setRepairing(true)
+    setImageNote('')
+    try {
+      const result = await repairImagesFromFiles(files, pendingImageIds.current)
+      await refreshMissingImages()
+      if (result.recovered === 0) {
+        setImageNote('No picked file matched a note image. Pick the files from clarity/pics.')
+      } else {
+        setImageNote(
+          `Restored ${result.recovered} image${result.recovered === 1 ? '' : 's'}` +
+            (result.unmatched > 0 ? `, ${result.unmatched} file(s) did not match.` : '.'),
+        )
+      }
+    } finally {
+      setRepairing(false)
+      pendingImageIds.current = []
+    }
+  }
+
+  const doClearData = async () => {
+    setClearing(true)
+    try {
+      await clearAllData()
+      clearActiveSession()
+      setMissingImages(0)
+      setConfirmClear(false)
+      setImportState({ kind: 'idle' })
+      setExportNote('')
+      setImageNote('')
+      setOpen((v) => ({ ...v, data: true }))
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -197,6 +307,44 @@ export default function SettingsScreen() {
       </section>
 
       <section style={{ marginBottom: 20 }}>
+        <button
+          className="collapse-head"
+          aria-expanded={open.permissions}
+          onClick={() => setOpen((v) => ({ ...v, permissions: !v.permissions }))}
+        >
+          <span className="section-label">Permissions</span>
+          <span className={`chevron ${open.permissions ? 'open' : ''}`}>⌄</span>
+        </button>
+        {open.permissions && (
+          <div className="card flush" style={{ marginTop: 8 }}>
+            <button
+              className="list-item"
+              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
+              onClick={() => void requestNotifications().then(setNotifications)}
+              disabled={!isNative()}
+            >
+              <div className="avatar"><BellRing size={19} /></div>
+              <div className="grow">
+                <div className="bold">Notifications</div>
+                <div className="small muted">
+                  {!isNative()
+                    ? 'Only used by the Android app (timer alarms)'
+                    : notifications
+                      ? 'Allowed — timer alarms can notify you in the background'
+                      : 'Tap to allow timer alarms outside the app'}
+                </div>
+              </div>
+              {isNative() && (
+                <span className="small" style={{ color: notifications ? 'var(--primary)' : 'var(--error)', fontWeight: 600 }}>
+                  {notifications ? 'Allowed' : 'Off'}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section style={{ marginBottom: 20 }}>
         <button className="collapse-head" aria-expanded={open.data} onClick={() => setOpen((v) => ({ ...v, data: !v.data }))}>
           <span className="section-label">Data</span>
           <span className={`chevron ${open.data ? 'open' : ''}`}>⌄</span>
@@ -229,13 +377,71 @@ export default function SettingsScreen() {
                 <div className="small muted">{importState.kind === 'loading' ? 'Importing…' : 'Restore from a JSON backup (replaces current data)'}</div>
               </div>
             </button>
+            <button
+              className="list-item"
+              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
+              onClick={() => void doRepairImages()}
+              disabled={repairing}
+            >
+              <div className="avatar"><ImageOff size={19} /></div>
+              <div className="grow">
+                <div className="bold">Repair note images</div>
+                <div className="small muted">
+                  {repairing
+                    ? 'Looking for images…'
+                    : imageNote ||
+                      (missingImages > 0
+                        ? `${missingImages} image${missingImages === 1 ? '' : 's'} referenced by notes but not stored — tap to re-link from clarity/pics`
+                        : 'All note images are present')}
+                </div>
+              </div>
+            </button>
+            <button
+              className="list-item"
+              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
+              onClick={() => setConfirmClear(true)}
+            >
+              <div className="avatar" style={{ background: 'var(--error-container)', color: 'var(--error)' }}>
+                <Trash2 size={19} />
+              </div>
+              <div className="grow">
+                <div className="bold" style={{ color: 'var(--error)' }}>Clear data</div>
+                <div className="small muted">Delete tasks, notes, habits and money data — your name and theme stay</div>
+              </div>
+            </button>
           </div>
         )}
       </section>
 
       <p className="tiny muted" style={{ textAlign: 'center' }}>
-        Clarity 1.0.0 · data stored locally in your browser
+        Clarity 1.0.0 · data stored locally on this device
       </p>
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          if (files.length > 0) void doRepairFromPicker(files)
+          e.target.value = ''
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear all data?"
+        message={
+          clearing
+            ? 'Clearing…'
+            : 'This deletes every task, note, habit, transaction, goal and event. Your name, theme and home layout are kept. This cannot be undone.'
+        }
+        confirmLabel={clearing ? 'Clearing…' : 'Clear data'}
+        onConfirm={() => void doClearData()}
+        onCancel={() => setConfirmClear(false)}
+      />
 
       <input
         ref={fileRef}
