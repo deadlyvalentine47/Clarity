@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ChevronDown, ChevronUp, CreditCard, Landmark, LineChart } from 'lucide-react'
 import { db } from '../../db/db'
-import { cardOutstanding, isSelfTransfer, totalBankBalance } from '../../db/budget'
+import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, totalBankBalance } from '../../db/budget'
 import { monthRange } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import { PageHeader } from '../../components/ui'
@@ -59,17 +59,17 @@ export default function BudgetMetricsScreen() {
     return [...map.entries()].sort((a, b) => b[1] - a[1])
   }, [monthTxns])
 
+  // Card spending follows each card's billing cycle that ends in this month,
+  // matching the card detail screen (e.g. Oct 21 – Nov 20 for November).
   const cardSpending = useMemo(
     () =>
       (cards ?? [])
-        .map((card) => {
-          const spends = (cardTxns ?? [])
-            .filter((t) => t.cardId === card.id && t.type === 'Purchase' && t.date >= start && t.date <= end)
-            .reduce((s, t) => s + t.amount, 0)
-          return [card.name, spends] as [string, number]
-        })
+        .map(
+          (card) =>
+            [card.name, cardPurchasesInCycle(card, cardTxns ?? [], year, month)] as [string, number],
+        )
         .sort((a, b) => b[1] - a[1]),
-    [cards, cardTxns, start, end],
+    [cards, cardTxns, year, month],
   )
 
   const totalInvested = (investments ?? []).reduce((s, i) => s + i.units * i.purchasePrice, 0)
@@ -206,9 +206,9 @@ export default function BudgetMetricsScreen() {
 
         {cardsOpen && (
           <div style={{ marginTop: 12 }}>
-            <div className="section-label" style={{ marginBottom: 6 }}>Spends this month</div>
+            <div className="section-label" style={{ marginBottom: 6 }}>Spends · billing cycle</div>
             {cardSpending.every(([, v]) => v === 0) ? (
-              <p className="small muted">No card spending this month.</p>
+              <p className="small muted">No card spending in this cycle.</p>
             ) : (
               cardSpending.filter(([, v]) => v > 0).map(([name, value]) => (
                 <div key={name} className="row" style={{ padding: '6px 0', borderTop: '1px solid var(--outline)' }}>
@@ -218,6 +218,9 @@ export default function BudgetMetricsScreen() {
               ))
             )}
             <p className="tiny muted" style={{ marginTop: 8 }}>
+              Each card uses its own billing cycle ending in {monthLabel}.
+            </p>
+            <p className="tiny muted" style={{ marginTop: 4 }}>
               {ccCredit > 0
                 ? `All cards are in credit by ${formatMoney(ccCredit)}`
                 : `Outstanding across all cards: ${formatMoney(ccDebt)}`}

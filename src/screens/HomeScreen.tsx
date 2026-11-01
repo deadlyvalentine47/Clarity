@@ -22,7 +22,7 @@ import { usePreferences } from '../context/PreferencesContext'
 import { isScheduledOn, toggleHabitForDate } from '../db/habits'
 import { toggleTaskCompletion } from '../db/tasks'
 import { noteSnippet } from '../db/notes'
-import { cardOutstanding, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
+import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
 import {
   addDays,
   endOfDay,
@@ -122,7 +122,15 @@ export default function HomeScreen() {
   )
 
   // --------------------------------------------------------------- money
-  const spend = spendSummary(transactions ?? [], cardTxns ?? [], monthStart, monthEnd)
+  // Bank spending is calendar-month; card spending follows each card's billing
+  // cycle that ends in the current month, like the card detail screen.
+  const bankSpend = spendSummary(transactions ?? [], [], monthStart, monthEnd).bank
+  const cardSpend = (cards ?? []).reduce(
+    (sum, card) =>
+      sum + cardPurchasesInCycle(card, cardTxns ?? [], now.getFullYear(), now.getMonth() + 1),
+    0,
+  )
+  const spend = { bank: bankSpend, card: cardSpend, total: bankSpend + cardSpend }
   const income = (transactions ?? [])
     .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
     .reduce((sum, t) => sum + t.amount, 0)

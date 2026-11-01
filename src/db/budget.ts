@@ -346,6 +346,29 @@ export function spendSummary(
   return { bank, card, total: bank + card }
 }
 
+/**
+ * Purchases on a card inside the billing cycle that ends in the given month —
+ * the same window the card detail screen uses for that month.
+ */
+export function cardPurchasesInCycle(
+  card: { id?: number; billingCycleDay: number },
+  cardTransactions: CreditCardTransaction[],
+  year: number,
+  month: number,
+): number {
+  if (card.id == null) return 0
+  const cycle = billingCycle(year, month, card.billingCycleDay)
+  return cardTransactions
+    .filter(
+      (t) =>
+        t.cardId === card.id &&
+        t.type === 'Purchase' &&
+        t.date >= cycle.start &&
+        t.date < cycle.end,
+    )
+    .reduce((sum, t) => sum + t.amount, 0)
+}
+
 /** Record a spend/credit straight onto a card (budget quick-add). */
 export async function recordCardTransaction(
   cardId: number,
