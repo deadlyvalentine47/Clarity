@@ -135,13 +135,14 @@ export async function deleteTransactionCascade(txn: Transaction): Promise<void> 
     if (txn.linkedCardTxnId != null) {
       await db.creditCardTransactions.delete(txn.linkedCardTxnId)
     } else {
-      // Deleting a card payment from the card side removes its bank expense too.
-      // `linkedCardTxnId` is not indexed (Dexie cannot index nullable columns
-      // usefully here), so scan instead of using where().
-      const linked = await db.transactions.filter((t) => t.linkedCardTxnId === txn.id).first()
-      if (linked?.id != null) {
-        await db.transactions.delete(linked.id)
-        await adjustBalance(linked.source, linked.amount)
+      // Older/imported data may only carry the card-side backlink. Remove the
+      // card payment that points at this bank row so outstanding doesn't drift.
+      // `linkedTransactionId` is not indexed, so scan with filter().
+      const linkedCard = await db.creditCardTransactions
+        .filter((c) => c.linkedTransactionId === txn.id)
+        .first()
+      if (linkedCard?.id != null) {
+        await db.creditCardTransactions.delete(linkedCard.id)
       }
     }
   })

@@ -440,8 +440,11 @@ export function downloadJson(filename: string, json: string) {
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Revoke after the browser has had a chance to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 /**
