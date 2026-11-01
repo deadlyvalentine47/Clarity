@@ -192,6 +192,11 @@ p {
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
+/* Detail screens hide the topbar, so the content must clear the status bar. */
+.content.content-detail {
+  padding-top: calc(16px + env(safe-area-inset-top));
+}
+
 @media (min-width: 900px) {
   .sidebar {
     display: block;
@@ -437,7 +442,7 @@ p {
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--primary-strong);
   color: var(--on-primary);
 }
 
@@ -491,7 +496,7 @@ p {
   height: 56px;
   border-radius: 18px;
   border: none;
-  background: var(--primary);
+  background: var(--primary-strong);
   color: var(--on-primary);
   box-shadow: var(--shadow-lg);
   display: flex;
@@ -630,8 +635,8 @@ p {
 }
 
 .chip.active {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
   color: var(--on-primary);
 }
 
@@ -1660,8 +1665,8 @@ p {
 }
 
 .quick-action.primary {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
   color: var(--on-primary);
 }
 
@@ -2018,4 +2023,10 @@ p {
   box-shadow: var(--shadow-lg);
   animation: fade 0.18s ease;
   pointer-events: none;
+}
+
+/* Consistent keyboard focus ring across every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--primary-strong, var(--primary));
+  outline-offset: 2px;
 }

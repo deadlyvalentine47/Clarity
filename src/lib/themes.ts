@@ -170,11 +170,17 @@ export function applyTheme(themeName: string, mode: ThemeMode, systemPrefersDark
   const surface = dark ? palette.surfaceDark : palette.surfaceLight
   const background = dark ? palette.backgroundDark : palette.backgroundLight
   const text = dark ? palette.textDark : palette.textLight
-  const muted = mix(text, background, dark ? 0.38 : 0.45)
+  // Light themes need a darker muted tone to clear WCAG AA on surfaces.
+  const muted = mix(text, background, dark ? 0.38 : 0.3)
   const outline = mix(text, surface, dark ? 0.78 : 0.84)
+  // Darken status colours on light surfaces (text on pale containers) and give
+  // primary buttons a stronger fill so white text keeps its contrast.
+  const statusText = (hex: string, weight: number) => (dark ? hex : mix(hex, '#000000', weight))
+  const primaryStrong = dark ? palette.primary : mix(palette.primary, '#000000', 0.2)
 
   const vars: Record<string, string> = {
     '--primary': palette.primary,
+    '--primary-strong': primaryStrong,
     '--primary-variant': dark ? mix(palette.primary, '#000000', 0.15) : mix(palette.primary, '#000000', 0.12),
     '--primary-container': dark ? mix(palette.primary, background, 0.72) : palette.primaryContainer,
     '--on-primary': palette.onPrimary,
@@ -189,11 +195,11 @@ export function applyTheme(themeName: string, mode: ThemeMode, systemPrefersDark
     '--text': text,
     '--muted': muted,
     '--outline': outline,
-    '--error': palette.error,
+    '--error': statusText(palette.error, 0.12),
     '--error-container': dark ? mix(palette.error, background, 0.78) : mix(palette.error, '#FFFFFF', 0.86),
-    '--success': palette.success,
+    '--success': statusText(palette.success, 0.16),
     '--success-container': dark ? mix(palette.success, background, 0.78) : mix(palette.success, '#FFFFFF', 0.86),
-    '--warning': palette.warning,
+    '--warning': statusText(palette.warning, 0.24),
     '--warning-container': dark ? mix(palette.warning, background, 0.78) : mix(palette.warning, '#FFFFFF', 0.85),
     '--shadow': dark
       ? '0 1px 2px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.35)'

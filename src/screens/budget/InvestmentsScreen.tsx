@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Pencil, Plus, Trash2, TrendingUp } from 'lucide-react'
 import { db } from '../../db/db'
 import { INVESTMENT_TYPES, type Investment } from '../../db/types'
-import { formatDate } from '../../lib/dates'
+import { formatDate, toDateKey } from '../../lib/dates'
 import { formatMoney, formatPercent } from '../../lib/format'
 import {
   ConfirmDialog,
@@ -216,7 +216,7 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
   const [purchasePrice, setPurchasePrice] = useState(investment?.purchasePrice != null ? String(investment.purchasePrice) : '')
   const [currentPrice, setCurrentPrice] = useState(investment?.currentPrice != null ? String(investment.currentPrice) : '')
   const [purchaseDate, setPurchaseDate] = useState(
-    investment ? new Date(investment.purchaseDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    investment ? toDateKey(investment.purchaseDate) : toDateKey(new Date()),
   )
   const [notes, setNotes] = useState(investment?.notes ?? '')
 

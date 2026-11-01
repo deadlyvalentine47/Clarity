@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { db } from '../../db/db'
 import type { Category, Source, TransactionType } from '../../db/types'
-import { MONTHS, MONTHS_SHORT } from '../../lib/dates'
+import { MONTHS, MONTHS_SHORT, toDateKey } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import {
   Dialog,
@@ -337,7 +337,7 @@ export function TransactionDialog({
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
   const [sourceName, setSourceName] = useState(source ?? '')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(toDateKey(new Date()))
   const [error, setError] = useState('')
 
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])

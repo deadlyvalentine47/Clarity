@@ -58,6 +58,7 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [pendingImport, setPendingImport] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -342,6 +343,19 @@ export default function SettingsScreen() {
       </p>
 
       <ConfirmDialog
+        open={pendingImport != null}
+        title="Import backup?"
+        message="Importing replaces every task, note, habit and transaction currently stored on this device. This cannot be undone — export first if you want to keep the current data."
+        confirmLabel="Import"
+        onConfirm={() => {
+          const file = pendingImport
+          setPendingImport(null)
+          if (file) void doImport(file)
+        }}
+        onCancel={() => setPendingImport(null)}
+      />
+
+      <ConfirmDialog
         open={confirmClear}
         title="Clear all data?"
         message={
@@ -375,7 +389,7 @@ export default function SettingsScreen() {
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void doImport(file)
+          if (file) setPendingImport(file)
           e.target.value = ''
         }}
       />

@@ -5,6 +5,7 @@ import { db } from '../db/db'
 import type { Event } from '../db/types'
 import {
   MONTHS,
+  endOfDay,
   formatTime,
   startOfDay,
   toDateKey,
@@ -24,8 +25,9 @@ export default function CalendarScreen() {
 
   const eventsFor = (d: Date) => {
     const start = startOfDay(d.getTime())
-    const end = start + 86_400_000 - 1
-    return (events ?? []).filter((e) => e.startDate >= start && e.startDate <= end)
+    const end = endOfDay(d.getTime())
+    // Overlap, so multi-day events show on every day they span.
+    return (events ?? []).filter((e) => e.startDate <= end && (e.endDate || e.startDate) >= start)
   }
 
   const dayEvents = eventsFor(selected)

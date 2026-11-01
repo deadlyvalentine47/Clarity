@@ -105,17 +105,29 @@ export default function AccountsScreen() {
               const credits = rows.filter((t) => t.type === 'Income').reduce((s, t) => s + t.amount, 0)
               const spends = rows.filter((t) => t.type === 'Expense').reduce((s, t) => s + t.amount, 0)
               const isOpen = expanded.has(source.id!)
+              const toggleOpen = () =>
+                setExpanded((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(source.id!)) next.delete(source.id!)
+                  else next.add(source.id!)
+                  return next
+                })
               return (
                 <div key={source.id} className="card flush">
                   <div
                     className="account-row"
                     style={{ alignItems: 'flex-start' }}
-                    onClick={() => setExpanded((prev) => {
-                      const next = new Set(prev)
-                      if (next.has(source.id!)) next.delete(source.id!)
-                      else next.add(source.id!)
-                      return next
-                    })}
+                    onClick={toggleOpen}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    aria-label={`${source.name} activity`}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        toggleOpen()
+                      }
+                    }}
                   >
                     <div className="avatar primary">
                       <Landmark size={19} />

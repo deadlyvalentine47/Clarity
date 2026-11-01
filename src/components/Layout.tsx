@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -56,6 +56,21 @@ export default function Layout() {
     location.pathname.startsWith('/budget/') ||
     location.pathname.startsWith('/habits/')
 
+  useEffect(() => {
+    if (!drawerOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.querySelector<HTMLElement>('.drawer .nav-item')?.focus()
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [drawerOpen])
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -78,15 +93,15 @@ export default function Layout() {
           </header>
         )}
 
-        <main className="content">
+        <main className={`content ${isDetail ? 'content-detail' : ''}`}>
           <Outlet />
         </main>
       </div>
 
       {drawerOpen && (
         <>
-          <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} />
-          <nav className="drawer">
+          <div className="drawer-scrim" aria-hidden="true" onClick={() => setDrawerOpen(false)} />
+          <nav className="drawer" aria-label="Main navigation">
             <div className="brand">Clarity</div>
             <NavList onNavigate={() => setDrawerOpen(false)} />
           </nav>

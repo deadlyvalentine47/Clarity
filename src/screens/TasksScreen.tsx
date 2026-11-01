@@ -36,6 +36,7 @@ export default function TasksScreen() {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [deletingSubtask, setDeletingSubtask] = useState<{ id: number; title: string } | null>(null)
 
   const tasks = useLiveQuery(() => db.tasks.toArray(), [], [])
   const subtasks = useLiveQuery(() => db.subtasks.toArray(), [], [])
@@ -51,15 +52,15 @@ export default function TasksScreen() {
   }, [subtasks])
 
   const visible = useMemo(() => {
-    const now = Date.now()
+    const todayStart = startOfDay()
     const filtered = (tasks ?? []).filter((t) => {
       switch (filter) {
         case 'Today':
-          return t.dueDate != null && t.dueDate >= startOfDay() && t.dueDate <= endOfDay() && !t.isCompleted
+          return t.dueDate != null && t.dueDate >= todayStart && t.dueDate <= endOfDay() && !t.isCompleted
         case 'Upcoming':
-          return t.dueDate != null && t.dueDate > now && !t.isCompleted
+          return t.dueDate != null && startOfDay(t.dueDate) > todayStart && !t.isCompleted
         case 'Overdue':
-          return t.dueDate != null && t.dueDate < now && !t.isCompleted
+          return t.dueDate != null && endOfDay(t.dueDate) < todayStart && !t.isCompleted
         case 'Done':
           return t.isCompleted
         default:
@@ -196,7 +197,7 @@ export default function TasksScreen() {
                             className="icon-btn"
                             style={{ width: 30, height: 30 }}
                             aria-label="Delete subtask"
-                            onClick={() => s.id != null && db.subtasks.delete(s.id)}
+                            onClick={() => s.id != null && setDeletingSubtask({ id: s.id, title: s.title })}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -237,6 +238,17 @@ export default function TasksScreen() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={deletingSubtask != null}
+        title="Delete Subtask"
+        message={`Delete "${deletingSubtask?.title}"?`}
+        onCancel={() => setDeletingSubtask(null)}
+        onConfirm={() => {
+          if (deletingSubtask) void db.subtasks.delete(deletingSubtask.id)
+          setDeletingSubtask(null)
+        }}
+      />
     </>
   )
 }

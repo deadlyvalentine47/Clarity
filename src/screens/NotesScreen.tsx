@@ -302,6 +302,15 @@ function NoteCard({
         onDrop()
       }}
       onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open note ${note.title}`}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
     >
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <span className="drag-handle" title="Drag to reorder or nest" aria-hidden>

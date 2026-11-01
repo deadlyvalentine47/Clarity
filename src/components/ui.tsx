@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -65,6 +66,10 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className="select" {...props} />
 }
 
+// Tracks nested dialogs so closing an inner one doesn't unlock body scroll
+// while an outer dialog is still open.
+let openDialogCount = 0
+
 export function Dialog({
   open,
   onClose,
@@ -78,17 +83,62 @@ export function Dialog({
   children: ReactNode
   footer?: ReactNode
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!open) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const node = dialogRef.current
+    const focusables = () =>
+      node
+        ? Array.from(
+            node.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : []
+
+    const raf = requestAnimationFrame(() => {
+      const first = focusables()[0]
+      if (first) first.focus()
+      else node?.focus()
+    })
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const els = focusables()
+      if (els.length === 0) {
+        e.preventDefault()
+        node?.focus()
+        return
+      }
+      const firstEl = els[0]
+      const lastEl = els[els.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey) {
+        if (active === firstEl || !node?.contains(active)) {
+          e.preventDefault()
+          lastEl.focus()
+        }
+      } else if (active === lastEl || !node?.contains(active)) {
+        e.preventDefault()
+        firstEl.focus()
+      }
     }
+
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
+    openDialogCount += 1
     document.body.style.overflow = 'hidden'
     return () => {
+      cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      openDialogCount = Math.max(0, openDialogCount - 1)
+      if (openDialogCount === 0) document.body.style.overflow = ''
+      previouslyFocused?.focus?.()
     }
   }, [open, onClose])
 
@@ -96,7 +146,14 @@ export function Dialog({
 
   return (
     <div className="dialog-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={dialogRef}
+        tabIndex={-1}
+      >
         <div className="row-between" style={{ marginBottom: 16 }}>
           <h2 className="dialog-title">{title}</h2>
           <IconButton label="Close" onClick={onClose}>

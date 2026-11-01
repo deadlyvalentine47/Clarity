@@ -21,7 +21,7 @@ import {
   deleteCardTransaction,
   payCardBill,
 } from '../../db/budget'
-import { formatDate } from '../../lib/dates'
+import { formatDate, toDateKey } from '../../lib/dates'
 import { formatMoney, ordinal } from '../../lib/format'
 import {
   ConfirmDialog,
@@ -232,7 +232,7 @@ function AddCardTxnDialog({
 }) {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(toDateKey(new Date()))
   const [typeValue, setTypeValue] = useState<CardTxnType>(type)
   const amountValue = Number(amount)
   const valid = Number.isFinite(amountValue) && amountValue > 0
