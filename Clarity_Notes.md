@@ -9,13 +9,14 @@ Phase 1 (10 screens) complete. Phase 2: repo pulled ~30 commits ahead (123 files
 — porting the budget overhaul, habit metrics/journal, notes tree, home sections, themes and the
 larger backup format, while fixing the bugs/duplications in master.
 
-**Status (2026-11-01): phase 2 ported and green** — 20 app routes + not-found, all four smoke scripts pass with
+**Status (2026-11-01): port complete; Android sources removed; Node app at repo root.** — 20 app routes + not-found, all four smoke scripts pass with
 0 console errors, `tsc --noEmit` and `npm run build` clean.
 
 ## Decisions
 
 - Stack: **Vite + React 19 + TypeScript**, IndexedDB via **Dexie 4**, plain CSS design tokens.
-- Web app lives in `web/`; Android project untouched.
+- Repo root is the Node app. The Android/Kotlin sources were removed once the port
+  reached parity (still in git history / `master`).
 - Preferences (username, theme, dark mode, home sections) in `localStorage`; app data in IndexedDB.
 - **Consolidate duplicated Android budget screens** into: Budget hub → Accounts (list + detail),
   Credit Cards (list + detail), Investments, Metrics. Drop the dead `BudgetScreen.kt`,
@@ -84,4 +85,4 @@ larger backup format, while fixing the bugs/duplications in master.
 
 - Optional: code-split the bundle (build warns >500 kB) — e.g. lazy-load budget/habits routes.
 - Optional: richer charts (Android uses Vico) and a calendar-year heat map.
-- Keep `web/README.md` in sync when screens change.
+- Keep `README.md` in sync when screens change.
