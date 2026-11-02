@@ -18,7 +18,7 @@ import {
 import { db } from '../db/db'
 import type { Event as ClarityEvent, Habit, HomeSection } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
-import { isScheduledOn, toggleHabitForDate } from '../db/habits'
+import { compareHabits, isScheduledOn, toggleHabitForDate } from '../db/habits'
 import {
   eventCompletionKey,
   eventFrequencyLabel,
@@ -103,9 +103,14 @@ export default function HomeScreen() {
   )
 
   // --------------------------------------------------------------- habits
-  const activeHabits = (habits ?? []).filter((h) => !h.isArchived && !h.isDeleted)
+  const activeHabits = (habits ?? [])
+    .filter((h) => !h.isArchived && !h.isDeleted)
+    .sort(compareHabits)
   const habitsToday = activeHabits.filter((h) => isScheduledOn(h, now))
   const habitsDone = habitsToday.filter((h) => h.completionHistory[todayKey] === true).length
+  // Completed (including late) habits leave the home list; the underlying
+  // habit stays untouched in the Habits screen.
+  const habitsPending = habitsToday.filter((h) => h.completionHistory[todayKey] !== true)
 
   // --------------------------------------------------------------- events
   const todayEvents = (events ?? []).filter((e) => eventOccursOn(e, now))
@@ -292,28 +297,35 @@ export default function HomeScreen() {
                 </button>
               }
             />
+          ) : habitsPending.length === 0 ? (
+            <EmptyLine
+              icon={<Check size={16} />}
+              text="All habits done for today"
+              action={
+                <button className="btn btn-sm btn-outline" onClick={() => navigate('/habits')}>
+                  Open
+                </button>
+              }
+            />
           ) : (
             <div className="habit-strip">
-              {habitsToday.map((habit) => {
-                const done = habit.completionHistory[todayKey] === true
-                return (
-                  <button
-                    key={habit.id}
-                    className={`habit-chip ${done ? 'done' : ''}`}
-                    aria-pressed={done}
-                    aria-label={`${done ? 'Uncheck' : 'Check'} ${habit.name}`}
-                    onClick={() => void toggleHabit(habit)}
-                  >
-                    <span className="habit-chip-check">
-                      {done ? <Check size={14} /> : <Circle size={14} />}
-                    </span>
-                    <span className="habit-chip-name truncate">{habit.name}</span>
-                    <span className="habit-chip-streak" title="Current streak">
-                      🔥 {habit.currentStreak}
-                    </span>
-                  </button>
-                )
-              })}
+              {habitsPending.map((habit) => (
+                <button
+                  key={habit.id}
+                  className="habit-chip"
+                  aria-pressed={false}
+                  aria-label={`Check ${habit.name}`}
+                  onClick={() => void toggleHabit(habit)}
+                >
+                  <span className="habit-chip-check">
+                    <Circle size={14} />
+                  </span>
+                  <span className="habit-chip-name truncate">{habit.name}</span>
+                  <span className="habit-chip-streak" title="Current streak">
+                    🔥 {habit.currentStreak}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </SectionCard>
