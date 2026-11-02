@@ -235,7 +235,7 @@ export default function SettingsScreen() {
               Choose which sections appear on the home screen and in what order.
             </p>
             {prefs.sectionOrder.map((section, index) => sectionRow(section, index))}
-            <div className="row" style={{ marginTop: 10, gap: 8 }}>
+            <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
               <button className="btn btn-sm btn-outline" onClick={() => setSectionEnabled([...prefs.sectionOrder])}>
                 Enable all
               </button>

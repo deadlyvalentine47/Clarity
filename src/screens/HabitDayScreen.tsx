@@ -15,7 +15,7 @@ import {
 } from '../db/habits'
 import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
-import { EmptyState, PageHeader, TextArea } from '../components/ui'
+import { AutoGrowTextArea, EmptyState, PageHeader } from '../components/ui'
 
 type Status = 'done' | 'late' | 'missed' | 'warning' | 'pending' | 'off'
 
@@ -132,11 +132,11 @@ export default function HabitDayScreen() {
         </button>
         {journalOpen && (
           <div style={{ marginTop: 10 }}>
-            <TextArea
+            <AutoGrowTextArea
               value={journalText}
               onChange={(e) => setJournalText(e.target.value)}
               placeholder="How was your day?"
-              style={{ minHeight: 100 }}
+              style={{ minHeight: 160 }}
             />
             <div className="row-between" style={{ marginTop: 8 }}>
               <span className="tiny muted">{journalSaved ? 'Saved' : journal ? `Updated ${new Date(journal.updatedAt).toLocaleTimeString()}` : 'Not saved yet'}</span>
@@ -242,7 +242,7 @@ function HabitDayRow({
             <button className={`chip ${status === 'missed' ? 'active' : ''}`} onClick={() => void apply('missed')}>Missed</button>
             <button className={`chip ${status === 'pending' ? 'active' : ''}`} onClick={() => void apply('pending')}>Clear</button>
           </div>
-          <TextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notes for this day" style={{ minHeight: 80 }} />
+          <AutoGrowTextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notes for this day" />
           <div className="row-between" style={{ marginTop: 6 }}>
             <span className="tiny muted">{saved ? 'Saved' : ''}</span>
             <button

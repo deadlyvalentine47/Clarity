@@ -110,7 +110,7 @@ export default function AccountDetailScreen() {
       />
 
       <div className="hero" style={{ marginBottom: 16 }}>
-        <div className="row-between">
+        <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div className="hero-label">Current balance</div>
             <div className="big-amount">{formatMoney(source.balance)}</div>

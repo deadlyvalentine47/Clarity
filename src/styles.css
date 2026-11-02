@@ -63,6 +63,32 @@ body,
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* The app is laid out for the viewport width. Never let a wide child turn the
+   whole screen into a horizontally scrollable surface (iOS WebView included). */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@supports (overflow: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -94,6 +120,8 @@ p {
 
 .app-shell {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -167,7 +195,8 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: env(safe-area-inset-top) 8px 0;
+  padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0
+    calc(8px + env(safe-area-inset-left));
   background: var(--primary-container);
   color: var(--on-primary-container);
 }
@@ -188,8 +217,8 @@ p {
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 16px;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  padding: 16px calc(16px + env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
 }
 
 /* Detail screens hide the topbar, so the content must clear the status bar. */
@@ -197,7 +226,9 @@ p {
   padding-top: calc(16px + env(safe-area-inset-top));
 }
 
-@media (min-width: 900px) {
+/* Keep the mobile layout on phones in landscape: the sidebar only makes sense
+   when there is real vertical space for it. */
+@media (min-width: 900px) and (min-height: 500px) {
   .sidebar {
     display: block;
   }
@@ -205,7 +236,8 @@ p {
     display: none;
   }
   .content {
-    padding: 28px 32px 64px;
+    padding: 28px calc(32px + env(safe-area-inset-right)) 64px
+      calc(32px + env(safe-area-inset-left));
   }
 }
 
@@ -338,6 +370,19 @@ p {
 .wrap-anywhere {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* User-authored notes can contain long URLs or code lines. */
+.markdown-body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
 }
 
 .strike {
