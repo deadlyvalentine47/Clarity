@@ -36,9 +36,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     savePreferences(prefs)
   }, [prefs])
 
-  // Android: keep a fresh backup snapshot in the app cache and make sure the
-  // nightly 23:30 job is registered. The worker copies the snapshot to the
-  // device; the WebView does not need to be running then.
+  // Native (Android/iOS): keep a fresh backup snapshot in the app cache and
+  // make sure the nightly 23:30 job is registered. The worker copies the
+  // snapshot to the device; the WebView does not need to be running then.
   useEffect(() => {
     if (!isNative()) return
     void scheduleNightlyBackup()

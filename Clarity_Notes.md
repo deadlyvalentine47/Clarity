@@ -54,6 +54,13 @@ larger backup format, while fixing the bugs/duplications in master.
   Set `BRAVE_PATH` if Chromium isn't `/usr/bin/brave`.
 - In Puppeteer tests, scope dialog clicks to `.dialog`: the page behind it often has same-named
   chips/buttons (e.g. category filter chips vs. category picker).
+- iOS: Capacitor 8 uses SPM (no CocoaPods); `ios/App/App/public`, `capacitor.config.json`
+  and `App/build` are generated/ignored. New Swift files must be added to
+  `App.xcodeproj/project.pbxproj`; local plugins register in
+  `ClarityBridgeViewController.capacitorDidLoad`. The IPA is unsigned — install needs
+  AltStore/Sideloadly/Apple team re-signing. iOS background work is best-effort, so the
+  23:30 backup runs opportunistically and the snapshot is also copied to
+  `Documents/Clarity` on every foreground/background transition.
 
 ## Done
 
@@ -125,6 +132,28 @@ larger backup format, while fixing the bugs/duplications in master.
     each run, so relaunches and delayed runs can't shift it. versionCode 5 / 1.4.
   - Verified with a Puppeteer probe: chips render `a,c,b` for sortOrder 10,20,30,
     disappear on completion, habit rows still exist; `smoke:flows` + build green.
+
+- 2026-11-02 iOS container + CI:
+  - `ios/` generated with Capacitor 8 (`npx cap add ios`), Swift Package
+    Manager — no CocoaPods. `@capacitor/ios` 8.6.0 added; scripts `ios:sync`,
+    `ios:open`.
+  - App-local Swift plugins mirror the Android ones: `SaveFilePlugin` (Files
+    export picker), `BackupSchedulerPlugin` (`ClarityBackup` bridge) with
+    `BackupScheduler` copying the cache snapshot to `Documents/Clarity` on
+    foreground/background and requesting a best-effort `BGAppRefreshTask` for
+    23:30 (`BGTaskSchedulerPermittedIdentifiers` in Info.plist). Registered via
+    `ClarityBridgeViewController` (`capacitorDidLoad`), used by `SceneDelegate`.
+  - `AppDelegate` registers the BG task before launch returns. Info.plist also
+    enables Files sharing (`UIFileSharingEnabled`,
+    `LSSupportsOpeningDocumentsInPlace`) and disables export-compliance prompts.
+  - Bundle `com.clarity.app`, version 1.4 (build 5), matching Android; shared
+    `App` scheme committed so `xcodebuild -scheme App` works in CI.
+  - New `.github/workflows/ios.yml` builds an **unsigned** IPA on
+    `macos-latest` (approval-gated `ios-build` environment, like `apk-build`)
+    and publishes it to the rolling `ipa-latest` release. No Mac/Xcode needed
+    locally; install requires re-signing (AltStore/Sideloadly/Apple team).
+  - Settings text is platform-aware: iOS backups are "Files → Clarity", updated
+    when backgrounded, with 23:30 as best-effort.
 
 ## Next
 
