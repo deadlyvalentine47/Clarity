@@ -28,16 +28,25 @@ final class BackupScheduler {
     private BackupScheduler() {}
 
     static void schedule(Context context) {
+        long next = next2330Millis();
         PeriodicWorkRequest request =
                 new PeriodicWorkRequest.Builder(BackupWorker.class, 24, TimeUnit.HOURS)
-                        .setInitialDelay(millisUntilNext2330(), TimeUnit.MILLISECONDS)
+                        // WorkManager's interval starts at the enqueue time, so an
+                        // initial delay alone can let the *first* run fire as soon
+                        // as the app is opened. The override pins the next run to
+                        // an absolute local 23:30, independent of enqueue time.
+                        .setNextScheduleTimeOverride(next)
+                        .setInitialDelay(
+                                Math.max(0, next - System.currentTimeMillis()),
+                                TimeUnit.MILLISECONDS)
                         .addTag(WORK_NAME)
                         .build();
         WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request);
     }
 
-    private static long millisUntilNext2330() {
+    /** Next 23:30 in the device's current time zone, as an absolute timestamp. */
+    private static long next2330Millis() {
         Calendar next = Calendar.getInstance();
         next.set(Calendar.HOUR_OF_DAY, 23);
         next.set(Calendar.MINUTE, 30);
@@ -46,7 +55,7 @@ final class BackupScheduler {
         if (next.getTimeInMillis() <= System.currentTimeMillis()) {
             next.add(Calendar.DAY_OF_MONTH, 1);
         }
-        return Math.max(0, next.getTimeInMillis() - System.currentTimeMillis());
+        return next.getTimeInMillis();
     }
 
     static void record(Context context, long at, String file, String error) {

@@ -51,6 +51,9 @@ public class BackupWorker extends Worker {
             // Nothing has been written yet; try again on the next run rather
             // than reporting an error every night.
             BackupScheduler.record(context, System.currentTimeMillis(), "", "No backup snapshot yet");
+            // Keep the next run pinned to 23:30 instead of drifting with the
+            // actual (possibly delayed) run time.
+            BackupScheduler.schedule(context);
             return Result.success();
         }
 
@@ -64,6 +67,10 @@ public class BackupWorker extends Worker {
                 saveToAppDownloads(context, source, filename);
             }
             BackupScheduler.record(context, System.currentTimeMillis(), filename, "");
+            // Re-pin tomorrow's run to 23:30. WorkManager clears the override
+            // once this run finishes, and interval-based scheduling would
+            // otherwise drift by however late the system started us.
+            BackupScheduler.schedule(context);
             return Result.success();
         } catch (Exception error) {
             BackupScheduler.record(context, System.currentTimeMillis(), "", error.getMessage());

@@ -110,9 +110,12 @@ Everything is local to the browser profile:
   next launch or when the app becomes visible, so it can't be missed.
 - **Nightly backup** — a WorkManager job runs every night at 11:30 PM and copies
   the latest snapshot to `Downloads/Clarity/clarity_backup_<timestamp>.json`,
-  deleting the previous backup so only the most recent one remains. The web
-  layer keeps the snapshot in the app cache (on launch, when the app is
-  backgrounded, and every 15 minutes); the worker runs without the WebView.
+  deleting the previous backup so only the most recent one remains. The next run
+  is pinned to an absolute local 23:30 (`setNextScheduleTimeOverride`) and
+  re-pinned after every run, so relaunching the app can't pull it earlier and a
+  delayed run doesn't shift the following night. The web layer keeps the
+  snapshot in the app cache (on launch, when the app is backgrounded, and every
+  15 minutes); the worker runs without the WebView.
 
 ## Differences from the Android app (intentional fixes)
 
