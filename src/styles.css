@@ -990,6 +990,13 @@ p {
   flex-wrap: wrap;
 }
 
+.period-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .month-year .select {
   width: auto;
   min-width: 96px;

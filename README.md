@@ -59,6 +59,9 @@ npm run typecheck  # tsc --noEmit
   - **Investments** — portfolio value, P&L, allocation by type, month/all scope.
   - **Metrics** — monthly net worth, bank breakdown by account/category, card
     spending, investment summary.
+  - **Activity** — today's activity, plus an all-transactions ledger with
+    month/day/year filters and previous/next navigation. Bank and card rows are
+    grouped by day, with year view grouped by month.
 - **Habits** — Today/All/Archived filters, search, frequency (Daily, Weekly,
   Monthly, Alternate, Custom), optional deadline, check-in, streak/best streak,
   archive/restore, soft delete. Detail shows weekly/monthly calendars and per-day
@@ -169,7 +172,7 @@ every route, exercise the main flows, and fail on console errors.
 
 ```bash
 npm run dev             # in one terminal
-npm run smoke           # renders all 20 routes + dark/empty home, screenshots -> /tmp/opencode/clarity-shots
+npm run smoke           # renders all 21 routes + dark/empty home, screenshots -> /tmp/opencode/clarity-shots
                         # (clears the dev database when it finishes)
 npm run smoke:interact  # add event/transaction, toggle habit, timer, dark mode, onboarding
 npm run smoke:logic     # event recurrence, streak, billing clamp, card cascade, note tree, export/import

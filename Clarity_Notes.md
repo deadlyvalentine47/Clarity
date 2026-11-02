@@ -155,6 +155,19 @@ larger backup format, while fixing the bugs/duplications in master.
   - Settings text is platform-aware: iOS backups are "Files → Clarity", updated
     when backgrounded, with 23:30 as best-effort.
 
+- 2026-11-02 all-transactions ledger:
+  - "Today's activity" has an **All transactions** button (top right) that opens
+    `/budget/transactions`.
+  - The new screen shows every bank + card row, defaulting to the current month.
+    Filters: **Month** (month/year selects), **Day** (date input) and **Year**
+    (year select), each with prev/next arrows and a **Today** shortcut.
+  - Period totals (spent/earned/net) exclude self-transfers; rows are grouped by
+    day, and year view also gets month headers. Editing reuses the existing
+    bank/card transaction dialogs. The anchor date keeps the month when
+    switching to Day and the year when switching Month ↔ Year.
+  - Added the route to `scripts/smoke.mjs` (21 routes) and updated README.
+    `smoke`, `smoke:flows`, `typecheck` and `build` are green (0 console errors).
+
 ## Next
 
 - Merge PR #2 (`feature/web-port` → `master`) once the approved APK build is green.

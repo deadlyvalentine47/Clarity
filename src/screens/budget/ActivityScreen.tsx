@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
-import { Wallet } from 'lucide-react'
+import { List, Wallet } from 'lucide-react'
 import { db } from '../../db/db'
 import type { CreditCardTransaction, Transaction } from '../../db/types'
 import { dailySummary, transferPair } from '../../db/budget'
@@ -43,6 +43,11 @@ export default function ActivityScreen() {
           year: 'numeric',
         })}
         onBack={() => navigate('/budget')}
+        actions={
+          <button className="btn btn-sm btn-outline" onClick={() => navigate('/budget/transactions')}>
+            <List size={16} /> All transactions
+          </button>
+        }
       />
 
       <div className="card" style={{ marginBottom: 16 }}>
