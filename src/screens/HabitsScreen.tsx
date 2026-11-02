@@ -433,7 +433,7 @@ function HabitGroupCard({
             <span className="habit-group-chevron">
               {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
             </span>
-            <span className="truncate">{group.name}</span>
+            <span className="wrap-anywhere">{group.name}</span>
           </span>
           <span className="tiny muted">
             {habits.length < totalHabits ? `${habits.length} of ${totalHabits}` : totalHabits}{' '}
@@ -547,7 +547,7 @@ function HabitCard({
           style={{ background: 'none', border: 'none', textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0 }}
           onClick={onOpen}
         >
-          <div className="bold truncate">{habit.name}</div>
+          <div className="bold wrap-anywhere">{habit.name}</div>
           {habit.description && <div className="small muted truncate">{habit.description}</div>}
           <div className="tiny muted" style={{ marginTop: 2 }}>
             {habitFrequencyLabel(habit)}

@@ -95,7 +95,7 @@ export default function HabitDayScreen() {
             <span className="habit-group-chevron">
               {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
             </span>
-            <span className="truncate">{group.name}</span>
+            <span className="wrap-anywhere">{group.name}</span>
           </span>
           <span className="tiny muted nowrap">{doneCount}/{list.length} done</span>
         </button>
@@ -220,7 +220,7 @@ function HabitDayRow({
           onClick={onToggle}
           aria-expanded={expanded}
         >
-          <div className="small bold truncate">
+          <div className="small bold wrap-anywhere">
             {habit.name}
             {habit.isArchived ? ' (A)' : ''}
             {habit.isDeleted ? ' (D)' : ''}

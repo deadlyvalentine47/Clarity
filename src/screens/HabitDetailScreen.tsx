@@ -138,6 +138,7 @@ export default function HabitDetailScreen() {
     <>
       <PageHeader
         title={habit.name}
+        wrapTitle
         subtitle={habit.description || 'Habit history and streak'}
         onBack={() => navigate('/habits')}
         actions={

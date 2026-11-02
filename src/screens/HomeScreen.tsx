@@ -320,7 +320,7 @@ export default function HomeScreen() {
                   <span className="habit-chip-check">
                     <Circle size={14} />
                   </span>
-                  <span className="habit-chip-name truncate">{habit.name}</span>
+                  <span className="habit-chip-name wrap-anywhere">{habit.name}</span>
                   <span className="habit-chip-streak" title="Current streak">
                     🔥 {habit.currentStreak}
                   </span>

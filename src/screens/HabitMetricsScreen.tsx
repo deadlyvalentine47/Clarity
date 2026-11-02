@@ -141,7 +141,7 @@ export default function HabitMetricsScreen() {
       <div key={habit.id} className="card" style={{ padding: 14 }}>
         <div className="row-between">
           <div style={{ minWidth: 0 }}>
-            <div className="bold truncate">
+            <div className="bold wrap-anywhere">
               {habit.name}
               {habit.isArchived ? ' (A)' : ''}
               {habit.isDeleted ? ' (D)' : ''}
@@ -183,7 +183,7 @@ export default function HabitMetricsScreen() {
           aria-expanded={isOpen}
         >
           <div style={{ minWidth: 0, textAlign: 'left' }}>
-            <div className="bold truncate">
+            <div className="bold wrap-anywhere">
               {habit.name}
               {habit.isArchived ? ' (A)' : ''}
               {habit.isDeleted ? ' (D)' : ''}
@@ -220,7 +220,7 @@ export default function HabitMetricsScreen() {
             {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
           </span>
           <div style={{ minWidth: 0 }}>
-            <div className="bold truncate">{group.name}</div>
+            <div className="bold wrap-anywhere">{group.name}</div>
             <div className="tiny muted">{list.length} {list.length === 1 ? 'habit' : 'habits'}</div>
           </div>
         </div>

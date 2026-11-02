@@ -368,11 +368,14 @@ export function PageHeader({
   subtitle,
   actions,
   onBack,
+  wrapTitle = false,
 }: {
   title: string
   subtitle?: string
   actions?: ReactNode
   onBack?: () => void
+  /** show the full title instead of truncating it to one line */
+  wrapTitle?: boolean
 }) {
   return (
     <div className="page-header">
@@ -383,7 +386,7 @@ export function PageHeader({
           </IconButton>
         )}
         <div style={{ minWidth: 0 }}>
-          <h1 className="page-title truncate">{title}</h1>
+          <h1 className={`page-title ${wrapTitle ? 'wrap-anywhere' : 'truncate'}`}>{title}</h1>
           {subtitle && <p className="page-sub">{subtitle}</p>}
         </div>
       </div>
