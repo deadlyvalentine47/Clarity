@@ -225,7 +225,7 @@ console.log('child page:', JSON.stringify(child))
 // 6) Home section toggle.
 await page.goto('http://localhost:5173/settings', { waitUntil: 'networkidle2' })
 const toggled = await page.evaluate(() => {
-  const row = [...document.querySelectorAll('.section-config-row')].find((r) => r.textContent?.includes('Tasks'))
+  const row = [...document.querySelectorAll('.section-config-row')].find((r) => r.textContent?.includes('Budget'))
   const sw = row?.querySelector('.switch')
   sw?.click()
   return !!sw
@@ -234,11 +234,11 @@ await sleep(300)
 await page.goto('http://localhost:5173/', { waitUntil: 'networkidle2' })
 await sleep(300)
 const homeText = await page.evaluate(() => document.body.innerText)
-console.log('tasks section hidden:', toggled, !homeText.includes('OVERDUE'))
+console.log('budget section hidden:', toggled, !homeText.includes('Balance'))
 // restore
 await page.goto('http://localhost:5173/settings', { waitUntil: 'networkidle2' })
 await page.evaluate(() => {
-  const row = [...document.querySelectorAll('.section-config-row')].find((r) => r.textContent?.includes('Tasks'))
+  const row = [...document.querySelectorAll('.section-config-row')].find((r) => r.textContent?.includes('Budget'))
   row?.querySelector('.switch')?.click()
 })
 await sleep(200)
@@ -272,31 +272,20 @@ const roundTrip = await page.evaluate(async () => {
 })
 console.log('round trip:', JSON.stringify(roundTrip))
 
-// 8) Home: greeting, quick add task, complete from home, habit chip, collapse.
+// 8) Home: greeting, quick add event, habit chip, collapse.
 await page.goto('http://localhost:5173/', { waitUntil: 'networkidle2' })
 await sleep(300)
 const greeting = await page.evaluate(() => document.querySelector('.home-greeting')?.textContent ?? '')
 
-await clickText('Task')
+await clickText('Event')
 await sleep(250)
-await setValue('.dialog input', 'Home quick task')
+await setValue('.dialog input', 'Home quick event')
 await clickDialog('Add')
 await sleep(400)
-const created = await dbEval(async (db) => (await db.tasks.toArray()).some((t) => t.title === 'Home quick task'))
-// A task with no due date must be visible (previously it vanished from Home).
-const noDateGroup = await page.evaluate(() => document.body.innerText.includes('NO DATE'))
-console.log('home quick add task:', JSON.stringify({ greeting, created, noDateGroup }))
-
-await page.evaluate(() => {
-  const row = [...document.querySelectorAll('.home-task')].find((r) => r.textContent?.includes('Home quick task'))
-  row?.querySelector('.task-check')?.click()
-})
-await sleep(400)
-const completed = await dbEval(async (db) => {
-  const t = (await db.tasks.toArray()).find((x) => x.title === 'Home quick task')
-  return t?.isCompleted === true
-})
-console.log('home completes task:', completed)
+const createdEvent = await dbEval(async (db) =>
+  (await db.events.toArray()).some((e) => e.title === 'Home quick event'),
+)
+console.log('home quick add event:', JSON.stringify({ greeting, createdEvent }))
 
 const chipLabel = await page.evaluate(() => {
   const chip = document.querySelector('.habit-chip')
@@ -316,19 +305,19 @@ console.log('home habit chip:', JSON.stringify({ chipLabel, habitState }))
 
 // Collapse persists across a reload.
 await page.evaluate(() => {
-  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Tasks'))
+  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Budget'))
   head?.click()
 })
 await sleep(250)
 await page.reload({ waitUntil: 'networkidle2' })
 await sleep(300)
 const collapsed = await page.evaluate(() => {
-  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Tasks'))
+  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Budget'))
   return head?.getAttribute('aria-expanded')
 })
 console.log('home collapse persisted:', collapsed === 'false')
 await page.evaluate(() => {
-  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Tasks'))
+  const head = [...document.querySelectorAll('.collapse-head')].find((b) => b.textContent?.includes('Budget'))
   head?.click()
 })
 await sleep(250)

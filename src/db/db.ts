@@ -15,14 +15,10 @@ import type {
   PomodoroFocusSession,
   PomodoroSession,
   Source,
-  Subtask,
-  Task,
   Transaction,
 } from './types'
 
 export class ClarityDB extends Dexie {
-  tasks!: Table<Task, number>
-  subtasks!: Table<Subtask, number>
   habits!: Table<Habit, number>
   notes!: Table<Note, number>
   noteCategories!: Table<NoteCategory, number>
@@ -128,6 +124,28 @@ export class ClarityDB extends Dexie {
         for (let i = 0; i < habits.length; i += 1) {
           await tx.table('habits').update(habits[i].id, { sortOrder: (i + 1) * 10 })
         }
+      })
+
+    // v4 removes the old Tasks feature (calendar events now carry tasks) and
+    // gives existing events the task fields: priority, due date, recurrence and
+    // per-occurrence completion.
+    this.version(4)
+      .stores({
+        tasks: null,
+        subtasks: null,
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('events')
+          .toCollection()
+          .modify((e: Event) => {
+            e.priority ??= null
+            e.dueDate ??= null
+            e.frequency ??= null
+            e.alternateDays ??= null
+            e.selectedDays ??= null
+            e.completionHistory ??= {}
+          })
       })
   }
 }

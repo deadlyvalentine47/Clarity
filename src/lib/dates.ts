@@ -15,12 +15,6 @@ export function formatDate(ts: number | Date): string {
   return dateFmt.format(typeof ts === 'number' ? new Date(ts) : ts)
 }
 
-/** "Nov 2" — compact label for task due hints and event rows. */
-export function formatShortDate(ts: number | Date): string {
-  const d = typeof ts === 'number' ? new Date(ts) : ts
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export function formatTime(ts: number | Date): string {
   return timeFmt.format(typeof ts === 'number' ? new Date(ts) : ts)
 }
@@ -83,19 +77,6 @@ export function addDays(ts: number | Date, days: number): Date {
 export function clampDay(year: number, month: number, day: number): number {
   const daysInMonth = new Date(year, month, 0).getDate()
   return Math.min(Math.max(1, day), daysInMonth)
-}
-
-/** Value for <input type="date"> */
-export function toDateInput(ts: number | null): string {
-  if (ts == null) return ''
-  return toDateKey(ts)
-}
-
-export function fromDateInput(value: string): number | null {
-  if (!value) return null
-  const [y, m, d] = value.split('-').map(Number)
-  if (!y || !m || !d) return null
-  return new Date(y, m - 1, d, 12, 0, 0, 0).getTime()
 }
 
 export const MONTHS = [

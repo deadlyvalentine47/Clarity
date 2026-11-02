@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Flag,
   Home,
-  ListTodo,
   Menu,
   Settings,
   StickyNote,
@@ -16,7 +15,6 @@ import { IconButton } from './ui'
 
 export const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
-  { to: '/tasks', label: 'Tasks', icon: ListTodo },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/budget', label: 'Budget', icon: Wallet },
   { to: '/habits', label: 'Habits', icon: Activity },

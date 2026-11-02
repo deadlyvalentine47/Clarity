@@ -151,7 +151,6 @@ function complete() {
     }
     emit()
     void db.pomodoroSessions.add({
-      taskId: null,
       duration,
       type: 'Focus',
       completedAt: Date.now(),

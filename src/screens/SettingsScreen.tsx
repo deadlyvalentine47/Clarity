@@ -350,7 +350,7 @@ export default function SettingsScreen() {
               </div>
               <div className="grow">
                 <div className="bold" style={{ color: 'var(--error)' }}>Clear data</div>
-                <div className="small muted">Delete tasks, notes, habits and money data — your name and theme stay</div>
+                <div className="small muted">Delete notes, habits, events and money data — your name and theme stay</div>
               </div>
             </button>
           </div>
@@ -364,7 +364,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         open={pendingImport != null}
         title="Import backup?"
-        message="Importing replaces every task, note, habit and transaction currently stored on this device. This cannot be undone — export first if you want to keep the current data."
+        message="Importing replaces every note, habit, event and transaction currently stored on this device. This cannot be undone — export first if you want to keep the current data."
         confirmLabel="Import"
         onConfirm={() => {
           const file = pendingImport
@@ -380,7 +380,7 @@ export default function SettingsScreen() {
         message={
           clearing
             ? 'Clearing…'
-            : 'This deletes every task, note, habit, transaction, goal and event. Your name, theme and home layout are kept. This cannot be undone.'
+            : 'This deletes every note, habit, transaction, goal and event. Your name, theme and home layout are kept. This cannot be undone.'
         }
         confirmLabel={clearing ? 'Clearing…' : 'Clear data'}
         onConfirm={() => void doClearData()}

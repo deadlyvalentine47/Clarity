@@ -7,7 +7,6 @@ import { clearHabitsIfDue, startHabitMonthlyCleanup } from './db/housekeeping'
 import { exitApp, registerBackButton, requestStartupPermissions } from './lib/native'
 import OnboardingScreen from './screens/OnboardingScreen'
 import HomeScreen from './screens/HomeScreen'
-import TasksScreen from './screens/TasksScreen'
 import CalendarScreen from './screens/CalendarScreen'
 import BudgetScreen from './screens/BudgetScreen'
 import AccountsScreen from './screens/budget/AccountsScreen'
@@ -86,7 +85,6 @@ export default function App() {
       <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomeScreen />} />
-        <Route path="tasks" element={<TasksScreen />} />
         <Route path="calendar" element={<CalendarScreen />} />
 
         <Route path="budget" element={<BudgetScreen />} />

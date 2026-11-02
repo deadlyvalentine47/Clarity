@@ -19,7 +19,7 @@ function lastMonthEnd(now: Date): { at: Date; monthKey: string } {
 
 /**
  * Delete every habit once a month has ended (last day, 23:30 local time).
- * Only the `habits` table is touched — tasks, notes, money data and journals
+ * Only the `habits` table is touched — events, notes, money data and journals
  * are left alone.
  *
  * Runs on launch and on a minute timer, so an app that was closed at the

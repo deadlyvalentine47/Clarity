@@ -36,17 +36,6 @@ const seeded = await page.evaluate(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
   const now = Date.now()
   const day = 86_400_000
-  await db.tasks.bulkAdd([
-    { title: 'Ship the web port', description: 'Parity with Android app', priority: 'High', category: 'Work', tags: [], dueDate: now + 3600_000, reminderTime: null, isCompleted: false, isRecurring: false, recurringType: null, createdAt: now, updatedAt: now },
-    { title: 'Buy groceries', description: '', priority: 'Medium', category: 'Home', tags: [], dueDate: now + day, reminderTime: null, isCompleted: false, isRecurring: true, recurringType: 'Weekly', createdAt: now, updatedAt: now },
-    { title: 'Read 20 pages', description: '', priority: 'Low', category: 'Personal', tags: [], dueDate: now - day, reminderTime: null, isCompleted: false, isRecurring: false, recurringType: null, createdAt: now, updatedAt: now },
-    { title: 'Water plants', description: '', priority: 'Low', category: 'Home', tags: [], dueDate: now - 3600_000, reminderTime: null, isCompleted: true, isRecurring: false, recurringType: null, createdAt: now, updatedAt: now },
-  ])
-  const tasks = await db.tasks.toArray()
-  await db.subtasks.bulkAdd([
-    { taskId: tasks[0].id, title: 'Data layer', isCompleted: true, createdAt: now },
-    { taskId: tasks[0].id, title: 'Screens', isCompleted: false, createdAt: now },
-  ])
   const todayKey = new Date().toISOString().slice(0, 10)
   const habitId = await db.habits.add({
     name: 'Drink water', description: '8 glasses', frequency: 'Daily', alternateDays: null, selectedDays: null,
@@ -91,15 +80,15 @@ const seeded = await page.evaluate(async () => {
     { title: 'Launch side project', description: '', type: 'Short-term', progress: 1, targetDate: null, milestones: [], completedMilestones: [], isCompleted: true, createdAt: now },
   ])
   await db.events.bulkAdd([
-    { title: 'Team sync', description: 'Weekly standup', startDate: now + 3600_000, endDate: now + 7200_000, category: 'Work', color: '#4A90D9', isAllDay: false, reminderTime: null, createdAt: now },
-    { title: 'Dentist', description: '', startDate: now + day + 3600_000, endDate: now + day + 7200_000, category: 'Health', color: '#7B61FF', isAllDay: false, reminderTime: null, createdAt: now },
+    { title: 'Team sync', description: 'Weekly standup', startDate: now + 3600_000, endDate: now + 7200_000, category: 'Work', color: '#4A90D9', isAllDay: false, reminderTime: null, priority: 'High', dueDate: null, frequency: 'Weekly', alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
+    { title: 'Dentist', description: '', startDate: now + day + 3600_000, endDate: now + day + 7200_000, category: 'Health', color: '#7B61FF', isAllDay: false, reminderTime: null, priority: null, dueDate: now + day + 3600_000, frequency: null, alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
   ])
   const sid = await db.pomodoroFocusSessions.add({ title: 'Deep work', focusDurationMinutes: 25, breakDurationMinutes: 5, sessionCount: 2, totalFocusMinutes: 50, distractions: 'Phone - 10:15', createdAt: now, updatedAt: now })
   await db.pomodoroSessions.bulkAdd([
-    { taskId: null, duration: 25, type: 'Focus', completedAt: now, distractions: [] },
-    { taskId: null, duration: 25, type: 'Focus', completedAt: now - day, distractions: [] },
+    { duration: 25, type: 'Focus', completedAt: now, distractions: [] },
+    { duration: 25, type: 'Focus', completedAt: now - day, distractions: [] },
   ])
-  return { sid, taskCount: tasks.length, habitId, noteId: notes[0].id, cardId, todayKey }
+  return { sid, habitId, noteId: notes[0].id, cardId, todayKey }
 })
 console.log('seeded', seeded)
 
@@ -116,7 +105,6 @@ await page.evaluate(() => {
 
 const routes = [
   ['home', '/'],
-  ['tasks', '/tasks'],
   ['calendar', '/calendar'],
   ['budget-hub', '/budget'],
   ['budget-accounts', '/budget/accounts'],
@@ -125,6 +113,7 @@ const routes = [
   ['budget-card-detail', `/budget/cards/${seeded.cardId}`],
   ['budget-investments', '/budget/investments'],
   ['budget-metrics', '/budget/metrics'],
+  ['budget-activity', '/budget/activity'],
   ['habits', '/habits'],
   ['habit-detail', `/habits/${seeded.habitId}`],
   ['habit-metrics', '/habits/metrics'],

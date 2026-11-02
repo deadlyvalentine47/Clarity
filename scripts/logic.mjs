@@ -12,27 +12,113 @@ await page.goto('http://localhost:5173/', { waitUntil: 'networkidle2' })
 
 const result = await page.evaluate(async () => {
   const { db } = await import('/src/db/db.ts')
-  const { toggleTaskCompletion, newTask } = await import('/src/db/tasks.ts')
   const { toggleHabitForDate, computeStreak } = await import('/src/db/habits.ts')
+  const {
+    eventOccurrence,
+    eventStatus,
+    eventFrequencyLabel,
+    hasOverdueOccurrence,
+    isEventScheduledOn,
+    toggleEventCompletion,
+  } = await import('/src/db/events.ts')
   const { billingCycle, payCardBill, deleteCardCascade, renameSource } = await import('/src/db/budget.ts')
-  const { moveNote, flattenTree } = await import('/src/db/notes.ts')
+  const { moveNote } = await import('/src/db/notes.ts')
   const { exportData, importData } = await import('/src/lib/exportImport.ts')
   const { loadPreferences } = await import('/src/lib/prefs.ts')
 
   await Promise.all([
-    db.tasks.clear(), db.subtasks.clear(), db.habits.clear(), db.notes.clear(),
-    db.transactions.clear(), db.goals.clear(), db.events.clear(),
+    db.habits.clear(), db.notes.clear(), db.transactions.clear(),
+    db.goals.clear(), db.events.clear(),
   ])
 
-  // Recurring task: completing it should create the next occurrence.
-  const due = new Date(2026, 0, 10, 12).getTime()
-  const id = await db.tasks.add(newTask({ title: 'Daily standup', dueDate: due, isRecurring: true, recurringType: 'Daily' }))
-  await toggleTaskCompletion(id, true)
-  const tasks = await db.tasks.toArray()
-  const spawned = tasks.find((t) => !t.isCompleted)
-  const nextDate = spawned?.dueDate ? new Date(spawned.dueDate) : null
+  // --- Events: recurrence, due state and completion -----------------------
+  const day = (offset, hour = 9) => {
+    const d = new Date()
+    d.setHours(hour, 0, 0, 0)
+    d.setDate(d.getDate() + offset)
+    return d
+  }
+  const eventBase = {
+    description: '', category: '', color: '#4A90D9', isAllDay: false,
+    reminderTime: null, priority: null, dueDate: null, alternateDays: null,
+    selectedDays: null, completionHistory: {}, createdAt: Date.now(),
+  }
+  const addEvent = (extra) =>
+    db.events.add({
+      ...eventBase,
+      title: 'Event',
+      startDate: day(0).getTime(),
+      endDate: day(0, 10).getTime(),
+      frequency: null,
+      ...extra,
+    })
 
-  // Habit streak: today + yesterday + day before = 3.
+  const dailyId = await addEvent({ title: 'Daily', frequency: 'Daily' })
+  const weeklyId = await addEvent({ title: 'Weekly', frequency: 'Weekly' })
+  const alternateId = await addEvent({ title: 'Alternate', frequency: 'Alternate', alternateDays: 1 })
+  const customId = await addEvent({ title: 'Custom', frequency: 'Custom', selectedDays: [1, 3, 5] })
+  const monthly31Id = await db.events.add({
+    ...eventBase,
+    title: 'Monthly 31',
+    startDate: new Date(2026, 0, 31, 9).getTime(),
+    endDate: new Date(2026, 0, 31, 10).getTime(),
+    frequency: 'Monthly',
+  })
+
+  const daily = await db.events.get(dailyId)
+  const weekly = await db.events.get(weeklyId)
+  const alternate = await db.events.get(alternateId)
+  const custom = await db.events.get(customId)
+  const monthly31 = await db.events.get(monthly31Id)
+
+  const nextWeekday = (iso) => {
+    const d = new Date()
+    d.setHours(12, 0, 0, 0)
+    while ((d.getDay() === 0 ? 7 : d.getDay()) !== iso) d.setDate(d.getDate() + 1)
+    return d
+  }
+
+  const recurrence = {
+    dailyToday: isEventScheduledOn(daily, day(0)),
+    dailyTomorrow: isEventScheduledOn(daily, day(1)),
+    dailyBeforeStart: isEventScheduledOn(daily, day(-1)),
+    weeklyToday: isEventScheduledOn(weekly, day(0)),
+    weeklyTomorrow: isEventScheduledOn(weekly, day(1)),
+    weeklyNextWeek: isEventScheduledOn(weekly, day(7)),
+    monthlyClampedFeb28: isEventScheduledOn(monthly31, new Date(2026, 1, 28, 12)),
+    monthlyFeb27: isEventScheduledOn(monthly31, new Date(2026, 1, 27, 12)),
+    alternateEveryTwoDays: isEventScheduledOn(alternate, day(2)),
+    alternateSkipsOdd: isEventScheduledOn(alternate, day(1)),
+    customMonday: isEventScheduledOn(custom, nextWeekday(1)),
+    customTuesday: isEventScheduledOn(custom, nextWeekday(2)),
+    label: eventFrequencyLabel(weekly),
+  }
+
+  const dueStatus = eventStatus(daily, day(0))
+  await toggleEventCompletion(dailyId, day(0), true)
+  const doneStatus = eventStatus(await db.events.get(dailyId), day(0))
+  await toggleEventCompletion(dailyId, day(0), false)
+  const clearedStatus = eventStatus(await db.events.get(dailyId), day(0))
+
+  const pastId = await addEvent({
+    title: 'Past one-off',
+    startDate: day(-2).getTime(),
+    endDate: day(-2, 10).getTime(),
+    dueDate: day(-2).getTime(),
+  })
+  const past = await db.events.get(pastId)
+  const occurrence = eventOccurrence(await db.events.get(dailyId), day(0))
+  const status = {
+    dueStatus,
+    doneStatus,
+    clearedStatus,
+    pastStatus: eventStatus(past, day(-2)),
+    pastOverdueFlag: hasOverdueOccurrence(past),
+    occurrenceStartHour: new Date(occurrence.start).getHours(),
+    occurrenceKeyIsToday: occurrence.key === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
+  }
+
+  // --- Habit streak -------------------------------------------------------
   const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const now = new Date()
   const y = new Date(now); y.setDate(y.getDate() - 1)
@@ -49,7 +135,7 @@ const result = await page.evaluate(async () => {
   await toggleHabitForDate(hid, key(now), false)
   const afterUncheck = await db.habits.get(hid)
 
-  // Billing cycle clamps day 31 in February and labels the previous window.
+  // --- Billing cycle ------------------------------------------------------
   const feb = billingCycle(2026, 2, 31)
   const febStart = new Date(feb.start)
   const febEnd = new Date(feb.end)
@@ -62,8 +148,7 @@ const result = await page.evaluate(async () => {
     endLabel: feb.endLabel,
   }
 
-  // Two cards, each with a bill paid from the same account. Deleting one card
-  // must leave the other card's bank link untouched.
+  // --- Card cascade -------------------------------------------------------
   const cardA = await db.creditCards.add({ name: 'Card A', creditLimit: 10000, billingCycleDay: 5, createdAt: Date.now() })
   const cardB = await db.creditCards.add({ name: 'Card B', creditLimit: 20000, billingCycleDay: 20, createdAt: Date.now() })
   await db.sources.put({ id: 900, name: 'Logic Bank', balance: 5000, isDefault: false, createdAt: Date.now() })
@@ -75,13 +160,12 @@ const result = await page.evaluate(async () => {
   const bankBalance = (await db.sources.get(900)).balance
   const cascade = {
     cardAStillThere: !!(await db.creditCards.get(cardA)),
-    cardATxnsLeft: (await db.creditCardTransactions.where('cardId').equals(cardA).count()),
+    cardATxnsLeft: await db.creditCardTransactions.where('cardId').equals(cardA).count(),
     cardBLinkIntact: bBank?.linkedCardTxnId === bTxns[0].id,
     bankBalance,
   }
 
-  // Note tree: moving a parent inside its own child must throw, and reorder
-  // must renumber siblings.
+  // --- Notes --------------------------------------------------------------
   const root = await db.notes.add({ title: 'Root', content: '', isPinned: false, category: '', parentNoteId: null, sortOrder: 10, createdAt: Date.now(), updatedAt: Date.now() })
   const childId = await db.notes.add({ title: 'Child', content: '', isPinned: false, category: '', parentNoteId: root, sortOrder: 10, createdAt: Date.now(), updatedAt: Date.now() })
   let cycleBlocked = false
@@ -99,30 +183,42 @@ const result = await page.evaluate(async () => {
     ordersUnique: new Set(topLevel.map((n) => n.sortOrder)).size === topLevel.length,
   }
 
-  // Renaming an account keeps its transactions attached (no name drift).
+  // --- Account rename -----------------------------------------------------
   await renameSource(900, 'Logic Bank Renamed')
   const drift = await db.transactions.where('source').equals('Logic Bank').count()
 
-  // Export -> clear -> import round trip.
-  await db.notes.add({ title: 'Round trip', content: 'body', isPinned: true, category: 'Test', createdAt: Date.now(), updatedAt: Date.now() })
+  // --- Export -> clear -> import round trip -------------------------------
+  const roundTripId = await addEvent({
+    title: 'Round trip event',
+    priority: 'High',
+    dueDate: day(0).getTime(),
+    frequency: 'Weekly',
+  })
+  await toggleEventCompletion(roundTripId, day(0), true)
   const json = await exportData(loadPreferences())
   const parsed = JSON.parse(json)
-  await db.tasks.clear(); await db.habits.clear(); await db.notes.clear()
+  await db.habits.clear(); await db.notes.clear(); await db.events.clear()
   await importData(json)
-  const restoredNotes = await db.notes.toArray()
-  const roundTripNote = restoredNotes.find((n) => n.title === 'Round trip')
-  const restoredTasks = await db.tasks.count()
+  const restoredEvents = await db.events.toArray()
+  const roundTripEvent = restoredEvents.find((e) => e.title === 'Round trip event')
+  const todayKey = key(new Date())
 
   return {
-    recurringSpawned: !!spawned,
-    nextDateIsNextDay: nextDate?.getDate() === 11 && nextDate?.getMonth() === 0,
+    recurrence,
+    status,
+    frequencyLabel: eventFrequencyLabel(weekly),
     streakBefore,
     streakAfterUncheck: afterUncheck.currentStreak,
     bestStreak: afterUncheck.bestStreak,
     exportShape: Object.keys(parsed).sort(),
-    restoredNotes: restoredNotes.length,
-    restoredNotePinned: roundTripNote?.isPinned === true,
-    restoredTasks,
+    exportHasTasks: 'tasks' in parsed || 'subtasks' in parsed,
+    restoredEvent: roundTripEvent
+      ? {
+          priority: roundTripEvent.priority,
+          frequency: roundTripEvent.frequency,
+          completed: roundTripEvent.completionHistory[todayKey] === true,
+        }
+      : null,
     billing,
     cascade,
     notes,

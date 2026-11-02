@@ -1689,36 +1689,7 @@ p {
   color: var(--primary);
 }
 
-.home-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.task-group + .task-group {
-  margin-top: 8px;
-}
-
-.task-group-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  margin-bottom: 2px;
-}
-
-.home-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-}
-
-.home-task + .home-task {
-  border-top: 1px solid var(--outline);
-}
-
-.task-check {
+.event-check {
   width: 24px;
   height: 24px;
   flex: 0 0 auto;
@@ -1734,34 +1705,20 @@ p {
   transition: border-color 0.12s, background 0.12s;
 }
 
-.task-check:hover {
+.event-check:hover {
   border-color: var(--primary);
   background: var(--primary-container);
   color: var(--primary);
 }
 
-.task-check:active {
+.event-check:active {
   transform: scale(0.92);
 }
 
-.home-task-body {
-  min-width: 0;
-  flex: 1;
-}
-
-.home-task-title {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.task-more {
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0 2px 34px;
+.event-check.done {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 
 .agenda {
