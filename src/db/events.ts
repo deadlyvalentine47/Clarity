@@ -62,13 +62,17 @@ export function isEventScheduledOn(event: Event, date: Date): boolean {
   }
 }
 
+export function isEventSkipped(event: Event, date: Date): boolean {
+  return event.skippedDates?.[toDateKey(date)] === true
+}
+
 /** Does this event have an occurrence on the given local day? */
 export function eventOccursOn(event: Event, date: Date): boolean {
   if (!event.frequency) {
     // One-off events can span multiple days.
     return event.startDate <= endOfDay(date.getTime()) && event.endDate >= startOfDay(date.getTime())
   }
-  return isEventScheduledOn(event, date)
+  return isEventScheduledOn(event, date) && !isEventSkipped(event, date)
 }
 
 function timeOnDay(template: number, date: Date): number {
@@ -109,11 +113,23 @@ export type EventStatus = 'done' | 'overdue' | 'due' | 'upcoming'
 
 export function eventStatus(event: Event, date: Date, now: Date = new Date()): EventStatus {
   if (event.completionHistory?.[eventCompletionKey(event, date)]) return 'done'
+  if (isEventSkipped(event, date)) return 'upcoming'
   const due = eventDueKey(event, date)
   const today = toDateKey(now)
   if (due < today) return 'overdue'
   if (due === today) return 'due'
   return 'upcoming'
+}
+
+/** Hide a single occurrence without touching the rest of the series. */
+export async function skipEventOccurrence(eventId: number, date: Date): Promise<void> {
+  const event = await db.events.get(eventId)
+  if (!event || !event.frequency) return
+  const key = toDateKey(date)
+  const skippedDates = { ...(event.skippedDates ?? {}), [key]: true }
+  const completionHistory = { ...(event.completionHistory ?? {}) }
+  delete completionHistory[key]
+  await db.events.update(eventId, { skippedDates, completionHistory })
 }
 
 export async function toggleEventCompletion(
@@ -143,6 +159,7 @@ export function hasOverdueOccurrence(event: Event, now: Date = new Date()): bool
     if (toDateKey(day) > yesterdayKey) break
     if (
       isEventScheduledOn(event, day) &&
+      !isEventSkipped(event, day) &&
       event.completionHistory?.[toDateKey(day)] !== true
     ) {
       return true
@@ -163,6 +180,7 @@ export function nextEventOccurrence(event: Event, from: Date): Date | null {
     const day = addDays(from, i)
     if (
       isEventScheduledOn(event, day) &&
+      !isEventSkipped(event, day) &&
       event.completionHistory?.[toDateKey(day)] !== true
     ) {
       return new Date(timeOnDay(event.startDate, day))
@@ -205,6 +223,10 @@ export function eventDefaults(event: Partial<Event>): Event {
     completionHistory:
       event.completionHistory && typeof event.completionHistory === 'object'
         ? event.completionHistory
+        : {},
+    skippedDates:
+      event.skippedDates && typeof event.skippedDates === 'object'
+        ? event.skippedDates
         : {},
     createdAt: Number(event.createdAt ?? Date.now()),
   }

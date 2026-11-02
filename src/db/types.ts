@@ -141,6 +141,8 @@ export interface Event {
   selectedDays: number[] | null
   /** occurrence date key (YYYY-MM-DD) -> completed */
   completionHistory: Record<string, boolean>
+  /** occurrence date key -> deleted individually (recurring events only) */
+  skippedDates: Record<string, boolean>
   createdAt: number
 }
 

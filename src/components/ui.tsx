@@ -213,6 +213,7 @@ export function ConfirmDialog({
   title = 'Delete?',
   message,
   confirmLabel = 'Delete',
+  alternateAction,
   onConfirm,
   onCancel,
 }: {
@@ -220,6 +221,7 @@ export function ConfirmDialog({
   title?: string
   message: string
   confirmLabel?: string
+  alternateAction?: { label: string; onClick: () => void }
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -229,10 +231,15 @@ export function ConfirmDialog({
       onClose={onCancel}
       title={title}
       footer={
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <button className="btn btn-outline" onClick={onCancel}>
             Cancel
           </button>
+          {alternateAction && (
+            <button className="btn btn-outline" onClick={alternateAction.onClick}>
+              {alternateAction.label}
+            </button>
+          )}
           <button className="btn btn-danger" onClick={onConfirm}>
             {confirmLabel}
           </button>

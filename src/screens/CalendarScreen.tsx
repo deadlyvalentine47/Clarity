@@ -20,6 +20,7 @@ import {
   eventOccursOn,
   eventOccurrence,
   eventStatus,
+  skipEventOccurrence,
   toggleEventCompletion,
 } from '../db/events'
 import { MONTHS, formatTime, fromDateKey, toDateKey } from '../lib/dates'
@@ -248,6 +249,7 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
   const occurrence = eventOccurrence(event, date)
   const status = eventStatus(event, date)
   const done = status === 'done'
+  const occurrenceLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   return (
     <div className="card" style={{ padding: 14, opacity: done ? 0.72 : 1 }}>
@@ -299,9 +301,23 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
       <ConfirmDialog
         open={confirm}
         title="Delete Event"
-        message={`Are you sure you want to delete "${event.title}"?${
-          event.frequency ? ' This removes every occurrence.' : ''
-        }`}
+        message={
+          event.frequency
+            ? `Delete "${event.title}" on ${occurrenceLabel} only, or the entire series?`
+            : `Are you sure you want to delete "${event.title}"?`
+        }
+        confirmLabel={event.frequency ? 'Delete series' : 'Delete'}
+        alternateAction={
+          event.frequency
+            ? {
+                label: `Delete ${occurrenceLabel}`,
+                onClick: () => {
+                  if (event.id != null) void skipEventOccurrence(event.id, date)
+                  setConfirm(false)
+                },
+              }
+            : undefined
+        }
         onCancel={() => setConfirm(false)}
         onConfirm={() => {
           if (event.id != null) void db.events.delete(event.id)
@@ -384,6 +400,7 @@ export function EventDialog({
         color: '#4A90D9',
         isAllDay: false,
         reminderTime: null,
+        skippedDates: {},
         createdAt: Date.now(),
       })
     }

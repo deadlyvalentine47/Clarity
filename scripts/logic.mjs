@@ -14,13 +14,17 @@ const result = await page.evaluate(async () => {
   const { db } = await import('/src/db/db.ts')
   const { toggleHabitForDate, computeStreak } = await import('/src/db/habits.ts')
   const {
+    eventOccursOn,
     eventOccurrence,
     eventStatus,
     eventFrequencyLabel,
     hasOverdueOccurrence,
     isEventScheduledOn,
+    nextEventOccurrence,
+    skipEventOccurrence,
     toggleEventCompletion,
   } = await import('/src/db/events.ts')
+  const { toDateKey } = await import('/src/lib/dates.ts')
   const { billingCycle, payCardBill, deleteCardCascade, renameSource } = await import('/src/db/budget.ts')
   const { moveNote } = await import('/src/db/notes.ts')
   const { exportData, importData } = await import('/src/lib/exportImport.ts')
@@ -41,7 +45,7 @@ const result = await page.evaluate(async () => {
   const eventBase = {
     description: '', category: '', color: '#4A90D9', isAllDay: false,
     reminderTime: null, priority: null, dueDate: null, alternateDays: null,
-    selectedDays: null, completionHistory: {}, createdAt: Date.now(),
+    selectedDays: null, completionHistory: {}, skippedDates: {}, createdAt: Date.now(),
   }
   const addEvent = (extra) =>
     db.events.add({
@@ -99,6 +103,15 @@ const result = await page.evaluate(async () => {
   const doneStatus = eventStatus(await db.events.get(dailyId), day(0))
   await toggleEventCompletion(dailyId, day(0), false)
   const clearedStatus = eventStatus(await db.events.get(dailyId), day(0))
+
+  await skipEventOccurrence(dailyId, day(0))
+  const skippedEvent = await db.events.get(dailyId)
+  const skipChecks = {
+    hiddenToday: !eventOccursOn(skippedEvent, day(0)),
+    visibleTomorrow: eventOccursOn(skippedEvent, day(1)),
+    skippedKey: skippedEvent.skippedDates?.[toDateKey(day(0))] === true,
+    nextIsTomorrow: toDateKey(nextEventOccurrence(skippedEvent, new Date())) === toDateKey(day(1)),
+  }
 
   const pastId = await addEvent({
     title: 'Past one-off',
@@ -206,6 +219,7 @@ const result = await page.evaluate(async () => {
   return {
     recurrence,
     status,
+    skipChecks,
     frequencyLabel: eventFrequencyLabel(weekly),
     streakBefore,
     streakAfterUncheck: afterUncheck.currentStreak,
