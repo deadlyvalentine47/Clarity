@@ -114,6 +114,7 @@ const routes = [
   ['budget-investments', '/budget/investments'],
   ['budget-metrics', '/budget/metrics'],
   ['budget-activity', '/budget/activity'],
+  ['budget-transactions', '/budget/transactions'],
   ['habits', '/habits'],
   ['habit-detail', `/habits/${seeded.habitId}`],
   ['habit-metrics', '/habits/metrics'],

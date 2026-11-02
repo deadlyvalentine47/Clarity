@@ -16,6 +16,7 @@ import CreditCardDetailScreen from './screens/budget/CreditCardDetailScreen'
 import InvestmentsScreen from './screens/budget/InvestmentsScreen'
 import BudgetMetricsScreen from './screens/budget/MetricsScreen'
 import ActivityScreen from './screens/budget/ActivityScreen'
+import AllTransactionsScreen from './screens/budget/AllTransactionsScreen'
 import HabitsScreen from './screens/HabitsScreen'
 import HabitDetailScreen from './screens/HabitDetailScreen'
 import HabitMetricsScreen from './screens/HabitMetricsScreen'
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="budget/investments" element={<InvestmentsScreen />} />
         <Route path="budget/metrics" element={<BudgetMetricsScreen />} />
         <Route path="budget/activity" element={<ActivityScreen />} />
+        <Route path="budget/transactions" element={<AllTransactionsScreen />} />
 
         <Route path="habits" element={<HabitsScreen />} />
         <Route path="habits/metrics" element={<HabitMetricsScreen />} />
