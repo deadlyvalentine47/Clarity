@@ -1,0 +1,121 @@
+name: iOS IPA
+
+# Same gate as the Android workflow: a pull request targeting master, or a
+# manual run. The build job stops at the `ios-build` environment and waits for
+# a reviewer, so pushing commits never burns macOS minutes: the newest commit
+# cancels the pending run and queues a fresh one awaiting approval.
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Least privilege by default. Only the publish job elevates to write.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: macos-latest
+    if: ${{ github.event.pull_request.draft != true }}
+    environment: ios-build
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Copy assets into the iOS project
+        run: npx cap sync ios
+
+      # No Apple Developer account is assumed: build the device app without
+      # code signing. The .ipa can be re-signed by AltStore/Sideloadly with the
+      # user's own Apple ID, or by a developer team with a provisioning profile.
+      - name: Build unsigned app
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP="ios/App/build/Build/Products/Release-iphoneos/App.app"
+          test -d "$APP"
+          rm -rf out
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out
+          zip -qry clarity-unsigned.ipa Payload
+          ls -lh clarity-unsigned.ipa
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clarity-ipa
+          path: out/clarity-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    # Fork PRs only get a read-only token; don't run the publish job for them.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clarity-ipa
+          path: out
+
+      - name: Publish IPA to the latest release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IPA=$(basename "$(ls out/*.ipa | head -1)")
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/ipa-latest/$IPA"
+
+          gh release view ipa-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create ipa-latest --repo "$GITHUB_REPOSITORY" \
+              --title "Clarity iOS IPA (latest build)" \
+              --notes "Unsigned iOS build. Install with AltStore, Sideloadly or Xcode using your own Apple ID; iOS will not install it by tapping the file." \
+              --prerelease
+          gh release upload ipa-latest out/*.ipa --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit ipa-latest --repo "$GITHUB_REPOSITORY" \
+            --notes "Unsigned iOS build from commit $GITHUB_SHA on $(date -u +%Y-%m-%d\ %H:%M) UTC by workflow run $GITHUB_RUN_ID.
+
+          Install with AltStore, Sideloadly or Xcode using your own Apple ID; iOS will not install it by tapping the file.
+
+          Direct download: $URL"
+
+          {
+            echo "### iOS IPA ready (unsigned)"
+            echo
+            echo "[$IPA]($URL)"
+            echo
+            echo "Re-sign with AltStore/Sideloadly or a developer team profile before installing."
+          } >> "$GITHUB_STEP_SUMMARY"
