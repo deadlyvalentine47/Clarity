@@ -103,6 +103,38 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className="textarea" {...props} />
 }
 
+/** Textarea that grows with its content until `maxHeight`, then scrolls. */
+export function AutoGrowTextArea({
+  value,
+  style,
+  maxHeight = '55vh',
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { maxHeight?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const resize = () => {
+      const el = ref.current
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [value])
+
+  return (
+    <textarea
+      ref={ref}
+      className="textarea"
+      value={value}
+      style={{ ...style, maxHeight }}
+      {...rest}
+    />
+  )
+}
+
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className="select" {...props} />
 }
