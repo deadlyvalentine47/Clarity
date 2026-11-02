@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Activity, ChevronDown, ChevronUp } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import { db } from '../db/db'
-import type { Habit } from '../db/types'
+import type { Habit, HabitGroup } from '../db/types'
 import {
   completeHabitLate,
   habitFrequencyLabel,
@@ -13,7 +13,7 @@ import {
   toggleHabitForDate,
   updateHabitDailyNote,
 } from '../db/habits'
-import { buildTopLevelRows } from '../db/habitGroups'
+import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
 import { EmptyState, PageHeader, TextArea } from '../components/ui'
 
@@ -77,6 +77,35 @@ export default function HabitDayScreen() {
     />
   )
 
+  const groupDay = (group: HabitGroup, list: Habit[]) => {
+    const collapsed = group.isCollapsed !== false
+    const doneCount = list.filter(
+      (h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late',
+    ).length
+    return (
+      <div key={`group-${group.id}`} className="stack" style={{ gap: 8 }}>
+        <button
+          className="habit-group-toggle"
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+          onClick={() => void setHabitGroupCollapsed(group.id!, !collapsed)}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${group.name}`}
+        >
+          <span className="habit-group-name bold small">
+            <span className="habit-group-chevron">
+              {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+            </span>
+            <span className="truncate">{group.name}</span>
+          </span>
+          <span className="tiny muted nowrap">{doneCount}/{list.length} done</span>
+        </button>
+        {!collapsed && (
+          <div className="metric-group-items">{list.map((habit) => dayRow(habit))}</div>
+        )}
+      </div>
+    )
+  }
+
   const saveJournal = async () => {
     await db.dayJournals.put({ date: key, content: journalText.trim(), updatedAt: Date.now() })
     setJournalSaved(true)
@@ -128,20 +157,7 @@ export default function HabitDayScreen() {
               <div className="section-label" style={{ marginBottom: 8 }}>Habits</div>
               <div className="stack" style={{ gap: 10, marginBottom: 16 }}>
                 {activeRows.map((row) =>
-                  row.kind === 'group' ? (
-                    <div key={`group-${row.group.id}`} className="stack" style={{ gap: 8 }}>
-                      <div className="row-between">
-                        <span className="bold small truncate">{row.group.name}</span>
-                        <span className="tiny muted nowrap">
-                          {row.habits.filter((h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late').length}
-                          /{row.habits.length} done
-                        </span>
-                      </div>
-                      <div className="metric-group-items">{row.habits.map((habit) => dayRow(habit))}</div>
-                    </div>
-                  ) : (
-                    dayRow(row.habit)
-                  ),
+                  row.kind === 'group' ? groupDay(row.group, row.habits) : dayRow(row.habit),
                 )}
               </div>
             </>

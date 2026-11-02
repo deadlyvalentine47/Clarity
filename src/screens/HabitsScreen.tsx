@@ -44,6 +44,7 @@ import {
   type TopLevelRow,
 } from '../db/habitGroups'
 import { formatDateKey, toDateKey } from '../lib/dates'
+import { useDragAutoScroll } from '../lib/dragAutoScroll'
 import { ConfirmDialog, Dialog, EmptyState, Field, PageHeader, Select, TextArea, TextInput } from '../components/ui'
 
 type Filter = 'Today' | 'All' | 'Archived'
@@ -66,6 +67,8 @@ export default function HabitsScreen() {
   const [dragged, setDragged] = useState<DragItem | null>(null)
   const [habitDrop, setHabitDrop] = useState<{ id: number; pos: DropPos } | null>(null)
   const [groupDrop, setGroupDrop] = useState<{ id: number; pos: DropPos | 'inside' } | null>(null)
+
+  useDragAutoScroll(dragged != null)
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
   const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])

@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
-import { Activity, ChevronDown, ChevronUp } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import { db } from '../db/db'
-import type { Habit } from '../db/types'
+import type { Habit, HabitGroup } from '../db/types'
 import { habitCreatedDate, habitEndDate, habitFrequencyLabel, isScheduledOn } from '../db/habits'
-import { buildTopLevelRows } from '../db/habitGroups'
+import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, toDateKey } from '../lib/dates'
 import { EmptyState, PageHeader } from '../components/ui'
 import { MonthYearPicker } from './budget/shared'
@@ -202,13 +202,27 @@ export default function HabitMetricsScreen() {
     )
   }
 
-  const groupHead = (name: string, list: Habit[]) => {
+  const isCollapsed = (group: HabitGroup) => group.isCollapsed !== false
+
+  const groupHead = (group: HabitGroup, list: Habit[]) => {
     const totals = groupTotals(list)
+    const collapsed = isCollapsed(group)
     return (
-      <div className="metric-group-head">
-        <div style={{ minWidth: 0 }}>
-          <div className="bold truncate">{name}</div>
-          <div className="tiny muted">{list.length} {list.length === 1 ? 'habit' : 'habits'}</div>
+      <button
+        className="metric-group-head"
+        style={{ width: '100%', padding: 0, border: 'none', background: 'none', color: 'inherit', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+        onClick={() => void setHabitGroupCollapsed(group.id!, !collapsed)}
+        aria-expanded={!collapsed}
+        aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${group.name}`}
+      >
+        <div style={{ minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+          <span className="habit-group-chevron" style={{ marginTop: 2 }}>
+            {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div className="bold truncate">{group.name}</div>
+            <div className="tiny muted">{list.length} {list.length === 1 ? 'habit' : 'habits'}</div>
+          </div>
         </div>
         <div className="align-end">
           <div className="bold">{totals.completed}/{totals.scheduled}</div>
@@ -216,7 +230,7 @@ export default function HabitMetricsScreen() {
             {Math.round(totals.pct * 100)}%
           </div>
         </div>
-      </div>
+      </button>
     )
   }
 
@@ -322,10 +336,12 @@ export default function HabitMetricsScreen() {
             {rows.map((row) =>
               row.kind === 'group' ? (
                 <div key={`group-${row.group.id}`} className="card" style={{ padding: 14 }}>
-                  {groupHead(row.group.name, row.habits)}
-                  <div className="metric-group-items">
-                    {row.habits.map((habit) => summaryCard(habit))}
-                  </div>
+                  {groupHead(row.group, row.habits)}
+                  {!isCollapsed(row.group) && (
+                    <div className="metric-group-items">
+                      {row.habits.map((habit) => summaryCard(habit))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 summaryCard(row.habit)
@@ -338,8 +354,10 @@ export default function HabitMetricsScreen() {
           {rows.map((row) =>
             row.kind === 'group' ? (
               <div key={`group-${row.group.id}`} className="stack" style={{ gap: 8 }}>
-                <div className="card" style={{ padding: 12 }}>{groupHead(row.group.name, row.habits)}</div>
-                <div className="metric-group-items">{row.habits.map((habit) => habitRow(habit))}</div>
+                <div className="card" style={{ padding: 12 }}>{groupHead(row.group, row.habits)}</div>
+                {!isCollapsed(row.group) && (
+                  <div className="metric-group-items">{row.habits.map((habit) => habitRow(habit))}</div>
+                )}
               </div>
             ) : (
               habitRow(row.habit)

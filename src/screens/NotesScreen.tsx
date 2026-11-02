@@ -27,6 +27,7 @@ import {
   sortNotes,
 } from '../db/notes'
 import { formatDate } from '../lib/dates'
+import { useDragAutoScroll } from '../lib/dragAutoScroll'
 import MarkdownPreview from '../components/MarkdownPreview'
 import {
   Checkbox,
@@ -54,6 +55,8 @@ export default function NotesScreen() {
   const [dragged, setDragged] = useState<number | null>(null)
   const [hover, setHover] = useState<{ id: number; zone: DropZone } | null>(null)
   const [error, setError] = useState('')
+
+  useDragAutoScroll(dragged != null)
 
   const notes = useLiveQuery(async () => db.notes.toArray(), [], [])
   const categories = useLiveQuery(async () => db.noteCategories.toArray().then((c) => c.sort((a, b) => a.name.localeCompare(b.name))), [], [])
