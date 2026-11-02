@@ -46,7 +46,7 @@ export default function MarkdownPreview({ content }: { content: string }) {
   const lines = content.split('\n')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1.6 }}>
+    <div className="markdown-body" style={{ display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1.6 }}>
       {lines.map((line, i) => {
         const image = line.trim().match(/^!\[img:([a-fA-F0-9-]+)\]$/)
         if (image) return <NoteImage key={i} id={image[1]} />
