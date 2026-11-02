@@ -6,10 +6,6 @@ name: iOS IPA
 # cancels the pending run and queues a fresh one awaiting approval.
 
 on:
-  # While the iOS port is developed on its own branch, build every push to it.
-  # Remove this trigger once the branch is merged.
-  push:
-    branches: [ios-port]
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review]
