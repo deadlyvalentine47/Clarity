@@ -18,9 +18,8 @@ function lastMonthEnd(now: Date): { at: Date; monthKey: string } {
 }
 
 /**
- * Delete every habit once a month has ended (last day, 23:30 local time).
- * Only the `habits` table is touched — events, notes, money data and journals
- * are left alone.
+ * Delete every habit (and its now-empty groups) once a month has ended (last
+ * day, 23:30 local time). Events, notes, money data and journals are left alone.
  *
  * Runs on launch and on a minute timer, so an app that was closed at the
  * boundary catches up the next time it opens instead of leaving stale habits
@@ -43,7 +42,10 @@ export async function clearHabitsIfDue(now: Date = new Date()): Promise<boolean>
   localStorage.setItem(MARKER_KEY, monthKey)
   if (count === 0) return false
 
-  await db.habits.clear()
+  await db.transaction('rw', db.habits, db.habitGroups, async () => {
+    await db.habits.clear()
+    await db.habitGroups.clear()
+  })
   return true
 }
 

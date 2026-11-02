@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -7,6 +7,9 @@ import {
   ArchiveRestore,
   BarChart3,
   Check,
+  ChevronDown,
+  ChevronRight,
+  FolderPlus,
   GripVertical,
   Pencil,
   Plus,
@@ -14,28 +17,40 @@ import {
   Trash2,
 } from 'lucide-react'
 import { db } from '../db/db'
-import type { Habit, HabitFrequency } from '../db/types'
+import type { Habit, HabitFrequency, HabitGroup } from '../db/types'
 import {
   HABIT_FREQUENCIES,
   WEEKDAY_NAMES,
   archiveHabit,
-  compareHabits,
   computeBestStreak,
   computeStreak,
   habitFrequencyLabel,
   isDeadlinePassedToday,
   isScheduledOn,
   latestMissed,
-  moveHabit,
   softDeleteHabit,
   toggleHabitForDate,
   unarchiveHabit,
 } from '../db/habits'
+import {
+  buildTopLevelRows,
+  createHabitGroup,
+  deleteHabitGroup,
+  moveHabitToGroup,
+  moveTopLevelItem,
+  renameHabitGroup,
+  setHabitGroupCollapsed,
+  type TopItem,
+  type TopLevelRow,
+} from '../db/habitGroups'
 import { formatDateKey, toDateKey } from '../lib/dates'
 import { ConfirmDialog, Dialog, EmptyState, Field, PageHeader, Select, TextArea, TextInput } from '../components/ui'
 
 type Filter = 'Today' | 'All' | 'Archived'
 const FILTERS: Filter[] = ['Today', 'All', 'Archived']
+
+type DragItem = { kind: 'habit'; id: number } | { kind: 'group'; id: number }
+type DropPos = 'above' | 'below'
 
 export default function HabitsScreen() {
   const navigate = useNavigate()
@@ -45,45 +60,119 @@ export default function HabitsScreen() {
   const [editing, setEditing] = useState<Habit | null>(null)
   const [archiving, setArchiving] = useState<Habit | null>(null)
   const [deleting, setDeleting] = useState<Habit | null>(null)
-  const [dragged, setDragged] = useState<number | null>(null)
-  const [dropTarget, setDropTarget] = useState<{ id: number; pos: 'above' | 'below' } | null>(null)
+  const [showGroup, setShowGroup] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<HabitGroup | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState<HabitGroup | null>(null)
+  const [dragged, setDragged] = useState<DragItem | null>(null)
+  const [habitDrop, setHabitDrop] = useState<{ id: number; pos: DropPos } | null>(null)
+  const [groupDrop, setGroupDrop] = useState<{ id: number; pos: DropPos | 'inside' } | null>(null)
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
+  const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
   const today = new Date()
   const todayKey = toDateKey(today)
 
-  const filtered = useMemo(() => {
+  const rows = useMemo<TopLevelRow[]>(() => {
     const q = query.trim().toLowerCase()
-    return (habits ?? [])
+    const visible = (habits ?? [])
       .filter((h) => (filter === 'Archived' ? h.isArchived && !h.isDeleted : !h.isArchived && !h.isDeleted))
-      .filter((h) => !q || h.name.toLowerCase().includes(q) || h.description.toLowerCase().includes(q))
       .filter((h) => filter !== 'Today' || isScheduledOn(h, today))
-      .sort(compareHabits)
-  }, [habits, query, filter, today])
+    if (filter === 'Archived') return buildTopLevelRows(visible, [])
 
-  const drop = (targetId: number, position: 'above' | 'below') => {
-    if (dragged == null || dragged === targetId) {
-      setDragged(null)
-      setDropTarget(null)
+    let groupList = groups ?? []
+    let shown = visible
+    if (q) {
+      const named = new Set(
+        groupList.filter((g) => g.name.toLowerCase().includes(q)).map((g) => g.id),
+      )
+      shown = visible.filter(
+        (h) =>
+          h.name.toLowerCase().includes(q) ||
+          h.description.toLowerCase().includes(q) ||
+          (h.groupId != null && named.has(h.groupId)),
+      )
+      groupList = groupList.filter(
+        (g) => named.has(g.id) || shown.some((h) => h.groupId === g.id),
+      )
+    }
+    return buildTopLevelRows(shown, groupList)
+  }, [habits, groups, query, filter, today])
+
+  const resetDrag = () => {
+    setDragged(null)
+    setHabitDrop(null)
+    setGroupDrop(null)
+  }
+
+  const dropOnHabit = (target: Habit, containerGroupId: number | null, position: DropPos) => {
+    if (!dragged || target.id == null || (dragged.kind === 'habit' && dragged.id === target.id)) {
+      resetDrag()
       return
     }
-    const id = dragged
-    setDragged(null)
-    setDropTarget(null)
-    void moveHabit(id, targetId, position === 'above' ? 'before' : 'after')
+    const pos = position === 'above' ? 'before' : 'after'
+    if (dragged.kind === 'habit') {
+      if (containerGroupId != null) {
+        void moveHabitToGroup(dragged.id, containerGroupId, { targetHabitId: target.id, position: pos })
+      } else {
+        void moveTopLevelItem(dragged, { kind: 'habit', id: target.id }, pos)
+      }
+    } else {
+      const targetItem: TopItem =
+        containerGroupId != null
+          ? { kind: 'group', id: containerGroupId }
+          : { kind: 'habit', id: target.id }
+      void moveTopLevelItem(dragged, targetItem, pos)
+    }
+    resetDrag()
   }
 
-  /** Append the dragged habit to the end of the list. */
-  const dropToEnd = () => {
-    if (dragged == null) return
-    const id = dragged
-    const all = (habits ?? []).slice().sort(compareHabits)
-    const last = all[all.length - 1]
-    setDragged(null)
-    setDropTarget(null)
-    if (!last?.id || last.id === id) return
-    void moveHabit(id, last.id, 'after')
+  const dropOnGroup = (groupId: number, position: DropPos | 'inside') => {
+    if (!dragged) {
+      resetDrag()
+      return
+    }
+    if (dragged.kind === 'habit') {
+      void moveHabitToGroup(dragged.id, groupId, { position: 'end' })
+      // Show the habit landing so the drop has visible feedback.
+      void setHabitGroupCollapsed(groupId, false)
+    } else {
+      void moveTopLevelItem(
+        dragged,
+        { kind: 'group', id: groupId },
+        position === 'above' ? 'before' : 'after',
+      )
+    }
+    resetDrag()
   }
+
+  const dropToEnd = () => {
+    if (!dragged) return
+    void moveTopLevelItem(dragged, null)
+    resetDrag()
+  }
+
+  const habitCardProps = (habit: Habit, containerGroupId: number | null) => ({
+    habit,
+    todayKey,
+    onOpen: () => navigate(`/habits/${habit.id}`),
+    onEdit: () => setEditing(habit),
+    onArchive: () => setArchiving(habit),
+    onUnarchive: () => void unarchiveHabit(habit.id!),
+    onDelete: () => setDeleting(habit),
+    dragging: dragged?.kind === 'habit' && dragged.id === habit.id,
+    dropPos: habitDrop != null && habitDrop.id === habit.id ? habitDrop.pos : null,
+    onDragStart: () => {
+      setDragged({ kind: 'habit', id: habit.id! })
+      setHabitDrop(null)
+      setGroupDrop(null)
+    },
+    onDragEnd: resetDrag,
+    onDragOver: (pos: DropPos) => {
+      setHabitDrop({ id: habit.id!, pos })
+      setGroupDrop(null)
+    },
+    onDrop: (pos: DropPos) => dropOnHabit(habit, containerGroupId, pos),
+  })
 
   return (
     <>
@@ -92,6 +181,9 @@ export default function HabitsScreen() {
         subtitle={today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         actions={
           <>
+            <button className="btn btn-sm btn-outline" onClick={() => setShowGroup(true)}>
+              <FolderPlus size={16} /> Group
+            </button>
             <button className="btn btn-sm btn-outline" onClick={() => navigate('/habits/metrics')}>
               <BarChart3 size={16} /> Metrics
             </button>
@@ -115,7 +207,7 @@ export default function HabitsScreen() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="card">
           <EmptyState
             icon={<Activity size={40} />}
@@ -138,30 +230,58 @@ export default function HabitsScreen() {
         </div>
       ) : (
         <div className="stack">
-          {filtered.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              todayKey={todayKey}
-              onOpen={() => navigate(`/habits/${habit.id}`)}
-              onEdit={() => setEditing(habit)}
-              onArchive={() => setArchiving(habit)}
-              onUnarchive={() => void unarchiveHabit(habit.id!)}
-              onDelete={() => setDeleting(habit)}
-              dragging={dragged === habit.id}
-              dropPos={dropTarget != null && dropTarget.id === habit.id ? dropTarget.pos : null}
-              onDragStart={() => {
-                setDragged(habit.id!)
-                setDropTarget(null)
-              }}
-              onDragEnd={() => {
-                setDragged(null)
-                setDropTarget(null)
-              }}
-              onDragOver={(pos) => setDropTarget({ id: habit.id!, pos })}
-              onDrop={(pos) => drop(habit.id!, pos)}
-            />
-          ))}
+          {rows.map((row) =>
+            row.kind === 'group' ? (
+              <HabitGroupCard
+                key={`group-${row.group.id}`}
+                group={row.group}
+                habits={row.habits}
+                totalHabits={
+                  (habits ?? []).filter(
+                    (h) =>
+                      h.groupId === row.group.id &&
+                      (filter === 'Archived'
+                        ? h.isArchived && !h.isDeleted
+                        : !h.isArchived && !h.isDeleted),
+                  ).length
+                }
+                emptyText={
+                  filter === 'Today'
+                    ? 'No habits scheduled today'
+                    : query.trim()
+                      ? 'No habits match your search'
+                      : 'Drag habits here to add them to this group'
+                }
+                collapsed={row.group.isCollapsed !== false}
+                onToggleCollapse={() =>
+                  void setHabitGroupCollapsed(row.group.id!, row.group.isCollapsed === false)
+                }
+                todayKey={todayKey}
+                dragKind={dragged?.kind ?? null}
+                dragging={dragged?.kind === 'group' && dragged.id === row.group.id}
+                dropPos={groupDrop != null && groupDrop.id === row.group.id ? groupDrop.pos : null}
+                onDragStart={() => {
+                  setDragged({ kind: 'group', id: row.group.id! })
+                  setHabitDrop(null)
+                  setGroupDrop(null)
+                }}
+                onDragEnd={resetDrag}
+                onDragOver={(pos) => {
+                  setGroupDrop({ id: row.group.id!, pos })
+                  setHabitDrop(null)
+                }}
+                onDrop={(pos) => dropOnGroup(row.group.id!, pos)}
+                onEditGroup={() => setEditingGroup(row.group)}
+                onDeleteGroup={() => setDeletingGroup(row.group)}
+              >
+                {row.habits.map((habit) => (
+                  <HabitCard key={habit.id} {...habitCardProps(habit, row.group.id!)} />
+                ))}
+              </HabitGroupCard>
+            ) : (
+              <HabitCard key={row.habit.id} {...habitCardProps(row.habit, null)} />
+            ),
+          )}
           {dragged != null && (
             <div
               className="drop-end"
@@ -174,7 +294,7 @@ export default function HabitsScreen() {
                 dropToEnd()
               }}
             >
-              Move to the end
+              {dragged.kind === 'group' ? 'Move group to the end' : 'Move to the end (outside groups)'}
             </div>
           )}
         </div>
@@ -186,6 +306,8 @@ export default function HabitsScreen() {
 
       {showAdd && <HabitDialog onClose={() => setShowAdd(false)} />}
       {editing && <HabitDialog habit={editing} onClose={() => setEditing(null)} />}
+      {showGroup && <GroupDialog onClose={() => setShowGroup(false)} />}
+      {editingGroup && <GroupDialog group={editingGroup} onClose={() => setEditingGroup(null)} />}
 
       <ConfirmDialog
         open={archiving != null}
@@ -208,7 +330,135 @@ export default function HabitsScreen() {
           setDeleting(null)
         }}
       />
+      <ConfirmDialog
+        open={deletingGroup != null}
+        title="Delete Group"
+        message={`Delete "${deletingGroup?.name}"? Its habits move back to the main list; no habits or history are deleted.`}
+        confirmLabel="Delete group"
+        onCancel={() => setDeletingGroup(null)}
+        onConfirm={async () => {
+          if (deletingGroup?.id != null) await deleteHabitGroup(deletingGroup.id)
+          setDeletingGroup(null)
+        }}
+      />
     </>
+  )
+}
+
+function HabitGroupCard({
+  group,
+  habits,
+  totalHabits,
+  emptyText,
+  collapsed,
+  onToggleCollapse,
+  todayKey,
+  dragKind,
+  dragging,
+  dropPos,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onEditGroup,
+  onDeleteGroup,
+  children,
+}: {
+  group: HabitGroup
+  habits: Habit[]
+  /** every habit in the group, regardless of the active filter/search */
+  totalHabits: number
+  emptyText: string
+  collapsed: boolean
+  onToggleCollapse: () => void
+  todayKey: string
+  dragKind: 'habit' | 'group' | null
+  dragging: boolean
+  dropPos: DropPos | 'inside' | null
+  onDragStart: () => void
+  onDragEnd: () => void
+  onDragOver: (pos: DropPos | 'inside') => void
+  onDrop: (pos: DropPos | 'inside') => void
+  onEditGroup: () => void
+  onDeleteGroup: () => void
+  children: ReactNode
+}) {
+  const done = habits.filter((h) => h.completionHistory[todayKey] === true).length
+
+  const dropPosition = (event: React.DragEvent<HTMLDivElement>): DropPos | 'inside' => {
+    if (dragKind === 'habit') return 'inside'
+    const rect = event.currentTarget.getBoundingClientRect()
+    return event.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
+  }
+
+  return (
+    <div
+      className={`card habit-group ${dragging ? 'dragging' : ''} ${dropPos ? `drop-${dropPos}` : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver(dropPosition(e))
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onDrop(dropPosition(e))
+      }}
+    >
+      <div
+        className="habit-group-head"
+        draggable
+        onDragStart={(e) => {
+          e.stopPropagation()
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', `group:${group.id}`)
+          onDragStart()
+        }}
+        onDragEnd={onDragEnd}
+      >
+        <span className="drag-handle" title="Drag to reorder group" aria-hidden>
+          <GripVertical size={16} />
+        </span>
+        <button
+          className="grow habit-group-toggle"
+          onClick={onToggleCollapse}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${group.name}`}
+        >
+          <span className="habit-group-name bold">
+            <span className="habit-group-chevron">
+              {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+            </span>
+            <span className="truncate">{group.name}</span>
+          </span>
+          <span className="tiny muted">
+            {habits.length < totalHabits ? `${habits.length} of ${totalHabits}` : totalHabits}{' '}
+            {totalHabits === 1 ? 'habit' : 'habits'} · {done} done today
+          </span>
+        </button>
+        <div className="icon-actions">
+          <button className="icon-btn" aria-label="Rename group" onClick={onEditGroup}>
+            <Pencil size={17} />
+          </button>
+          <button className="icon-btn" aria-label="Delete group" onClick={onDeleteGroup}>
+            <Trash2 size={17} color="var(--error)" />
+          </button>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <div className="habit-group-body">
+          {habits.length === 0 ? (
+            <div className="habit-group-empty">
+              {totalHabits === 0 ? 'Drag habits here to add them to this group' : emptyText}
+            </div>
+          ) : (
+            children
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -235,11 +485,11 @@ function HabitCard({
   onUnarchive: () => void
   onDelete: () => void
   dragging: boolean
-  dropPos: 'above' | 'below' | null
+  dropPos: DropPos | null
   onDragStart: () => void
   onDragEnd: () => void
-  onDragOver: (pos: 'above' | 'below') => void
-  onDrop: (pos: 'above' | 'below') => void
+  onDragOver: (pos: DropPos) => void
+  onDrop: (pos: DropPos) => void
 }) {
   const [busy, setBusy] = useState(false)
   const isCompleted = habit.completionHistory[todayKey] === true
@@ -263,19 +513,22 @@ function HabitCard({
       className={`card habit-card ${dragging ? 'dragging' : ''} ${dropPos ? `drop-${dropPos}` : ''}`}
       draggable
       onDragStart={(e) => {
+        e.stopPropagation()
         e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData('text/plain', String(habit.id))
+        e.dataTransfer.setData('text/plain', `habit:${habit.id}`)
         onDragStart()
       }}
       onDragEnd={onDragEnd}
       onDragOver={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
         const rect = e.currentTarget.getBoundingClientRect()
         onDragOver(e.clientY < rect.top + rect.height / 2 ? 'above' : 'below')
       }}
       onDrop={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         // Recompute from the drop event so a quick release can't use a stale
         // hover position.
         const rect = e.currentTarget.getBoundingClientRect()
@@ -342,6 +595,51 @@ function HabitCard({
   )
 }
 
+function GroupDialog({ group, onClose }: { group?: HabitGroup; onClose: () => void }) {
+  const [name, setName] = useState(group?.name ?? '')
+  const valid = name.trim() !== ''
+
+  const save = async () => {
+    if (!valid) return
+    if (group?.id != null) await renameHabitGroup(group.id, name)
+    else await createHabitGroup(name)
+    onClose()
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={group ? 'Rename Group' : 'New Group'}
+      footer={
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={!valid}>
+            {group ? 'Save' : 'Create'}
+          </button>
+        </div>
+      }
+    >
+      <div className="stack">
+        <Field label="Group name *">
+          <TextInput
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning routine"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void save()
+            }}
+          />
+        </Field>
+        <p className="tiny muted">
+          Drag habits onto the group in the list to add them. Groups and habits can be reordered freely.
+        </p>
+      </div>
+    </Dialog>
+  )
+}
+
 export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => void }) {
   const [name, setName] = useState(habit?.name ?? '')
   const [description, setDescription] = useState(habit?.description ?? '')
@@ -351,6 +649,9 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
   const [deadlineEnabled, setDeadlineEnabled] = useState(habit?.deadlineHour != null && habit?.deadlineMinute != null)
   const [deadlineHour, setDeadlineHour] = useState(habit?.deadlineHour != null ? String(habit.deadlineHour) : '21')
   const [deadlineMinute, setDeadlineMinute] = useState(habit?.deadlineMinute != null ? String(habit.deadlineMinute) : '0')
+  const [groupId, setGroupId] = useState<number | null>(habit?.groupId ?? null)
+
+  const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
 
   const alternateValue = Number(alternateDays)
   const hourValue = Number(deadlineHour)
@@ -371,6 +672,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
       selectedDays: frequency === 'Custom' ? [...selectedDays].sort((a, b) => a - b) : null,
       deadlineHour: deadlineEnabled ? hourValue : null,
       deadlineMinute: deadlineEnabled ? minuteValue : null,
+      groupId,
     }
     if (habit?.id != null) {
       const next = { ...habit, ...payload } as Habit
@@ -379,6 +681,10 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
         currentStreak: computeStreak(next),
         bestStreak: Math.max(habit.bestStreak, computeBestStreak(next)),
       })
+      if (groupId !== (habit.groupId ?? null)) {
+        if (groupId != null) await moveHabitToGroup(habit.id, groupId)
+        else await moveTopLevelItem({ kind: 'habit', id: habit.id }, null)
+      }
     } else {
       const now = Date.now()
       const existing = await db.habits.toArray()
@@ -403,6 +709,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
         deadlineMinute: payload.deadlineMinute ?? null,
         dailyNotes: {},
         sortOrder: maxOrder + 10,
+        groupId,
         createdAt: now,
       }
       await db.habits.add(created)
@@ -436,6 +743,20 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
             ))}
           </Select>
         </Field>
+
+        {(groups ?? []).length > 0 && (
+          <Field label="Group">
+            <Select
+              value={groupId ?? ''}
+              onChange={(e) => setGroupId(e.target.value === '' ? null : Number(e.target.value))}
+            >
+              <option value="">No group</option>
+              {(groups ?? []).map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         {frequency === 'Alternate' && (
           <Field label="Skip days between (1 = every other day) *">

@@ -68,36 +68,6 @@ export function compareHabits(a: Habit, b: Habit): number {
 }
 
 /**
- * Move a habit before/after another and renumber the whole list atomically.
- * Operates on the full set, so reordering from a filtered view keeps the
- * visible order while hidden habits simply shift slots.
- */
-export async function moveHabit(
-  draggedId: number,
-  targetId: number,
-  position: 'before' | 'after',
-): Promise<void> {
-  if (draggedId === targetId) return
-  const habits = (await db.habits.toArray()).sort(compareHabits)
-  const from = habits.findIndex((h) => h.id === draggedId)
-  if (from < 0) return
-  const [dragged] = habits.splice(from, 1)
-  const targetIndex = habits.findIndex((h) => h.id === targetId)
-  if (targetIndex < 0) return
-  const insertAt = position === 'before' ? targetIndex : targetIndex + 1
-  habits.splice(insertAt, 0, dragged)
-
-  await db.transaction('rw', db.habits, async () => {
-    for (let i = 0; i < habits.length; i += 1) {
-      const id = habits[i].id
-      if (id == null) continue
-      const sortOrder = (i + 1) * 10
-      if (habits[i].sortOrder !== sortOrder) await db.habits.update(id, { sortOrder })
-    }
-  })
-}
-
-/**
  * Streak: walk backwards from today (or yesterday when today isn't done yet),
  * skip non-scheduled days, stop at the first scheduled day that isn't complete.
  */

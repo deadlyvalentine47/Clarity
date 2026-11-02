@@ -14,6 +14,7 @@ import type {
   Event,
   Goal,
   Habit,
+  HabitGroup,
   Investment,
   Note,
   NoteCategory,
@@ -44,6 +45,8 @@ export interface ExportedImage {
 
 export interface AppData {
   habits: Habit[]
+  /** optional: backups from before habit groups have none */
+  habitGroups?: HabitGroup[]
   notes: Note[]
   transactions: Transaction[]
   goals: Goal[]
@@ -96,6 +99,7 @@ function dataUrlToBlob(data: string): Blob | null {
 export async function exportData(prefs: Preferences): Promise<string> {
   const [
     habits,
+    habitGroups,
     notes,
     transactions,
     goals,
@@ -113,6 +117,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     noteImages,
   ] = await Promise.all([
     db.habits.toArray(),
+    db.habitGroups.toArray(),
     db.notes.toArray(),
     db.transactions.toArray(),
     db.goals.toArray(),
@@ -132,6 +137,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
 
   const data: AppData = {
     habits,
+    habitGroups,
     notes,
     transactions,
     goals,
@@ -189,6 +195,7 @@ function habitDefaults(h: Partial<Habit>): Habit {
     deadlineMinute: h.deadlineMinute ?? null,
     dailyNotes: h.dailyNotes && typeof h.dailyNotes === 'object' ? h.dailyNotes : {},
     sortOrder: Number(h.sortOrder ?? 0),
+    groupId: h.groupId ?? null,
     createdAt: Number(h.createdAt ?? Date.now()),
   }
 }
@@ -327,9 +334,26 @@ export async function importData(jsonText: string): Promise<ImportResult> {
     }
     counts.notes = noteMap.size
 
+    const groupMap = new Map<number, number>()
+    for (const group of arr<HabitGroup>(raw.habitGroups)) {
+      const { id: oldId, ...rest } = group
+      const newId = (await db.habitGroups.add({
+        name: rest.name ?? 'Group',
+        sortOrder: Number(rest.sortOrder ?? 0),
+        isCollapsed: rest.isCollapsed ?? true,
+        createdAt: rest.createdAt ?? Date.now(),
+      })) as number
+      if (oldId != null) groupMap.set(oldId, newId)
+    }
+    counts.habitGroups = groupMap.size
+
     for (const habit of arr<Habit>(raw.habits)) {
       const { id: _id, ...rest } = habit
-      await db.habits.add(habitDefaults(rest))
+      const defaults = habitDefaults(rest)
+      await db.habits.add({
+        ...defaults,
+        groupId: habit.groupId != null ? groupMap.get(habit.groupId) ?? null : null,
+      })
     }
     counts.habits = arr<Habit>(raw.habits).length
 

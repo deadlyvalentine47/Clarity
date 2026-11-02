@@ -36,6 +36,18 @@ export interface Habit {
   dailyNotes: Record<string, string>
   /** manual list position; lower comes first */
   sortOrder: number
+  /** habit group id; null/undefined = shown directly in the habits list */
+  groupId?: number | null
+  createdAt: number
+}
+
+export interface HabitGroup {
+  id?: number
+  name: string
+  /** manual position among the top-level habits and groups; lower comes first */
+  sortOrder: number
+  /** collapsed by default; only expanded when the user opens it */
+  isCollapsed?: boolean
   createdAt: number
 }
 

@@ -5,6 +5,7 @@ import { Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import { db } from '../db/db'
 import type { Habit } from '../db/types'
 import { habitCreatedDate, habitEndDate, habitFrequencyLabel, isScheduledOn } from '../db/habits'
+import { buildTopLevelRows } from '../db/habitGroups'
 import { formatDateKey, toDateKey } from '../lib/dates'
 import { EmptyState, PageHeader } from '../components/ui'
 import { MonthYearPicker } from './budget/shared'
@@ -62,12 +63,22 @@ export default function HabitMetricsScreen() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
+  const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
 
   const monthHabits = useMemo(
     () => (habits ?? []).filter((h) => aliveInMonth(h, year, month)),
     [habits, year, month],
   )
   const stats = useMemo(() => monthHabits.map((h) => monthStats(h, year, month)), [monthHabits, year, month])
+  const statsById = useMemo(() => {
+    const map = new Map<number, Stats>()
+    for (const s of stats) if (s.habit.id != null) map.set(s.habit.id, s)
+    return map
+  }, [stats])
+  const rows = useMemo(() => {
+    const relevant = (groups ?? []).filter((g) => monthHabits.some((h) => h.groupId === g.id))
+    return buildTopLevelRows(monthHabits, relevant)
+  }, [groups, monthHabits])
   const totalScheduled = stats.reduce((s, x) => s + x.scheduled, 0)
   const totalCompleted = stats.reduce((s, x) => s + x.completed, 0)
   const totalMissed = stats.reduce((s, x) => s + x.missed, 0)
@@ -109,6 +120,105 @@ export default function HabitMetricsScreen() {
   }, [year, month, monthHabits])
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  const groupTotals = (list: Habit[]) => {
+    let scheduled = 0
+    let completed = 0
+    for (const habit of list) {
+      const s = habit.id != null ? statsById.get(habit.id) : undefined
+      if (!s) continue
+      scheduled += s.scheduled
+      completed += s.completed
+    }
+    return { scheduled, completed, pct: scheduled === 0 ? 0 : completed / scheduled }
+  }
+
+  const summaryCard = (habit: Habit) => {
+    const s = habit.id != null ? statsById.get(habit.id) : undefined
+    if (!s) return null
+    const pct = s.scheduled === 0 ? 0 : s.completed / s.scheduled
+    return (
+      <div key={habit.id} className="card" style={{ padding: 14 }}>
+        <div className="row-between">
+          <div style={{ minWidth: 0 }}>
+            <div className="bold truncate">
+              {habit.name}
+              {habit.isArchived ? ' (A)' : ''}
+              {habit.isDeleted ? ' (D)' : ''}
+            </div>
+            <div className="tiny muted">{habitFrequencyLabel(habit)} · Streak {habit.currentStreak}</div>
+            {habit.isArchived && habit.archivedAt != null && (
+              <div className="tiny muted">Archived {formatDateKey(toDateKey(habit.archivedAt), true)}</div>
+            )}
+            {habit.isDeleted && habit.deletedAt != null && (
+              <div className="tiny" style={{ color: 'var(--error)' }}>Deleted {formatDateKey(toDateKey(habit.deletedAt), true)}</div>
+            )}
+          </div>
+          <div className="align-end">
+            <div className="bold">{s.completed}/{s.scheduled}</div>
+            <div className="tiny" style={{ color: pct >= 0.6 ? 'var(--success)' : 'var(--error)' }}>
+              {Math.round(pct * 100)}%
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const habitRow = (habit: Habit) => {
+    const s = habit.id != null ? statsById.get(habit.id) : undefined
+    if (!s) return null
+    const isOpen = expanded.has(habit.id!)
+    return (
+      <div key={habit.id} className="card">
+        <button
+          className="row-between"
+          style={{ background: 'none', border: 'none', width: '100%', padding: 0, cursor: 'pointer', color: 'inherit' }}
+          onClick={() => setExpanded((prev) => {
+            const next = new Set(prev)
+            if (next.has(habit.id!)) next.delete(habit.id!)
+            else next.add(habit.id!)
+            return next
+          })}
+          aria-expanded={isOpen}
+        >
+          <div style={{ minWidth: 0, textAlign: 'left' }}>
+            <div className="bold truncate">
+              {habit.name}
+              {habit.isArchived ? ' (A)' : ''}
+              {habit.isDeleted ? ' (D)' : ''}
+            </div>
+            <div className="tiny muted">
+              {habitFrequencyLabel(habit)} · Streak {habit.currentStreak} · Best {habit.bestStreak}
+            </div>
+          </div>
+          {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+        <div className="small" style={{ marginTop: 8 }}>
+          Completed {s.completed}/{s.scheduled} ({Math.round((s.scheduled === 0 ? 0 : s.completed / s.scheduled) * 100)}%)
+        </div>
+        {isOpen && <HabitMonthGrid habit={habit} year={year} month={month} />}
+      </div>
+    )
+  }
+
+  const groupHead = (name: string, list: Habit[]) => {
+    const totals = groupTotals(list)
+    return (
+      <div className="metric-group-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="bold truncate">{name}</div>
+          <div className="tiny muted">{list.length} {list.length === 1 ? 'habit' : 'habits'}</div>
+        </div>
+        <div className="align-end">
+          <div className="bold">{totals.completed}/{totals.scheduled}</div>
+          <div className="tiny" style={{ color: totals.pct >= 0.6 ? 'var(--success)' : 'var(--error)' }}>
+            {Math.round(totals.pct * 100)}%
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -209,73 +319,32 @@ export default function HabitMetricsScreen() {
 
           <div className="section-label" style={{ marginBottom: 8 }}>Monthly summary</div>
           <div className="stack" style={{ gap: 8 }}>
-            {stats.map((s) => {
-              const pct = s.scheduled === 0 ? 0 : s.completed / s.scheduled
-              return (
-                <div key={s.habit.id} className="card" style={{ padding: 14 }}>
-                  <div className="row-between">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="bold truncate">
-                        {s.habit.name}
-                        {s.habit.isArchived ? ' (A)' : ''}
-                        {s.habit.isDeleted ? ' (D)' : ''}
-                      </div>
-                      <div className="tiny muted">{habitFrequencyLabel(s.habit)} · Streak {s.habit.currentStreak}</div>
-                      {s.habit.isArchived && s.habit.archivedAt != null && (
-                        <div className="tiny muted">Archived {formatDateKey(toDateKey(s.habit.archivedAt), true)}</div>
-                      )}
-                      {s.habit.isDeleted && s.habit.deletedAt != null && (
-                        <div className="tiny" style={{ color: 'var(--error)' }}>Deleted {formatDateKey(toDateKey(s.habit.deletedAt), true)}</div>
-                      )}
-                    </div>
-                    <div className="align-end">
-                      <div className="bold">{s.completed}/{s.scheduled}</div>
-                      <div className="tiny" style={{ color: pct >= 0.6 ? 'var(--success)' : 'var(--error)' }}>
-                        {Math.round(pct * 100)}%
-                      </div>
-                    </div>
+            {rows.map((row) =>
+              row.kind === 'group' ? (
+                <div key={`group-${row.group.id}`} className="card" style={{ padding: 14 }}>
+                  {groupHead(row.group.name, row.habits)}
+                  <div className="metric-group-items">
+                    {row.habits.map((habit) => summaryCard(habit))}
                   </div>
                 </div>
-              )
-            })}
+              ) : (
+                summaryCard(row.habit)
+              ),
+            )}
           </div>
         </>
       ) : (
         <div className="stack" style={{ gap: 10 }}>
-          {stats.map((s) => {
-            const isOpen = expanded.has(s.habit.id!)
-            return (
-              <div key={s.habit.id} className="card">
-                <button
-                  className="row-between"
-                  style={{ background: 'none', border: 'none', width: '100%', padding: 0, cursor: 'pointer', color: 'inherit' }}
-                  onClick={() => setExpanded((prev) => {
-                    const next = new Set(prev)
-                    if (next.has(s.habit.id!)) next.delete(s.habit.id!)
-                    else next.add(s.habit.id!)
-                    return next
-                  })}
-                  aria-expanded={isOpen}
-                >
-                  <div style={{ minWidth: 0, textAlign: 'left' }}>
-                    <div className="bold truncate">
-                      {s.habit.name}
-                      {s.habit.isArchived ? ' (A)' : ''}
-                      {s.habit.isDeleted ? ' (D)' : ''}
-                    </div>
-                    <div className="tiny muted">
-                      {habitFrequencyLabel(s.habit)} · Streak {s.habit.currentStreak} · Best {s.habit.bestStreak}
-                    </div>
-                  </div>
-                  {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-                <div className="small" style={{ marginTop: 8 }}>
-                  Completed {s.completed}/{s.scheduled} ({Math.round((s.scheduled === 0 ? 0 : s.completed / s.scheduled) * 100)}%)
-                </div>
-                {isOpen && <HabitMonthGrid habit={s.habit} year={year} month={month} />}
+          {rows.map((row) =>
+            row.kind === 'group' ? (
+              <div key={`group-${row.group.id}`} className="stack" style={{ gap: 8 }}>
+                <div className="card" style={{ padding: 12 }}>{groupHead(row.group.name, row.habits)}</div>
+                <div className="metric-group-items">{row.habits.map((habit) => habitRow(habit))}</div>
               </div>
-            )
-          })}
+            ) : (
+              habitRow(row.habit)
+            ),
+          )}
         </div>
       )}
     </>

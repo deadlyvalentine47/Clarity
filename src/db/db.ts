@@ -8,6 +8,7 @@ import type {
   Event,
   Goal,
   Habit,
+  HabitGroup,
   Investment,
   Note,
   NoteCategory,
@@ -20,6 +21,7 @@ import type {
 
 export class ClarityDB extends Dexie {
   habits!: Table<Habit, number>
+  habitGroups!: Table<HabitGroup, number>
   notes!: Table<Note, number>
   noteCategories!: Table<NoteCategory, number>
   noteImages!: Table<NoteImage, string>
@@ -145,6 +147,21 @@ export class ClarityDB extends Dexie {
             e.alternateDays ??= null
             e.selectedDays ??= null
             e.completionHistory ??= {}
+          })
+      })
+
+    // v5 adds habit groups. Existing habits start ungrouped.
+    this.version(5)
+      .stores({
+        habits: '++id, createdAt, archivedAt, groupId',
+        habitGroups: '++id, sortOrder, createdAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('habits')
+          .toCollection()
+          .modify((h: Habit) => {
+            h.groupId ??= null
           })
       })
   }

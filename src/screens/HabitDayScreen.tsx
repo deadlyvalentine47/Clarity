@@ -13,6 +13,7 @@ import {
   toggleHabitForDate,
   updateHabitDailyNote,
 } from '../db/habits'
+import { buildTopLevelRows } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
 import { EmptyState, PageHeader, TextArea } from '../components/ui'
 
@@ -41,6 +42,7 @@ export default function HabitDayScreen() {
   const day = fromDateKey(key)
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
+  const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
   const journal = useLiveQuery(async () => (await db.dayJournals.get(key)) ?? null, [key])
   const [journalText, setJournalText] = useState('')
   const [journalOpen, setJournalOpen] = useState(true)
@@ -57,9 +59,23 @@ export default function HabitDayScreen() {
   )
   const active = rows.filter((h) => !h.isArchived && !h.isDeleted)
   const archived = rows.filter((h) => h.isArchived || h.isDeleted)
+  const activeRows = useMemo(() => {
+    const relevant = (groups ?? []).filter((g) => active.some((h) => h.groupId === g.id))
+    return buildTopLevelRows(active, relevant)
+  }, [groups, active])
   const done = rows.filter((h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late').length
   const scheduled = rows.length
   const rate = scheduled === 0 ? 0 : done / scheduled
+
+  const dayRow = (habit: Habit) => (
+    <HabitDayRow
+      key={habit.id}
+      habit={habit}
+      dateKey={key}
+      expanded={expanded === habit.id}
+      onToggle={() => setExpanded((prev) => (prev === habit.id ? null : habit.id!))}
+    />
+  )
 
   const saveJournal = async () => {
     await db.dayJournals.put({ date: key, content: journalText.trim(), updatedAt: Date.now() })
@@ -110,16 +126,23 @@ export default function HabitDayScreen() {
           {active.length > 0 && (
             <>
               <div className="section-label" style={{ marginBottom: 8 }}>Habits</div>
-              <div className="stack" style={{ gap: 8, marginBottom: 16 }}>
-                {active.map((habit) => (
-                  <HabitDayRow
-                    key={habit.id}
-                    habit={habit}
-                    dateKey={key}
-                    expanded={expanded === habit.id}
-                    onToggle={() => setExpanded((prev) => (prev === habit.id ? null : habit.id!))}
-                  />
-                ))}
+              <div className="stack" style={{ gap: 10, marginBottom: 16 }}>
+                {activeRows.map((row) =>
+                  row.kind === 'group' ? (
+                    <div key={`group-${row.group.id}`} className="stack" style={{ gap: 8 }}>
+                      <div className="row-between">
+                        <span className="bold small truncate">{row.group.name}</span>
+                        <span className="tiny muted nowrap">
+                          {row.habits.filter((h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late').length}
+                          /{row.habits.length} done
+                        </span>
+                      </div>
+                      <div className="metric-group-items">{row.habits.map((habit) => dayRow(habit))}</div>
+                    </div>
+                  ) : (
+                    dayRow(row.habit)
+                  ),
+                )}
               </div>
             </>
           )}
