@@ -3,7 +3,8 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { exportData } from './exportImport'
 import type { Preferences } from './prefs'
 
-/** Cache file the Android worker copies to Downloads/Clarity at 23:30. */
+/** Cache file the native worker copies out at 23:30 (Downloads/Clarity on
+ *  Android, Files → Clarity on iOS). */
 const SNAPSHOT_FILE = 'clarity-latest-backup.json'
 
 export interface BackupStatus {
@@ -13,7 +14,7 @@ export interface BackupStatus {
 }
 
 interface ClarityBackupPlugin {
-  /** (Re)schedule the daily 23:30 local-time backup. Idempotent. */
+  /** (Re)schedule the daily 23:30 backup. Idempotent. */
   schedule(): Promise<{ scheduled: boolean }>
   status(): Promise<BackupStatus>
 }
@@ -24,7 +25,7 @@ let writing: Promise<void> | null = null
 let scheduled = false
 
 /**
- * Write the current database to the app cache. The nightly Android worker
+ * Write the current database to the app cache. The nightly native worker
  * only copies this file, so the WebView never has to be running at 23:30.
  */
 export function writeBackupSnapshot(prefs: Preferences): Promise<void> {

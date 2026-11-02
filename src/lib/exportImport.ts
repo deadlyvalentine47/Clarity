@@ -448,7 +448,7 @@ function describeWrite(result: { bytes: number; location: string }, json: string
 }
 
 /**
- * "Save to device": the Android picker (Storage Access Framework) or a browser
+ * "Save to device": the system picker (Android SAF, iOS Files) or a browser
  * download. Returns a short status message for the settings row.
  */
 export async function exportToDevice(filename: string, json: string): Promise<string> {

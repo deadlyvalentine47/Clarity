@@ -19,7 +19,7 @@ import { exportData, exportToDevice, importData, shareExport } from '../lib/expo
 import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { clearAllData } from '../db/db'
-import { isNative, notificationsGranted, requestNotifications } from '../lib/native'
+import { isNative, nativePlatform, notificationsGranted, requestNotifications } from '../lib/native'
 import { backupStatus, type BackupStatus } from '../lib/backupScheduler'
 import { clearActiveSession } from '../lib/pomodoroStore'
 import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
@@ -272,7 +272,7 @@ export default function SettingsScreen() {
                 <div className="bold">Notifications</div>
                 <div className="small muted">
                   {!isNative()
-                    ? 'Only used by the Android app (timer alarms)'
+                    ? 'Only used by the mobile app (timer alarms)'
                     : notifications
                       ? 'Allowed — timer alarms can notify you in the background'
                       : 'Tap to allow timer alarms outside the app'}
@@ -332,8 +332,15 @@ export default function SettingsScreen() {
                   <div className="small muted">
                     {backupInfo?.lastBackupAt
                       ? `Last: ${new Date(backupInfo.lastBackupAt).toLocaleString()} · ${backupInfo.lastBackupFile}`
-                      : 'Runs daily at 11:30 PM to Downloads/Clarity'}
+                      : nativePlatform() === 'ios'
+                        ? 'Kept in Files → Clarity'
+                        : 'Runs daily at 11:30 PM to Downloads/Clarity'}
                   </div>
+                  {nativePlatform() === 'ios' ? (
+                    <div className="tiny muted">
+                      Updated when the app is backgrounded; the 11:30 PM run is best-effort on iOS.
+                    </div>
+                  ) : null}
                   {backupInfo?.lastError ? (
                     <div className="tiny" style={{ color: 'var(--error)' }}>{backupInfo.lastError}</div>
                   ) : null}

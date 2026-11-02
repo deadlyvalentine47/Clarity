@@ -33,7 +33,7 @@ npm run typecheck  # tsc --noEmit
 | DataStore preferences | `localStorage` (`clarity.preferences`) |
 | Navigation Compose | React Router |
 | Vico charts | CSS/SVG bars |
-| — | Capacitor WebView wrapper for the APK (`android/`) |
+| — | Capacitor WebView wrappers for the APK (`android/`) and IPA (`ios/`) |
 | AlarmManager / notifications | Web Audio alarm + in-app banner + `navigator.vibrate` |
 | Note images in `clarity/pics` | IndexedDB `noteImages`, referenced as `![img:uuid]` |
 
@@ -101,21 +101,24 @@ Everything is local to the browser profile:
   `http://<your-ip>:5173` each get their own database. If data seems to vanish
   after restarting the dev server, check which port it opened on.
 
-## Automation (Android)
+## Automation (mobile)
 
 - **Monthly habit reset** — at 11:30 PM (device local time) on the last day of
   each month every habit is deleted, so a fresh set can be created on the 1st.
   Only the `habits` table is touched — events, notes, money data and journals are
   left alone. If the app was closed at the boundary, the reset is applied on the
   next launch or when the app becomes visible, so it can't be missed.
-- **Nightly backup** — a WorkManager job runs every night at 11:30 PM and copies
+- **Nightly backup** — on Android a WorkManager job runs at 11:30 PM and copies
   the latest snapshot to `Downloads/Clarity/clarity_backup_<timestamp>.json`,
   deleting the previous backup so only the most recent one remains. The next run
   is pinned to an absolute local 23:30 (`setNextScheduleTimeOverride`) and
   re-pinned after every run, so relaunching the app can't pull it earlier and a
-  delayed run doesn't shift the following night. The web layer keeps the
-  snapshot in the app cache (on launch, when the app is backgrounded, and every
-  15 minutes); the worker runs without the WebView.
+  delayed run doesn't shift the following night. On iOS the snapshot is copied
+  to `Files → Clarity` whenever the app is backgrounded or foregrounded, and a
+  `BGAppRefreshTask` asks for 23:30 as a best-effort extra (iOS does not allow
+  exact wall-clock background jobs). The web layer keeps the snapshot in the app
+  cache (on launch, when the app is backgrounded, and every 15 minutes); the
+  worker runs without the WebView.
 
 ## Differences from the Android app (intentional fixes)
 
@@ -196,3 +199,27 @@ https://github.com/deadlyvalentine47/Clarity/releases/download/apk-latest/clarit
 
 Details — signing secrets, app id, versioning and WebView differences — are in
 [`android/README.md`](android/README.md).
+
+## iOS IPA
+
+`ios/` is the Capacitor Xcode project (Swift Package Manager, no CocoaPods).
+`npm run ios:sync` builds `dist/` and copies it in; app-local Swift plugins
+replace the Android-only ones (Files save dialog, backup coordinator).
+
+Like the APK, the IPA is built in GitHub Actions — on `macos-latest`, so no Mac
+or Xcode is needed locally. Approve a run in Actions → **iOS IPA** (PRs to
+`master` and manual runs stop at the `ios-build` environment), then download it
+from the rolling [`ipa-latest` release](https://github.com/deadlyvalentine47/Clarity/releases/tag/ipa-latest):
+
+```
+https://github.com/deadlyvalentine47/Clarity/releases/download/ipa-latest/clarity-unsigned.ipa
+```
+
+The build is **unsigned** on purpose (no Apple Developer account is assumed).
+iOS will not install it by tapping the file — re-sign it with AltStore,
+Sideloadly or Xcode using your own Apple ID, or with a developer team profile.
+
+- Local builds need a Mac with Xcode 16+: `npm run ios:sync && npm run ios:open`.
+- Backups live in `Files → Clarity` (the app's Documents folder); the 23:30 job
+  is best-effort because iOS schedules background work opportunistically.
+- The iOS bundle is `com.clarity.app`, version 1.4 (build 5), matching Android.

@@ -6,10 +6,15 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 
 export const isNative = (): boolean => Capacitor.isNativePlatform()
 
+/** 'android' | 'ios' | 'web' — for the few places the two shells differ. */
+export const nativePlatform = (): string => Capacitor.getPlatform()
+
 const TIMER_NOTIFICATION_ID = 1001
 
-// Local plugin (android/app/src/main/java/com/clarity/app/SaveFilePlugin.java):
-// the system "Save as" dialog (Storage Access Framework).
+// Local plugins:
+//   Android android/app/src/main/java/com/clarity/app/SaveFilePlugin.java
+//   iOS     ios/App/App/SaveFilePlugin.swift
+// The system "Save as" dialog (Android SAF, iOS Files) for the exported JSON.
 interface SaveFilePlugin {
   save(options: {
     filename: string
@@ -21,9 +26,10 @@ interface SaveFilePlugin {
 const SaveFile = registerPlugin<SaveFilePlugin>('SaveFile')
 
 /**
- * Open Android's "Save as" picker and copy `sourcePath` into the chosen file.
+ * Open the system "Save as" picker and copy `sourcePath` into the chosen file.
  * Returns the number of bytes written, or null when the user backs out.
- * No storage permission is involved: the picker grants access to that one file.
+ * No storage permission is involved: Android's picker grants access to that
+ * one file and iOS writes a copy into Files.
  */
 export async function saveFileToDevice(
   filename: string,
