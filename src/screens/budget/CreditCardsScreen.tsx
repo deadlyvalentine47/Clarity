@@ -7,7 +7,7 @@ import type { CreditCard as Card } from '../../db/types'
 import { cardOutstanding, cardUsage, deleteCardCascade } from '../../db/budget'
 import { formatMoney } from '../../lib/format'
 import { ordinal } from '../../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, Field, PageHeader, ProgressBar, TextInput } from '../../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, Field, MoneyInput, PageHeader, ProgressBar, TextInput } from '../../components/ui'
 
 export default function CreditCardsScreen() {
   const navigate = useNavigate()
@@ -180,7 +180,7 @@ function AddCardDialog({ onClose }: { onClose: () => void }) {
           <TextInput autoFocus value={name} onChange={(e) => { setName(e.target.value); setError('') }} placeholder="e.g. HDFC Regalia" />
         </Field>
         <Field label="Credit limit *">
-          <TextInput type="number" inputMode="decimal" step="0.01" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0.00" />
+          <MoneyInput value={limit} onChange={setLimit} label="Credit limit" />
         </Field>
         <Field label="Billing cycle day (1–31) *" hint="Short months clamp to their last day.">
           <TextInput type="number" inputMode="numeric" min={1} max={31} value={cycleDay} onChange={(e) => setCycleDay(e.target.value)} />

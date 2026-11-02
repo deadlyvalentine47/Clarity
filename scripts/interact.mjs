@@ -1,7 +1,9 @@
 import puppeteer from 'puppeteer-core'
 import fs from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-const OUT = '/tmp/opencode/clarity-shots'
+const OUT = process.env.CLARITY_SHOTS || join(tmpdir(), 'clarity-shots')
 fs.mkdirSync(OUT, { recursive: true })
 
 const browser = await puppeteer.launch({
@@ -41,17 +43,12 @@ await page.evaluate(async () => {
   const { db } = await import('/src/db/db.ts')
   const now = Date.now()
   await Promise.all([
-    db.tasks.clear(),
-    db.subtasks.clear(),
     db.habits.clear(),
     db.categories.clear(),
     db.sources.clear(),
     db.transactions.clear(),
+    db.events.clear(),
     db.pomodoroFocusSessions.clear(),
-  ])
-  await db.tasks.bulkAdd([
-    { title: 'Ship the web port', description: 'Parity with Android app', priority: 'High', category: 'Work', tags: [], dueDate: now + 3600_000, reminderTime: null, isCompleted: false, isRecurring: false, recurringType: null, createdAt: now, updatedAt: now },
-    { title: 'Buy groceries', description: '', priority: 'Medium', category: 'Home', tags: [], dueDate: now + 86_400_000, reminderTime: null, isCompleted: false, isRecurring: true, recurringType: 'Weekly', createdAt: now, updatedAt: now },
   ])
   await db.habits.bulkAdd([
     { name: 'Drink water', description: '8 glasses', frequency: 'Daily', alternateDays: null, selectedDays: null, targetCount: 1, currentStreak: 0, bestStreak: 2, completionHistory: {}, lateCompletions: [], reminderTime: null, isArchived: false, archivedAt: null, isDeleted: false, deletedAt: null, deadlineHour: null, deadlineMinute: null, dailyNotes: {}, createdAt: now },
@@ -61,52 +58,23 @@ await page.evaluate(async () => {
   await db.pomodoroFocusSessions.add({ title: 'Deep work', focusDurationMinutes: 25, breakDurationMinutes: 5, sessionCount: 0, totalFocusMinutes: 0, distractions: '', createdAt: now, updatedAt: now })
 })
 
-await page.goto('http://localhost:5173/tasks', { waitUntil: 'networkidle2' })
+await page.goto('http://localhost:5173/calendar', { waitUntil: 'networkidle2' })
 
-// --- Add a task through the dialog ---
+// --- Add an event with priority + recurrence through the dialog ---
 await page.click('.fab')
 await sleep(250)
-await page.type('.dialog input', 'Test from browser')
-await page.evaluate(() => {
-  const area = document.querySelector('.dialog textarea')
-  if (area) area.value = ''
-})
-await page.select('.dialog select', 'High')
+await page.type('.dialog input', 'Test event from browser')
+const selects = await page.$$('.dialog select')
+if (selects[0]) await selects[0].select('High')
+if (selects[1]) await selects[1].select('Weekly')
 const added = await clickText('Add')
 await sleep(400)
-const taskCount = await page.evaluate(async () => {
+const eventState = await page.evaluate(async () => {
   const { db } = await import('/src/db/db.ts')
-  return (await db.tasks.toArray()).filter((t) => t.title === 'Test from browser').length
+  const e = (await db.events.toArray()).find((x) => x.title === 'Test event from browser')
+  return e ? { priority: e.priority, frequency: e.frequency } : null
 })
-console.log('task dialog opened/add clicked:', added, '| tasks created:', taskCount)
-
-// --- Add a subtask on the first task ---
-const expandClicked = await clickText('Add subtask')
-await sleep(200)
-const subtaskAdded = await page.evaluate(async () => {
-  const input = [...document.querySelectorAll('input')].find((i) => i.placeholder === 'Add subtask')
-  if (!input) return 'no input'
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-  setter.call(input, 'Browser subtask')
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-  await new Promise((r) => setTimeout(r, 100))
-  const form = input.closest('form')
-  form?.requestSubmit()
-  await new Promise((r) => setTimeout(r, 300))
-  const { db } = await import('/src/db/db.ts')
-  return (await db.subtasks.toArray()).filter((s) => s.title === 'Browser subtask').length
-})
-console.log('expand clicked:', expandClicked, '| subtask created:', subtaskAdded)
-
-// --- Toggle first task checkbox ---
-const toggled = await page.evaluate(() => {
-  const cb = document.querySelector('.checkbox')
-  if (!cb) return false
-  cb.click()
-  return true
-})
-await sleep(300)
-console.log('task checkbox clicked:', toggled)
+console.log('event dialog opened/add clicked:', added, '| event:', JSON.stringify(eventState))
 
 // --- Habits toggle ---
 await page.goto('http://localhost:5173/habits', { waitUntil: 'networkidle2' })
@@ -125,7 +93,7 @@ console.log('habit toggled:', habitToggled)
 await page.goto('http://localhost:5173/budget', { waitUntil: 'networkidle2' })
 await page.click('.fab')
 await sleep(250)
-await page.type('.dialog input[type="number"]', '12.34')
+await page.type('.dialog input[inputmode="decimal"]', '12.34')
 await page.evaluate(() => {
   const inputs = [...document.querySelectorAll('.dialog input')]
   const desc = inputs.find((i) => i.placeholder === 'Optional')

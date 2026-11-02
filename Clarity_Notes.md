@@ -111,6 +111,21 @@ larger backup format, while fixing the bugs/duplications in master.
   two-column grid on wide screens. New helpers: `ProgressRing` (ui.tsx),
   `spendSummary`/`isCardPayment` (budget.ts), `formatShortDate`, `plural`.
 
+- 2026-11-02 home habits + backup schedule:
+  - Home habit chips now use `compareHabits` (sortOrder), matching the Habits screen
+    order, including drag-reordered lists.
+  - Habits completed today (on time or late) are hidden from the home strip; the
+    habit itself is untouched. When all are done the section shows "All habits
+    done for today" instead of the empty strip. The `x/y done` meta still counts all.
+  - Nightly backup: `setInitialDelay` is relative to the work's original enqueue
+    time, so re-running `schedule()` with `UPDATE` on every launch slid the target
+    earlier until it landed in the past and fired on app open (20:46:59 on Nov 1).
+    `BackupScheduler` now pins the next run with the absolute
+    `setNextScheduleTimeOverride(next 23:30 local)` and the worker re-pins after
+    each run, so relaunches and delayed runs can't shift it. versionCode 5 / 1.4.
+  - Verified with a Puppeteer probe: chips render `a,c,b` for sortOrder 10,20,30,
+    disappear on completion, habit rows still exist; `smoke:flows` + build green.
+
 ## Next
 
 - Merge PR #2 (`feature/web-port` → `master`) once the approved APK build is green.

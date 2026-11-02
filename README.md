@@ -1,7 +1,7 @@
 # Clarity
 
-Personal management app — tasks, habits, budget, notes, goals, calendar and
-Pomodoro — running in the browser with `npm run dev`.
+Personal management app — calendar events (with task fields), habits, budget,
+notes, goals and Pomodoro — running in the browser with `npm run dev`.
 
 This started as a port of the original Android app (Kotlin + Jetpack Compose +
 Room); once it reached feature parity the Kotlin sources were removed and this
@@ -40,15 +40,16 @@ npm run typecheck  # tsc --noEmit
 ## Screens
 
 - **Home** — a glanceable dashboard: greeting + date, a progress ring for
-  today's tasks and habits, quick actions (add task, add spend, focus, note),
-  and configurable collapsible sections for tasks, events, habits, budget,
-  notes, goals and focus. Order and visibility come from Settings; collapsed
-  sections stay collapsed across reloads. Tasks can be completed and habits
-  checked off without leaving the page, undated tasks get their own group, and
-  the money card counts card purchases as spending.
-- **Tasks** — filters (All / Today / Upcoming / Overdue / Done), search, subtasks,
-  priorities, recurring tasks (completing one spawns the next), edit/delete.
-- **Calendar** — month grid with event dots, day agenda, add/edit/delete events.
+  today's events and habits, quick actions (add event, add spend, focus, note),
+  and configurable collapsible sections for events, habits, budget, notes, goals
+  and focus. Order and visibility come from Settings; collapsed sections stay
+  collapsed across reloads. Events can be completed and habits checked off
+  without leaving the page, and the money card counts card purchases as spending.
+- **Calendar** — month grid with recurring-event dots, day agenda, and
+  add/edit/delete. Events double as tasks: optional priority, due date and
+  completion, plus habit-style recurrence (daily, weekly, monthly, alternate
+  days, custom weekdays). Each occurrence completes separately and turns
+  overdue the day after it is missed.
 - **Budget** — hub with balances plus four sub-screens:
   - **Accounts** — multi-month/year filter, per-account credit/spend totals,
     expandable history, account detail with month picker and category filter.
@@ -77,7 +78,7 @@ npm run typecheck  # tsc --noEmit
 
 Everything is local to the browser profile:
 
-- `clarity` IndexedDB holds tasks, subtasks, habits, notes, note categories,
+- `clarity` IndexedDB holds habits, notes, note categories,
   note images, transactions, categories, sources, budget limits, goals, events,
   pomodoro sessions, credit cards, credit-card transactions, investments and
   day journals.
@@ -89,8 +90,8 @@ Everything is local to the browser profile:
   browser it downloads; in the APK it offers *Save to this device* (system
   *Save to this device* (`Downloads/Clarity/`) or *Share*.
 - **Import data** replaces everything in a single Dexie transaction and remaps
-  IDs for subtasks, notes (parent links), card transactions, pomodoro task links
-  and bill-payment links. A failed import leaves the previous data intact.
+  IDs for notes (parent links), card transactions and bill-payment links. A
+  failed import leaves the previous data intact.
 - **Note images are included** in the backup as base64 data URLs (extra field
   `noteImages`, ignored by the old Android app), so a restore is self-contained.
   Backups made by the old Kotlin app only carry the `![img:uuid]` markers — its
@@ -99,6 +100,22 @@ Everything is local to the browser profile:
 - The **port is part of the origin**: `localhost:5173`, `localhost:5174` and
   `http://<your-ip>:5173` each get their own database. If data seems to vanish
   after restarting the dev server, check which port it opened on.
+
+## Automation (Android)
+
+- **Monthly habit reset** — at 11:30 PM (device local time) on the last day of
+  each month every habit is deleted, so a fresh set can be created on the 1st.
+  Only the `habits` table is touched — events, notes, money data and journals are
+  left alone. If the app was closed at the boundary, the reset is applied on the
+  next launch or when the app becomes visible, so it can't be missed.
+- **Nightly backup** — a WorkManager job runs every night at 11:30 PM and copies
+  the latest snapshot to `Downloads/Clarity/clarity_backup_<timestamp>.json`,
+  deleting the previous backup so only the most recent one remains. The next run
+  is pinned to an absolute local 23:30 (`setNextScheduleTimeOverride`) and
+  re-pinned after every run, so relaunching the app can't pull it earlier and a
+  delayed run doesn't shift the following night. The web layer keeps the
+  snapshot in the app cache (on launch, when the app is backgrounded, and every
+  15 minutes); the worker runs without the WebView.
 
 ## Differences from the Android app (intentional fixes)
 
@@ -117,8 +134,6 @@ The port fixes upstream bugs instead of reproducing them:
 - The home money card counts credit-card purchases as spending and excludes
   bill payments (a transfer), so it no longer reports ₹0 for card-first users
   or double-counts a purchase when the bill is paid.
-- Undated tasks are grouped as "No date" on Home instead of silently
-  disappearing from a count that included them.
 - Weekly/Monthly habits actually schedule: Weekly is every 7 days from creation,
   Monthly is the same day-of-month (Android treats them like Daily).
 - Missed-day backfill only fills gaps and never overwrites recorded data;
@@ -134,7 +149,7 @@ The port fixes upstream bugs instead of reproducing them:
 ```
 src/
 ├── db/          types.ts (entities), db.ts (Dexie schema + migrations),
-│                budget.ts, habits.ts, notes.ts, tasks.ts (data operations)
+│                budget.ts, events.ts, habits.ts, notes.ts (data operations)
 ├── lib/         dates, formatting, preferences, themes, export/import, pomodoro store
 ├── context/     preferences provider (username, theme, home sections)
 ├── components/  layout, UI primitives, markdown preview
@@ -153,8 +168,8 @@ every route, exercise the main flows, and fail on console errors.
 npm run dev             # in one terminal
 npm run smoke           # renders all 20 routes + dark/empty home, screenshots -> /tmp/opencode/clarity-shots
                         # (clears the dev database when it finishes)
-npm run smoke:interact  # add task/subtask/transaction, toggle habit, timer, dark mode, onboarding
-npm run smoke:logic     # recurrence, streak, billing clamp, card cascade, note tree, export/import
+npm run smoke:interact  # add event/transaction, toggle habit, timer, dark mode, onboarding
+npm run smoke:logic     # event recurrence, streak, billing clamp, card cascade, note tree, export/import
 npm run smoke:flows     # account/card/investment CRUD, habit day status, child page, sections, round trip
 ```
 

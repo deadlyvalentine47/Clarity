@@ -221,7 +221,21 @@ export default function NoteDetailScreen() {
           ) : (
             <div className="stack" style={{ gap: 8 }}>
               {children.map((child) => (
-                <div key={child.id} className="card clickable" style={{ padding: 14 }} onClick={() => navigate(`/notes/${child.id}`)}>
+                <div
+                  key={child.id}
+                  className="card clickable"
+                  style={{ padding: 14 }}
+                  onClick={() => navigate(`/notes/${child.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${child.title}`}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault()
+                      navigate(`/notes/${child.id}`)
+                    }
+                  }}
+                >
                   <div className="row-between">
                     <div style={{ minWidth: 0 }}>
                       <div className="bold truncate">{child.title}</div>

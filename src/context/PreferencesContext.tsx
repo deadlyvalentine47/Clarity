@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { HOME_SECTIONS } from '../db/types'
 import {
@@ -8,6 +8,8 @@ import {
   type Preferences,
 } from '../lib/prefs'
 import { applyTheme } from '../lib/themes'
+import { isNative } from '../lib/native'
+import { scheduleNightlyBackup, writeBackupSnapshot } from '../lib/backupScheduler'
 
 interface PreferencesContextValue {
   prefs: Preferences
@@ -27,9 +29,38 @@ const PreferencesContext = createContext<PreferencesContextValue | null>(null)
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<Preferences>(() => loadPreferences())
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
 
   useEffect(() => {
     savePreferences(prefs)
+  }, [prefs])
+
+  // Android: keep a fresh backup snapshot in the app cache and make sure the
+  // nightly 23:30 job is registered. The worker copies the snapshot to the
+  // device; the WebView does not need to be running then.
+  useEffect(() => {
+    if (!isNative()) return
+    void scheduleNightlyBackup()
+    void writeBackupSnapshot(prefsRef.current)
+    const timer = window.setInterval(
+      () => void writeBackupSnapshot(prefsRef.current),
+      15 * 60_000,
+    )
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') void writeBackupSnapshot(prefsRef.current)
+    }
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isNative()) return
+    const timer = window.setTimeout(() => void writeBackupSnapshot(prefsRef.current), 1500)
+    return () => window.clearTimeout(timer)
   }, [prefs])
 
   useEffect(() => {

@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Circle,
   Flag,
-  ListTodo,
   Plus,
   Settings,
   StickyNote,
@@ -17,16 +16,24 @@ import {
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
-import type { Event as ClarityEvent, Habit, HomeSection, Task } from '../db/types'
+import type { Event as ClarityEvent, Habit, HomeSection } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
-import { isScheduledOn, toggleHabitForDate } from '../db/habits'
-import { toggleTaskCompletion } from '../db/tasks'
+import { compareHabits, isScheduledOn, toggleHabitForDate } from '../db/habits'
+import {
+  eventCompletionKey,
+  eventFrequencyLabel,
+  eventOccursOn,
+  eventStatus,
+  hasOverdueOccurrence,
+  nextEventOccurrence,
+  toggleEventCompletion,
+} from '../db/events'
 import { noteSnippet } from '../db/notes'
-import { cardOutstanding, spendSummary, totalBankBalance } from '../db/budget'
+import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
 import {
   addDays,
   endOfDay,
-  formatShortDate,
+  formatTime,
   fromDateKey,
   greetingFor,
   monthRange,
@@ -34,8 +41,8 @@ import {
   toDateKey,
 } from '../lib/dates'
 import { formatDuration, formatMoney, plural } from '../lib/format'
-import { CollapsibleHeader, ProgressBar, ProgressRing, priorityClass } from '../components/ui'
-import { TaskDialog } from './TasksScreen'
+import { CollapsibleHeader, ProgressBar, ProgressRing } from '../components/ui'
+import { EventDialog } from './CalendarScreen'
 import { TransactionDialog } from './budget/shared'
 
 const COLLAPSE_KEY = 'clarity.home.collapsed'
@@ -72,7 +79,7 @@ export default function HomeScreen() {
   const { prefs } = usePreferences()
   const navigate = useNavigate()
   const [collapsed, toggleSection] = useCollapsedSections()
-  const [showAddTask, setShowAddTask] = useState(false)
+  const [showAddEvent, setShowAddEvent] = useState(false)
   const [showAddSpend, setShowAddSpend] = useState(false)
 
   const now = new Date()
@@ -81,7 +88,6 @@ export default function HomeScreen() {
   const dayEnd = endOfDay(now.getTime())
   const [monthStart, monthEnd] = monthRange(now.getFullYear(), now.getMonth() + 1)
 
-  const tasks = useLiveQuery(async () => db.tasks.toArray(), [], [])
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
   const events = useLiveQuery(async () => db.events.toArray(), [], [])
   const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
@@ -96,35 +102,39 @@ export default function HomeScreen() {
     [],
   )
 
-  // ---------------------------------------------------------------- tasks
-  const pending = (tasks ?? []).filter((t) => !t.isCompleted)
-  const dueToday = (tasks ?? []).filter((t) => t.dueDate != null && toDateKey(t.dueDate) === todayKey)
-  const todayOpen = pending.filter((t) => t.dueDate != null && toDateKey(t.dueDate) === todayKey)
-  const overdue = pending
-    .filter((t) => t.dueDate != null && toDateKey(t.dueDate) < todayKey)
-    .sort((a, b) => (a.dueDate ?? 0) - (b.dueDate ?? 0))
-  const unscheduled = pending.filter((t) => t.dueDate == null)
-  const upcoming = pending
-    .filter((t) => t.dueDate != null && toDateKey(t.dueDate) > todayKey)
-    .sort((a, b) => (a.dueDate ?? 0) - (b.dueDate ?? 0))
-
   // --------------------------------------------------------------- habits
-  const activeHabits = (habits ?? []).filter((h) => !h.isArchived && !h.isDeleted)
+  const activeHabits = (habits ?? [])
+    .filter((h) => !h.isArchived && !h.isDeleted)
+    .sort(compareHabits)
   const habitsToday = activeHabits.filter((h) => isScheduledOn(h, now))
   const habitsDone = habitsToday.filter((h) => h.completionHistory[todayKey] === true).length
+  // Completed (including late) habits leave the home list; the underlying
+  // habit stays untouched in the Habits screen.
+  const habitsPending = habitsToday.filter((h) => h.completionHistory[todayKey] !== true)
 
   // --------------------------------------------------------------- events
+  const todayEvents = (events ?? []).filter((e) => eventOccursOn(e, now))
+  const eventsDone = todayEvents.filter(
+    (e) => e.completionHistory?.[eventCompletionKey(e, now)] === true,
+  ).length
+  const overdueEvents = (events ?? []).filter((e) => hasOverdueOccurrence(e, now))
   const upcomingEvents = (events ?? [])
-    .filter((e) => e.endDate >= now.getTime())
-    .sort((a, b) => a.startDate - b.startDate)
-  const todayEvents = (events ?? []).filter(
-    (e) => e.startDate <= dayEnd && e.endDate >= Math.max(dayStart, now.getTime()),
-  )
+    .map((event) => ({ event, occurrence: nextEventOccurrence(event, now) }))
+    .filter((x): x is { event: ClarityEvent; occurrence: Date } => x.occurrence != null)
+    .sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime())
 
   // --------------------------------------------------------------- money
-  const spend = spendSummary(transactions ?? [], cardTxns ?? [], monthStart, monthEnd)
+  // Bank spending is calendar-month; card spending follows each card's billing
+  // cycle that ends in the current month, like the card detail screen.
+  const bankSpend = spendSummary(transactions ?? [], [], monthStart, monthEnd).bank
+  const cardSpend = (cards ?? []).reduce(
+    (sum, card) =>
+      sum + cardPurchasesInCycle(card, cardTxns ?? [], now.getFullYear(), now.getMonth() + 1),
+    0,
+  )
+  const spend = { bank: bankSpend, card: cardSpend, total: bankSpend + cardSpend }
   const income = (transactions ?? [])
-    .filter((t) => t.type === 'Income' && t.date >= monthStart && t.date <= monthEnd)
+    .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
     .reduce((sum, t) => sum + t.amount, 0)
   const bankBalance = totalBankBalance(sources ?? [])
   const cardDebt = (cards ?? []).reduce(
@@ -143,18 +153,17 @@ export default function HomeScreen() {
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
 
   // ---------------------------------------------------------------- today
-  const doneToday = dueToday.filter((t) => t.isCompleted).length + habitsDone
-  const totalToday = dueToday.length + habitsToday.length
+  const doneToday = habitsDone + eventsDone
+  const totalToday = habitsToday.length + todayEvents.length
   const progress = totalToday === 0 ? 0 : doneToday / totalToday
 
-  const todoLeft = todayOpen.length + (habitsToday.length - habitsDone)
+  const todoLeft = habitsToday.length - habitsDone + (todayEvents.length - eventsDone)
   const statusLine = (() => {
     const parts: string[] = []
-    if (overdue.length > 0) parts.push(`${overdue.length} overdue`)
+    if (overdueEvents.length > 0) parts.push(`${overdueEvents.length} overdue`)
     if (todoLeft > 0) parts.push(`${todoLeft} to do today`)
     if (parts.length === 0) {
-      if (todayEvents.length > 0) parts.push(`${plural(todayEvents.length, 'event')} today`)
-      else if (totalToday > 0) parts.push('All done for today. Nice.')
+      if (totalToday > 0) parts.push('All done for today. Nice.')
       else parts.push('Nothing scheduled today — enjoy the quiet.')
     }
     return parts.join(' · ')
@@ -168,90 +177,21 @@ export default function HomeScreen() {
     [prefs.sectionOrder, prefs.sectionEnabled],
   )
 
-  const completeTask = async (task: Task) => {
-    if (task.id == null) return
-    await toggleTaskCompletion(task.id, true)
-  }
-
   const toggleHabit = async (habit: Habit) => {
     if (habit.id == null) return
     const done = habit.completionHistory[todayKey] === true
     await toggleHabitForDate(habit.id, todayKey, !done)
   }
 
+  const toggleEvent = async (event: ClarityEvent, date: Date) => {
+    if (event.id == null) return
+    const done = event.completionHistory?.[eventCompletionKey(event, date)] === true
+    await toggleEventCompletion(event.id, date, !done)
+  }
+
   const renderSection = (section: HomeSection) => {
     const open = !collapsed.has(section)
     const onToggle = () => toggleSection(section)
-
-    if (section === 'Tasks') {
-      const meta =
-        pending.length === 0
-          ? 'all clear'
-          : [overdue.length > 0 ? `${overdue.length} overdue` : null, `${pending.length} open`]
-              .filter(Boolean)
-              .join(' · ')
-      return (
-        <SectionCard
-          key={section}
-          icon={<ListTodo size={16} />}
-          title="Tasks"
-          meta={meta}
-          open={open}
-          onToggle={onToggle}
-          action={<OpenLink onClick={() => navigate('/tasks')} />}
-        >
-          {pending.length === 0 ? (
-            <EmptyLine
-              icon={<Check size={16} />}
-              text="No open tasks"
-              action={
-                <button className="btn btn-sm btn-outline" onClick={() => setShowAddTask(true)}>
-                  <Plus size={14} /> Add
-                </button>
-              }
-            />
-          ) : (
-            <div className="home-groups">
-              <TaskGroup
-                label="Overdue"
-                tone="error"
-                tasks={overdue}
-                limit={3}
-                onComplete={completeTask}
-                hint={(t) => formatShortDate(t.dueDate!)}
-                more={() => navigate('/tasks')}
-              />
-              <TaskGroup
-                label="Today"
-                tone="primary"
-                tasks={todayOpen}
-                limit={5}
-                onComplete={completeTask}
-                more={() => navigate('/tasks')}
-              />
-              <TaskGroup
-                label="No date"
-                tone="muted"
-                tasks={unscheduled}
-                limit={3}
-                onComplete={completeTask}
-                hint={() => 'Unscheduled'}
-                more={() => navigate('/tasks')}
-              />
-              <TaskGroup
-                label="Upcoming"
-                tone="muted"
-                tasks={upcoming}
-                limit={3}
-                onComplete={completeTask}
-                hint={(t) => formatShortDate(t.dueDate!)}
-                more={() => navigate('/tasks')}
-              />
-            </div>
-          )}
-        </SectionCard>
-      )
-    }
 
     if (section === 'Events') {
       return (
@@ -259,7 +199,13 @@ export default function HomeScreen() {
           key={section}
           icon={<CalendarDays size={16} />}
           title="Up next"
-          meta={todayEvents.length > 0 ? `${todayEvents.length} today` : undefined}
+          meta={
+            todayEvents.length > 0
+              ? `${eventsDone}/${todayEvents.length} today`
+              : overdueEvents.length > 0
+                ? `${plural(overdueEvents.length, 'overdue item')}`
+                : undefined
+          }
           open={open}
           onToggle={onToggle}
           action={<OpenLink onClick={() => navigate('/calendar')} />}
@@ -276,31 +222,54 @@ export default function HomeScreen() {
             />
           ) : (
             <div className="agenda">
-              {upcomingEvents.slice(0, 3).map((event) => (
-                <button
-                  key={event.id}
-                  className="agenda-row"
-                  onClick={() => navigate('/calendar')}
-                >
-                  <span className="agenda-time">
-                    {event.isAllDay
-                      ? 'All day'
-                      : new Date(event.startDate).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                  </span>
-                  <span className="agenda-rail" style={{ background: event.color || 'var(--primary)' }} />
-                  <span className="agenda-body">
-                    <span className="agenda-title truncate">{event.title}</span>
-                    <span className="tiny muted truncate">
-                      {dayLabel(event, todayKey)}
-                      {event.description ? ` · ${event.description}` : ''}
+              {upcomingEvents.slice(0, 3).map(({ event, occurrence }) => {
+                const done =
+                  event.completionHistory?.[eventCompletionKey(event, occurrence)] === true
+                const status = eventStatus(event, occurrence, now)
+                return (
+                  <div
+                    key={event.id}
+                    className="agenda-row"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate('/calendar')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') navigate('/calendar')
+                    }}
+                  >
+                    <button
+                      className={`event-check ${done ? 'done' : ''}`}
+                      aria-label={`${done ? 'Uncheck' : 'Check'} ${event.title}`}
+                      aria-pressed={done}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void toggleEvent(event, occurrence)
+                      }}
+                    >
+                      {done ? <Check size={13} /> : <Circle size={13} />}
+                    </button>
+                    <span className="agenda-time">
+                      {event.isAllDay ? 'All day' : formatTime(occurrence.getTime())}
                     </span>
-                  </span>
-                  <ChevronRight size={16} className="muted" />
-                </button>
-              ))}
+                    <span className="agenda-rail" style={{ background: event.color || 'var(--primary)' }} />
+                    <span className="agenda-body">
+                      <span
+                        className="agenda-title truncate"
+                        style={{ textDecoration: done ? 'line-through' : undefined }}
+                      >
+                        {event.title}
+                      </span>
+                      <span className="tiny muted truncate">
+                        {dayLabel(occurrence, todayKey)}
+                        {event.priority ? ` · ${event.priority}` : ''}
+                        {event.frequency ? ` · ${eventFrequencyLabel(event)}` : ''}
+                        {status === 'overdue' ? ' · Overdue' : status === 'due' ? ' · Due today' : ''}
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="muted" />
+                  </div>
+                )
+              })}
             </div>
           )}
         </SectionCard>
@@ -328,28 +297,35 @@ export default function HomeScreen() {
                 </button>
               }
             />
+          ) : habitsPending.length === 0 ? (
+            <EmptyLine
+              icon={<Check size={16} />}
+              text="All habits done for today"
+              action={
+                <button className="btn btn-sm btn-outline" onClick={() => navigate('/habits')}>
+                  Open
+                </button>
+              }
+            />
           ) : (
             <div className="habit-strip">
-              {habitsToday.map((habit) => {
-                const done = habit.completionHistory[todayKey] === true
-                return (
-                  <button
-                    key={habit.id}
-                    className={`habit-chip ${done ? 'done' : ''}`}
-                    aria-pressed={done}
-                    aria-label={`${done ? 'Uncheck' : 'Check'} ${habit.name}`}
-                    onClick={() => void toggleHabit(habit)}
-                  >
-                    <span className="habit-chip-check">
-                      {done ? <Check size={14} /> : <Circle size={14} />}
-                    </span>
-                    <span className="habit-chip-name truncate">{habit.name}</span>
-                    <span className="habit-chip-streak" title="Current streak">
-                      🔥 {habit.currentStreak}
-                    </span>
-                  </button>
-                )
-              })}
+              {habitsPending.map((habit) => (
+                <button
+                  key={habit.id}
+                  className="habit-chip"
+                  aria-pressed={false}
+                  aria-label={`Check ${habit.name}`}
+                  onClick={() => void toggleHabit(habit)}
+                >
+                  <span className="habit-chip-check">
+                    <Circle size={14} />
+                  </span>
+                  <span className="habit-chip-name truncate">{habit.name}</span>
+                  <span className="habit-chip-streak" title="Current streak">
+                    🔥 {habit.currentStreak}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </SectionCard>
@@ -535,8 +511,8 @@ export default function HomeScreen() {
       </header>
 
       <div className="quick-actions" role="group" aria-label="Quick actions">
-        <button className="quick-action primary" onClick={() => setShowAddTask(true)}>
-          <Plus size={16} /> Task
+        <button className="quick-action primary" onClick={() => setShowAddEvent(true)}>
+          <CalendarDays size={16} /> Event
         </button>
         <button className="quick-action" onClick={() => setShowAddSpend(true)}>
           <ArrowUpRight size={16} /> Spend
@@ -567,15 +543,7 @@ export default function HomeScreen() {
 
       <div className="home-sections">{sections.map(renderSection)}</div>
 
-      {showAddTask && (
-        <TaskDialog
-          onClose={() => setShowAddTask(false)}
-          onSave={async (task) => {
-            await db.tasks.add(task)
-            setShowAddTask(false)
-          }}
-        />
-      )}
+      {showAddEvent && <EventDialog date={now} onClose={() => setShowAddEvent(false)} />}
       {showAddSpend && (
         <TransactionDialog type="Expense" onClose={() => setShowAddSpend(false)} />
       )}
@@ -643,68 +611,12 @@ function EmptyLine({
   )
 }
 
-function TaskGroup({
-  label,
-  tone,
-  tasks,
-  limit,
-  hint,
-  onComplete,
-  more,
-}: {
-  label: string
-  tone: 'error' | 'primary' | 'muted'
-  tasks: Task[]
-  limit: number
-  hint?: (task: Task) => string
-  onComplete: (task: Task) => void
-  more?: () => void
-}) {
-  if (tasks.length === 0) return null
-  const visible = tasks.slice(0, limit)
-  const hidden = tasks.length - visible.length
-  const color =
-    tone === 'error' ? 'var(--error)' : tone === 'primary' ? 'var(--primary)' : 'var(--muted)'
-
-  return (
-    <div className="task-group">
-      <div className="task-group-label" style={{ color }}>
-        {label} ({tasks.length})
-      </div>
-      {visible.map((task) => (
-        <div key={task.id} className="home-task">
-          <button
-            className="task-check"
-            aria-label={`Complete ${task.title}`}
-            onClick={() => onComplete(task)}
-          >
-            <Check size={13} />
-          </button>
-          <div className="home-task-body">
-            <div className="home-task-title truncate">{task.title}</div>
-            {hint && <div className="tiny muted">{hint(task)}</div>}
-          </div>
-          {task.priority === 'High' && (
-            <span className={`badge ${priorityClass(task.priority)}`}>{task.priority}</span>
-          )}
-        </div>
-      ))}
-      {hidden > 0 && (
-        <button className="task-more" onClick={more}>
-          +{hidden} more
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** "Today" / "Tomorrow" / "Mon, Nov 3" for an event, including multi-day runs. */
-function dayLabel(event: ClarityEvent, todayKey: string): string {
-  const startKey = toDateKey(event.startDate)
-  const endKey = toDateKey(event.endDate)
-  if (startKey <= todayKey && endKey >= todayKey) return 'Today'
-  if (startKey === toDateKey(addDays(fromDateKey(todayKey), 1))) return 'Tomorrow'
-  return new Date(event.startDate).toLocaleDateString('en-US', {
+/** "Today" / "Tomorrow" / "Mon, Nov 3" for an occurrence. */
+function dayLabel(occurrence: Date, todayKey: string): string {
+  const key = toDateKey(occurrence)
+  if (key === todayKey) return 'Today'
+  if (key === toDateKey(addDays(fromDateKey(todayKey), 1))) return 'Tomorrow'
+  return occurrence.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',

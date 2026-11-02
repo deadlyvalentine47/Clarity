@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -7,6 +8,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { ArrowLeft, Check, X } from 'lucide-react'
+import { formatAmountDisplay, formatMoney, formatMoneyWords, sanitizeAmountInput } from '../lib/format'
 
 export function IconButton({
   label,
@@ -57,6 +59,46 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input className="input" {...props} />
 }
 
+/**
+ * Money field: shows Indian-grouped commas while typing and prints the amount
+ * in words underneath (cheque style). The stored value stays a plain number
+ * string — formatting is display-only.
+ */
+export function MoneyInput({
+  value,
+  onChange,
+  placeholder = '0.00',
+  autoFocus,
+  label = 'Amount',
+}: {
+  value: string
+  onChange: (raw: string) => void
+  placeholder?: string
+  autoFocus?: boolean
+  label?: string
+}) {
+  const numeric = Number(value)
+  const showHint = value !== '' && Number.isFinite(numeric) && numeric > 0
+  return (
+    <div>
+      <input
+        className="input"
+        inputMode="decimal"
+        autoFocus={autoFocus}
+        aria-label={label}
+        placeholder={placeholder}
+        value={formatAmountDisplay(value)}
+        onChange={(e) => onChange(sanitizeAmountInput(e.target.value))}
+      />
+      {showHint && (
+        <div className="tiny muted" style={{ marginTop: 4 }}>
+          {formatMoney(numeric)} · {formatMoneyWords(numeric)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className="textarea" {...props} />
 }
@@ -64,6 +106,10 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className="select" {...props} />
 }
+
+// Tracks nested dialogs so closing an inner one doesn't unlock body scroll
+// while an outer dialog is still open.
+let openDialogCount = 0
 
 export function Dialog({
   open,
@@ -78,17 +124,62 @@ export function Dialog({
   children: ReactNode
   footer?: ReactNode
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!open) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const node = dialogRef.current
+    const focusables = () =>
+      node
+        ? Array.from(
+            node.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : []
+
+    const raf = requestAnimationFrame(() => {
+      const first = focusables()[0]
+      if (first) first.focus()
+      else node?.focus()
+    })
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const els = focusables()
+      if (els.length === 0) {
+        e.preventDefault()
+        node?.focus()
+        return
+      }
+      const firstEl = els[0]
+      const lastEl = els[els.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey) {
+        if (active === firstEl || !node?.contains(active)) {
+          e.preventDefault()
+          lastEl.focus()
+        }
+      } else if (active === lastEl || !node?.contains(active)) {
+        e.preventDefault()
+        firstEl.focus()
+      }
     }
+
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
+    openDialogCount += 1
     document.body.style.overflow = 'hidden'
     return () => {
+      cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      openDialogCount = Math.max(0, openDialogCount - 1)
+      if (openDialogCount === 0) document.body.style.overflow = ''
+      previouslyFocused?.focus?.()
     }
   }, [open, onClose])
 
@@ -96,7 +187,14 @@ export function Dialog({
 
   return (
     <div className="dialog-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={dialogRef}
+        tabIndex={-1}
+      >
         <div className="row-between" style={{ marginBottom: 16 }}>
           <h2 className="dialog-title">{title}</h2>
           <IconButton label="Close" onClick={onClose}>
@@ -115,6 +213,7 @@ export function ConfirmDialog({
   title = 'Delete?',
   message,
   confirmLabel = 'Delete',
+  alternateAction,
   onConfirm,
   onCancel,
 }: {
@@ -122,6 +221,7 @@ export function ConfirmDialog({
   title?: string
   message: string
   confirmLabel?: string
+  alternateAction?: { label: string; onClick: () => void }
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -131,10 +231,15 @@ export function ConfirmDialog({
       onClose={onCancel}
       title={title}
       footer={
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <button className="btn btn-outline" onClick={onCancel}>
             Cancel
           </button>
+          {alternateAction && (
+            <button className="btn btn-outline" onClick={alternateAction.onClick}>
+              {alternateAction.label}
+            </button>
+          )}
           <button className="btn btn-danger" onClick={onConfirm}>
             {confirmLabel}
           </button>
@@ -233,31 +338,6 @@ export function ProgressRing({
   )
 }
 
-export function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: readonly T[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div className="segmented">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          className={o === value ? 'active' : ''}
-          onClick={() => onChange(o)}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export function ChipRow<T extends string>({
   options,
   value,
@@ -279,26 +359,6 @@ export function ChipRow<T extends string>({
           {o}
         </button>
       ))}
-    </div>
-  )
-}
-
-export function StatCard({
-  label,
-  value,
-  hint,
-  tone = 'primary',
-}: {
-  label: string
-  value: ReactNode
-  hint?: string
-  tone?: 'primary' | 'plain'
-}) {
-  return (
-    <div className={`card ${tone === 'primary' ? 'primary' : ''}`} style={{ padding: 14 }}>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-      {hint && <div className="tiny" style={{ opacity: 0.8, marginTop: 2 }}>{hint}</div>}
     </div>
   )
 }
@@ -370,10 +430,4 @@ export function priorityClass(priority: string): string {
   if (priority === 'High') return 'high'
   if (priority === 'Low') return 'low'
   return 'medium'
-}
-
-export const PRIORITY_COLORS: Record<string, string> = {
-  High: 'var(--error)',
-  Medium: 'var(--warning)',
-  Low: 'var(--success)',
 }

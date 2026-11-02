@@ -20,11 +20,10 @@ import type {
   PomodoroFocusSession,
   PomodoroSession,
   Source,
-  Subtask,
-  Task,
   Transaction,
 } from '../db/types'
 import { HOME_SECTIONS, type HomeSection, type ThemeMode } from '../db/types'
+import { eventDefaults } from '../db/events'
 import { saveFileToDevice } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
 
@@ -44,7 +43,6 @@ export interface ExportedImage {
 }
 
 export interface AppData {
-  tasks: Task[]
   habits: Habit[]
   notes: Note[]
   transactions: Transaction[]
@@ -54,7 +52,6 @@ export interface AppData {
   sources: Source[]
   noteCategories: NoteCategory[]
   budgetLimits: BudgetLimit[]
-  subtasks: Subtask[]
   pomodoroSessions: PomodoroSession[]
   pomodoroFocusSessions: PomodoroFocusSession[]
   creditCards: CreditCard[]
@@ -74,10 +71,15 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+// SVG is deliberately excluded: it can carry script if ever rendered directly.
+const SAFE_IMAGE_TYPE = /^image\/(png|jpeg|jpg|gif|webp|bmp|avif)$/
+
 function dataUrlToBlob(data: string): Blob | null {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(data)
   if (!match) return null
-  const type = match[1] || 'image/jpeg'
+  // Never trust the MIME type from a backup beyond a small image allowlist.
+  const declared = (match[1] || 'image/jpeg').toLowerCase()
+  const type = SAFE_IMAGE_TYPE.test(declared) ? declared : 'image/jpeg'
   try {
     if (match[2]) {
       const binary = atob(match[3])
@@ -93,7 +95,6 @@ function dataUrlToBlob(data: string): Blob | null {
 
 export async function exportData(prefs: Preferences): Promise<string> {
   const [
-    tasks,
     habits,
     notes,
     transactions,
@@ -103,7 +104,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     sources,
     noteCategories,
     budgetLimits,
-    subtasks,
     pomodoroSessions,
     pomodoroFocusSessions,
     creditCards,
@@ -112,7 +112,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     dayJournals,
     noteImages,
   ] = await Promise.all([
-    db.tasks.toArray(),
     db.habits.toArray(),
     db.notes.toArray(),
     db.transactions.toArray(),
@@ -122,7 +121,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.sources.toArray(),
     db.noteCategories.toArray(),
     db.budgetLimits.toArray(),
-    db.subtasks.toArray(),
     db.pomodoroSessions.toArray(),
     db.pomodoroFocusSessions.toArray(),
     db.creditCards.toArray(),
@@ -133,7 +131,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
   ])
 
   const data: AppData = {
-    tasks,
     habits,
     notes,
     transactions,
@@ -143,7 +140,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     sources,
     noteCategories,
     budgetLimits,
-    subtasks,
     pomodoroSessions,
     pomodoroFocusSessions,
     creditCards,
@@ -192,6 +188,7 @@ function habitDefaults(h: Partial<Habit>): Habit {
     deadlineHour: h.deadlineHour ?? null,
     deadlineMinute: h.deadlineMinute ?? null,
     dailyNotes: h.dailyNotes && typeof h.dailyNotes === 'object' ? h.dailyNotes : {},
+    sortOrder: Number(h.sortOrder ?? 0),
     createdAt: Number(h.createdAt ?? Date.now()),
   }
 }
@@ -203,10 +200,17 @@ export interface ImportResult {
 
 /**
  * Full replace, atomic. Every table is cleared and re-inserted inside one
- * Dexie transaction; parent/child IDs are remapped (subtasks, notes, cards,
- * pomodoro task links, bill-payment links).
+ * Dexie transaction; parent/child IDs are remapped (notes, cards,
+ * bill-payment links).
  */
+// A backup with note images can be large, but parsing an unbounded file would
+// freeze or crash the WebView before the try/catch can help.
+const MAX_BACKUP_CHARS = 50 * 1024 * 1024
+
 export async function importData(jsonText: string): Promise<ImportResult> {
+  if (jsonText.length > MAX_BACKUP_CHARS) {
+    throw new Error('Backup file is too large (max 50 MB)')
+  }
   const raw = JSON.parse(jsonText) as Partial<AppData> & Record<string, unknown>
   if (!raw || typeof raw !== 'object') throw new Error('Invalid backup file')
 
@@ -236,31 +240,6 @@ export async function importData(jsonText: string): Promise<ImportResult> {
       restoredImages += 1
     }
     if (images.length > 0) counts.noteImages = restoredImages
-
-    const taskMap = new Map<number, number>()
-    for (const task of arr<Task>(raw.tasks)) {
-      const { id: oldId, ...rest } = task
-      const newId = (await db.tasks.add({
-        ...rest,
-        tags: Array.isArray(rest.tags) ? rest.tags : [],
-        description: rest.description ?? '',
-        createdAt: rest.createdAt ?? Date.now(),
-        updatedAt: rest.updatedAt ?? Date.now(),
-      })) as number
-      if (oldId != null) taskMap.set(oldId, newId)
-    }
-    counts.tasks = taskMap.size
-
-    for (const subtask of arr<Subtask>(raw.subtasks)) {
-      const taskId = taskMap.get(subtask.taskId)
-      if (taskId == null) continue
-      await db.subtasks.add({
-        taskId,
-        title: subtask.title,
-        isCompleted: Boolean(subtask.isCompleted),
-        createdAt: subtask.createdAt ?? Date.now(),
-      })
-    }
 
     const cardMap = new Map<number, number>()
     for (const card of arr<CreditCard>(raw.creditCards)) {
@@ -390,7 +369,7 @@ export async function importData(jsonText: string): Promise<ImportResult> {
 
     for (const event of arr<Event>(raw.events)) {
       const { id: _id, ...rest } = event
-      await db.events.add(rest)
+      await db.events.add(eventDefaults(rest))
     }
 
     for (const session of arr<PomodoroFocusSession>(raw.pomodoroFocusSessions)) {
@@ -402,7 +381,6 @@ export async function importData(jsonText: string): Promise<ImportResult> {
       const { id: _id, ...rest } = session
       await db.pomodoroSessions.add({
         ...rest,
-        taskId: rest.taskId != null ? taskMap.get(rest.taskId) ?? null : null,
         distractions: Array.isArray(rest.distractions) ? rest.distractions : [],
       })
     }
@@ -440,8 +418,11 @@ export function downloadJson(filename: string, json: string) {
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Revoke after the browser has had a chance to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 /**

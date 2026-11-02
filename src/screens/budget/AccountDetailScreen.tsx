@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { db } from '../../db/db'
 import type { Source, Transaction, TransactionType } from '../../db/types'
-import { deleteSource, deleteTransactionCascade } from '../../db/budget'
+import { deleteSource, deleteTransactionCascade, transferPair } from '../../db/budget'
 import { formatDate, monthRange } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import {
@@ -21,6 +21,7 @@ import {
   Dialog,
   EmptyState,
   Field,
+  MoneyInput,
   PageHeader,
   TextInput,
 } from '../../components/ui'
@@ -37,6 +38,7 @@ export default function AccountDetailScreen() {
   const [showEdit, setShowEdit] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null)
+  const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
   const [addType, setAddType] = useState<TransactionType | null>(null)
   const [creditsOpen, setCreditsOpen] = useState(true)
   const [spendsOpen, setSpendsOpen] = useState(true)
@@ -63,6 +65,11 @@ export default function AccountDetailScreen() {
   const expenses = monthTxns.filter((t) => t.type === 'Expense')
   const totalIncome = income.reduce((s, t) => s + t.amount, 0)
   const totalExpenses = expenses.reduce((s, t) => s + t.amount, 0)
+
+  const openEdit = (txn: Transaction) => {
+    const pair = transferPair(transactions ?? [], txn)
+    setEditingTxn({ txn, pair: pair ?? undefined })
+  }
 
   if (source === null) {
     return (
@@ -169,7 +176,7 @@ export default function AccountDetailScreen() {
         {income.length === 0 ? (
           <p className="small muted">No credits recorded.</p>
         ) : (
-          <TxnRows rows={income} onDelete={setDeletingTxn} />
+          <TxnRows rows={income} onEdit={openEdit} onDelete={setDeletingTxn} />
         )}
       </Section>
 
@@ -184,7 +191,7 @@ export default function AccountDetailScreen() {
         {expenses.length === 0 ? (
           <p className="small muted">No spending recorded.</p>
         ) : (
-          <TxnRows rows={expenses} onDelete={setDeletingTxn} />
+          <TxnRows rows={expenses} onEdit={openEdit} onDelete={setDeletingTxn} />
         )}
       </Section>
 
@@ -194,6 +201,14 @@ export default function AccountDetailScreen() {
 
       {addType && (
         <TransactionDialog type={addType} source={source.name} onClose={() => setAddType(null)} />
+      )}
+      {editingTxn && (
+        <TransactionDialog
+          transaction={editingTxn.txn}
+          transferFrom={editingTxn.pair?.from}
+          transferTo={editingTxn.pair?.to}
+          onClose={() => setEditingTxn(null)}
+        />
       )}
       {showManage && (
         <ManageSourcesCategoriesDialog
@@ -266,7 +281,15 @@ function Section({
   )
 }
 
-function TxnRows({ rows, onDelete }: { rows: Transaction[]; onDelete: (txn: Transaction) => void }) {
+function TxnRows({
+  rows,
+  onEdit,
+  onDelete,
+}: {
+  rows: Transaction[]
+  onEdit: (txn: Transaction) => void
+  onDelete: (txn: Transaction) => void
+}) {
   return (
     <div className="list">
       {rows
@@ -281,6 +304,16 @@ function TxnRows({ rows, onDelete }: { rows: Transaction[]; onDelete: (txn: Tran
               </div>
             </div>
             <Money value={t.type === 'Income' ? t.amount : -t.amount} />
+            {t.linkedCardTxnId == null && (
+              <button
+                className="icon-btn"
+                style={{ width: 30, height: 30 }}
+                aria-label="Edit transaction"
+                onClick={() => onEdit(t)}
+              >
+                <Pencil size={14} />
+              </button>
+            )}
             <button className="icon-btn" style={{ width: 30, height: 30 }} aria-label="Delete transaction" onClick={() => onDelete(t)}>
               <X size={15} color="var(--error)" />
             </button>
@@ -329,7 +362,7 @@ function EditAccountDialog({ source, onClose }: { source: Source; onClose: () =>
           <TextInput autoFocus value={name} onChange={(e) => { setName(e.target.value); setError('') }} />
         </Field>
         <Field label="Current balance" hint="Use this to reconcile the account with your bank.">
-          <TextInput type="number" inputMode="decimal" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} />
+          <MoneyInput value={balance} onChange={setBalance} label="Current balance" />
         </Field>
         {error && <p className="tiny" style={{ color: 'var(--error)' }}>{error}</p>}
       </div>

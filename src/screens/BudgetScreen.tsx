@@ -5,6 +5,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   BarChart3,
+  ChevronRight,
   CreditCard,
   Landmark,
   LineChart,
@@ -14,17 +15,20 @@ import {
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
-import { totalBankBalance, cardOutstanding } from '../db/budget'
-import type { TransactionType } from '../db/types'
+import { totalBankBalance, cardOutstanding, dailySummary, transferPair } from '../db/budget'
+import type { CreditCardTransaction, Transaction, TransactionType } from '../db/types'
 import { PageHeader, EmptyState } from '../components/ui'
 import { formatMoney } from '../lib/format'
-import { formatDate } from '../lib/dates'
-import { ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
+import { endOfDay, startOfDay } from '../lib/dates'
+import { CardTransactionDialog, ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
+import { ActivityRows, buildDailyActivity } from './budget/ActivityList'
 
 export default function BudgetScreen() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState<TransactionType | null>(null)
   const [showManage, setShowManage] = useState(false)
+  const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
+  const [editingCardTxn, setEditingCardTxn] = useState<CreditCardTransaction | null>(null)
 
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
   const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
@@ -32,10 +36,23 @@ export default function BudgetScreen() {
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
   const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
   const transactions = useLiveQuery(
-    async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date).slice(0, 6),
+    async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date),
     [],
     [],
   )
+  // Recent activity is scoped to today in local time; it naturally resets at
+  // midnight. The hub shows the latest five, the full day lives on its own screen.
+  const dayStart = startOfDay()
+  const dayEnd = endOfDay()
+  const cardNameById = new Map((cards ?? []).map((c) => [c.id!, c.name]))
+  const dailyActivity = buildDailyActivity(transactions ?? [], cardTxns ?? [], dayStart, dayEnd)
+  const todayTotals = dailySummary(transactions ?? [], cardTxns ?? [], dayStart, dayEnd)
+  const recentActivity = dailyActivity.slice(0, 5)
+
+  const openEdit = (txn: Transaction) => {
+    const pair = transferPair(transactions ?? [], txn)
+    setEditingTxn({ txn, pair: pair ?? undefined })
+  }
 
   const bankBalance = totalBankBalance(sources ?? [])
   const investmentValue = (investments ?? []).reduce((sum, i) => sum + i.units * i.currentPrice, 0)
@@ -122,7 +139,7 @@ export default function BudgetScreen() {
             }}
           >
             <Icon size={18} style={{ color: tone }} />
-            <div className="stat-value" style={{ fontSize: 20, marginTop: 6, color: tone }}>
+            <div className="stat-value" style={{ marginTop: 6, color: tone }}>
               {value}
             </div>
             <div className="stat-label muted">{label}</div>
@@ -150,8 +167,13 @@ export default function BudgetScreen() {
         ))}
       </div>
 
-      <div className="row-between" style={{ marginBottom: 8 }}>
-        <span className="section-label">Recent activity</span>
+      <div className="row-between" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div className="section-label">Today&apos;s activity</div>
+          <div className="tiny muted">
+            Spent {formatMoney(todayTotals.spent)} · Earned {formatMoney(todayTotals.earned)}
+          </div>
+        </div>
         <div className="row" style={{ gap: 6 }}>
           <button className="btn btn-sm btn-outline" onClick={() => setShowAdd('Income')}>
             <ArrowDownLeft size={14} /> Credit
@@ -159,15 +181,18 @@ export default function BudgetScreen() {
           <button className="btn btn-sm btn-primary" onClick={() => setShowAdd('Expense')}>
             <ArrowUpRight size={14} /> Spend
           </button>
+          <button className="btn btn-sm btn-outline" onClick={() => navigate('/budget/activity')}>
+            View all <ChevronRight size={14} />
+          </button>
         </div>
       </div>
 
-      {(transactions ?? []).length === 0 ? (
+      {recentActivity.length === 0 ? (
         <div className="card">
           <EmptyState
             icon={<Wallet size={36} />}
-            title="No transactions yet"
-            subtitle="Add a spend or credit to start tracking your money."
+            title="No activity today"
+            subtitle="Spends and credits from today will appear here."
             action={
               <button className="btn btn-primary" onClick={() => setShowAdd('Expense')}>
                 <Plus size={16} /> Add transaction
@@ -177,27 +202,12 @@ export default function BudgetScreen() {
         </div>
       ) : (
         <div className="card flush">
-          {(transactions ?? []).map((txn, i) => (
-            <div
-              key={txn.id}
-              className="row"
-              style={{ padding: '12px 16px', borderTop: i === 0 ? 'none' : '1px solid var(--outline)' }}
-            >
-              <div className={`avatar ${txn.type === 'Income' ? 'primary' : 'error'}`} style={{ width: 34, height: 34 }}>
-                {txn.type === 'Income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-              </div>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="truncate">{txn.description || txn.category || txn.type}</div>
-                <div className="tiny muted">
-                  {txn.source} · {txn.category} · {formatDate(txn.date)}
-                </div>
-              </div>
-              <span className={txn.type === 'Income' ? 'money-positive' : 'money-negative'}>
-                {txn.type === 'Income' ? '+' : '−'}
-                {formatMoney(txn.amount)}
-              </span>
-            </div>
-          ))}
+          <ActivityRows
+            items={recentActivity}
+            cardNameById={cardNameById}
+            onEditBank={openEdit}
+            onEditCard={setEditingCardTxn}
+          />
         </div>
       )}
 
@@ -206,6 +216,21 @@ export default function BudgetScreen() {
       </button>
 
       {showAdd && <TransactionDialog type={showAdd} onClose={() => setShowAdd(null)} />}
+      {editingTxn && (
+        <TransactionDialog
+          transaction={editingTxn.txn}
+          transferFrom={editingTxn.pair?.from}
+          transferTo={editingTxn.pair?.to}
+          onClose={() => setEditingTxn(null)}
+        />
+      )}
+      {editingCardTxn && (
+        <CardTransactionDialog
+          cardId={editingCardTxn.cardId}
+          transaction={editingCardTxn}
+          onClose={() => setEditingCardTxn(null)}
+        />
+      )}
       {showManage && (
         <ManageSourcesCategoriesDialog
           sources={sources ?? []}

@@ -92,17 +92,31 @@ export default function NotesScreen() {
       return next
     })
 
-  const drop = async (targetId: number) => {
-    if (dragged == null || !hover) return
-    const zone = hover.zone
+  const drop = async (targetId: number, zone: DropZone) => {
+    if (dragged == null) return
+    const id = dragged
     setHover(null)
     setDragged(null)
     try {
-      await moveNote(dragged, targetId, zone)
+      await moveNote(id, targetId, zone)
       setExpanded((prev) => new Set(prev).add(targetId))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not move note')
     }
+  }
+
+  /** Append the dragged note to the end of the top-level list. */
+  const dropToEnd = () => {
+    if (dragged == null) return
+    const id = dragged
+    const roots = sortNotes((notes ?? []).filter((n) => (n.parentNoteId ?? null) === null))
+    const last = roots[roots.length - 1]
+    setHover(null)
+    setDragged(null)
+    if (!last?.id || last.id === id) return
+    void moveNote(id, last.id, 'below').catch((e) => {
+      setError(e instanceof Error ? e.message : 'Could not move note')
+    })
   }
 
   return (
@@ -196,9 +210,24 @@ export default function NotesScreen() {
                   setHover(null)
                 }}
                 onDragOver={(zone) => setHover({ id: note.id!, zone })}
-                onDrop={() => void drop(note.id!)}
+                onDrop={(zone) => void drop(note.id!, zone)}
               />
             ))}
+            {dragged != null && (
+              <div
+                className="drop-end"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  dropToEnd()
+                }}
+              >
+                Move to the end
+              </div>
+            )}
           </div>
         )
       ) : filtered.length === 0 ? (
@@ -273,7 +302,7 @@ function NoteCard({
   onDragStart: () => void
   onDragEnd: () => void
   onDragOver: (zone: DropZone) => void
-  onDrop: () => void
+  onDrop: (zone: DropZone) => void
 }) {
   const [confirm, setConfirm] = useState(false)
   const tags = noteTags(note)
@@ -294,14 +323,28 @@ function NoteCard({
         e.dataTransfer.dropEffect = 'move'
         const rect = e.currentTarget.getBoundingClientRect()
         const y = e.clientY - rect.top
-        const zone: DropZone = y < rect.height * 0.28 ? 'above' : y > rect.height * 0.72 ? 'below' : 'inside'
+        const zone: DropZone = y < rect.height * 0.3 ? 'above' : y > rect.height * 0.65 ? 'below' : 'inside'
         onDragOver(zone)
       }}
       onDrop={(e) => {
         e.preventDefault()
-        onDrop()
+        // Recompute from the drop event so a quick release can't use a stale
+        // hover zone (which made "drop after the last note" silently fail).
+        const rect = e.currentTarget.getBoundingClientRect()
+        const y = e.clientY - rect.top
+        const zone: DropZone = y < rect.height * 0.3 ? 'above' : y > rect.height * 0.65 ? 'below' : 'inside'
+        onDrop(zone)
       }}
       onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open note ${note.title}`}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
     >
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <span className="drag-handle" title="Drag to reorder or nest" aria-hidden>

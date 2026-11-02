@@ -8,9 +8,10 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Local plugin: the system "Save as" dialog used by Export data.
+        // Local plugins: the "Save as" dialog and the nightly backup job.
         // Must be registered before super.onCreate.
         registerPlugin(SaveFilePlugin.class);
+        registerPlugin(BackupSchedulerPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

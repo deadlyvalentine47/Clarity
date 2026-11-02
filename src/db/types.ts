@@ -9,30 +9,6 @@ export type PomodoroType = 'Focus' | 'ShortBreak' | 'LongBreak'
 export type CardTxnType = 'Purchase' | 'Payment' | 'Credit'
 export type ThemeMode = 'system' | 'light' | 'dark'
 
-export interface Task {
-  id?: number
-  title: string
-  description: string
-  priority: Priority
-  category: string
-  tags: string[]
-  dueDate: number | null
-  reminderTime: number | null
-  isCompleted: boolean
-  isRecurring: boolean
-  recurringType: RecurringType | null
-  createdAt: number
-  updatedAt: number
-}
-
-export interface Subtask {
-  id?: number
-  taskId: number
-  title: string
-  isCompleted: boolean
-  createdAt: number
-}
-
 export interface Habit {
   id?: number
   name: string
@@ -58,6 +34,8 @@ export interface Habit {
   deadlineMinute?: number | null
   /** date -> note text */
   dailyNotes: Record<string, string>
+  /** manual list position; lower comes first */
+  sortOrder: number
   createdAt: number
 }
 
@@ -100,6 +78,8 @@ export interface Transaction {
   createdAt: number
   /** link to the credit-card payment row created for a bill payment */
   linkedCardTxnId?: number | null
+  /** shared id linking the two legs of a self-transfer */
+  transferGroupId?: string | null
 }
 
 export interface Category {
@@ -149,6 +129,20 @@ export interface Event {
   color: string
   isAllDay: boolean
   reminderTime: number | null
+  /** optional task priority */
+  priority: Priority | null
+  /** optional deadline (local noon); one-off events only */
+  dueDate: number | null
+  /** recurrence; null = one-off */
+  frequency: HabitFrequency | null
+  /** used when frequency === 'Alternate' */
+  alternateDays: number | null
+  /** ISO weekdays 1=Mon..7=Sun, used when frequency === 'Custom' */
+  selectedDays: number[] | null
+  /** occurrence date key (YYYY-MM-DD) -> completed */
+  completionHistory: Record<string, boolean>
+  /** occurrence date key -> deleted individually (recurring events only) */
+  skippedDates: Record<string, boolean>
   createdAt: number
 }
 
@@ -166,7 +160,6 @@ export interface PomodoroFocusSession {
 
 export interface PomodoroSession {
   id?: number
-  taskId: number | null
   duration: number
   type: PomodoroType
   completedAt: number
@@ -213,7 +206,6 @@ export interface DayJournal {
 }
 
 export const HOME_SECTIONS = [
-  'Tasks',
   'Events',
   'Habits',
   'Budget',

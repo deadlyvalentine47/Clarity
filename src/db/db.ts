@@ -15,14 +15,10 @@ import type {
   PomodoroFocusSession,
   PomodoroSession,
   Source,
-  Subtask,
-  Task,
   Transaction,
 } from './types'
 
 export class ClarityDB extends Dexie {
-  tasks!: Table<Task, number>
-  subtasks!: Table<Subtask, number>
   habits!: Table<Habit, number>
   notes!: Table<Note, number>
   noteCategories!: Table<NoteCategory, number>
@@ -113,6 +109,44 @@ export class ClarityDB extends Dexie {
             s.balance ??= 0
           })
       })
+
+    // v3 adds manual habit ordering. Seed existing habits from creation order
+    // so the list doesn't jump around after the upgrade.
+    this.version(3)
+      .stores({
+        habits: '++id, createdAt, archivedAt',
+      })
+      .upgrade(async (tx) => {
+        const habits = await tx.table('habits').toArray()
+        habits.sort(
+          (a: Habit, b: Habit) => a.createdAt - b.createdAt || (a.id ?? 0) - (b.id ?? 0),
+        )
+        for (let i = 0; i < habits.length; i += 1) {
+          await tx.table('habits').update(habits[i].id, { sortOrder: (i + 1) * 10 })
+        }
+      })
+
+    // v4 removes the old Tasks feature (calendar events now carry tasks) and
+    // gives existing events the task fields: priority, due date, recurrence and
+    // per-occurrence completion.
+    this.version(4)
+      .stores({
+        tasks: null,
+        subtasks: null,
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('events')
+          .toCollection()
+          .modify((e: Event) => {
+            e.priority ??= null
+            e.dueDate ??= null
+            e.frequency ??= null
+            e.alternateDays ??= null
+            e.selectedDays ??= null
+            e.completionHistory ??= {}
+          })
+      })
   }
 }
 
@@ -126,17 +160,4 @@ export async function clearAllData(): Promise<void> {
   await db.transaction('rw', db.tables, async () => {
     for (const table of db.tables) await table.clear()
   })
-}
-
-/** True when a table has no rows — used for first-run empty states. */
-export async function isEmptyDatabase(): Promise<boolean> {
-  const [tasks, notes, habits, transactions, goals, events] = await Promise.all([
-    db.tasks.count(),
-    db.notes.count(),
-    db.habits.count(),
-    db.transactions.count(),
-    db.goals.count(),
-    db.events.count(),
-  ])
-  return tasks + notes + habits + transactions + goals + events === 0
 }

@@ -1,14 +1,14 @@
 import { db } from './db'
 import type {
   CardTxnType,
-  CreditCard,
   CreditCardTransaction,
   Transaction,
   TransactionType,
 } from './types'
-import { clampDay, monthRange } from '../lib/dates'
+import { clampDay } from '../lib/dates'
 
 export const CREDIT_CARD_PAYMENT_CATEGORY = 'Credit Card Payment'
+export const SELF_TRANSFER_CATEGORY = 'Self_Transfer'
 
 // ---------------------------------------------------------------- accounts
 
@@ -26,6 +26,12 @@ export async function categoryNameExists(name: string, exceptId?: number): Promi
   const trimmed = name.trim().toLowerCase()
   const categories = await db.categories.toArray()
   return categories.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === trimmed)
+}
+
+export async function cardNameExists(name: string, exceptId?: number): Promise<boolean> {
+  const trimmed = name.trim().toLowerCase()
+  const cards = await db.creditCards.toArray()
+  return cards.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === trimmed)
 }
 
 /** Rename an account and cascade the name to every transaction. */
@@ -53,10 +59,6 @@ export async function renameCategory(id: number, newName: string): Promise<void>
       await db.transactions.where('category').equals(oldName).modify({ category: name })
     }
   })
-}
-
-export async function countTransactionsForSource(name: string): Promise<number> {
-  return db.transactions.where('source').equals(name).count()
 }
 
 export async function deleteSource(id: number): Promise<void> {
@@ -125,23 +127,174 @@ export async function addExpense(input: {
   })
 }
 
+/** A self-transfer moves money between your own accounts; it is not spending. */
+export function isSelfTransfer(txn: Transaction): boolean {
+  return txn.transferGroupId != null || txn.category === SELF_TRANSFER_CATEGORY
+}
+
+export interface TransactionInput {
+  type: TransactionType
+  amount: number
+  category: string
+  source: string
+  description: string
+  date: number
+}
+
+/** Edit a plain bank transaction and keep the account balance in sync. */
+export async function updateTransaction(txn: Transaction, patch: TransactionInput): Promise<void> {
+  if (txn.id == null) return
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    // Undo the old effect, apply the new one.
+    await adjustBalance(txn.source, txn.type === 'Income' ? -txn.amount : txn.amount)
+    await db.transactions.update(txn.id!, {
+      type: patch.type,
+      amount: patch.amount,
+      category: patch.category,
+      source: patch.source,
+      description: patch.description.trim(),
+      date: patch.date,
+    })
+    await adjustBalance(patch.source, patch.type === 'Income' ? patch.amount : -patch.amount)
+  })
+}
+
+/**
+ * Move money between two of your own accounts: one expense leg from the source
+ * and one income leg to the destination, sharing a group id.
+ */
+export async function addSelfTransfer(input: {
+  fromSource: string
+  toSource: string
+  amount: number
+  description: string
+  date?: number
+}): Promise<string> {
+  const now = Date.now()
+  const date = input.date ?? now
+  const groupId = crypto.randomUUID()
+  const label = input.description.trim()
+
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    await db.transactions.add({
+      type: 'Expense',
+      amount: input.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: input.fromSource,
+      description: label || `Transfer to ${input.toSource}`,
+      date,
+      isRecurring: false,
+      recurringType: null,
+      createdAt: now,
+      transferGroupId: groupId,
+    })
+    await db.transactions.add({
+      type: 'Income',
+      amount: input.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: input.toSource,
+      description: label || `Transfer from ${input.fromSource}`,
+      date,
+      isRecurring: false,
+      recurringType: null,
+      createdAt: now,
+      transferGroupId: groupId,
+    })
+    await adjustBalance(input.fromSource, -input.amount)
+    await adjustBalance(input.toSource, input.amount)
+  })
+
+  return groupId
+}
+
+/** Update both legs of a self-transfer and rebalance both accounts. */
+export async function updateSelfTransfer(
+  groupId: string,
+  patch: {
+    fromSource: string
+    toSource: string
+    amount: number
+    description: string
+    date: number
+  },
+): Promise<void> {
+  const legs = await db.transactions.filter((t) => t.transferGroupId === groupId).toArray()
+  const expenseLeg = legs.find((t) => t.type === 'Expense')
+  const incomeLeg = legs.find((t) => t.type === 'Income')
+  if (!expenseLeg || !incomeLeg || expenseLeg.id == null || incomeLeg.id == null) {
+    throw new Error('Transfer pair not found')
+  }
+
+  await db.transaction('rw', db.transactions, db.sources, async () => {
+    // Reverse the old movement before applying the new one.
+    await adjustBalance(expenseLeg.source, expenseLeg.amount)
+    await adjustBalance(incomeLeg.source, -incomeLeg.amount)
+
+    const label = patch.description.trim()
+    await db.transactions.update(expenseLeg.id!, {
+      type: 'Expense',
+      amount: patch.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: patch.fromSource,
+      description: label || `Transfer to ${patch.toSource}`,
+      date: patch.date,
+    })
+    await db.transactions.update(incomeLeg.id!, {
+      type: 'Income',
+      amount: patch.amount,
+      category: SELF_TRANSFER_CATEGORY,
+      source: patch.toSource,
+      description: label || `Transfer from ${patch.fromSource}`,
+      date: patch.date,
+    })
+    await adjustBalance(patch.fromSource, -patch.amount)
+    await adjustBalance(patch.toSource, patch.amount)
+  })
+}
+
+/** Resolve the from/to accounts of a transfer leg. */
+export function transferPair(
+  transactions: Transaction[],
+  txn: Transaction,
+): { from: string; to: string } | null {
+  if (txn.transferGroupId == null) return null
+  const legs = transactions.filter((t) => t.transferGroupId === txn.transferGroupId)
+  const from = legs.find((t) => t.type === 'Expense')?.source
+  const to = legs.find((t) => t.type === 'Income')?.source
+  return from != null && to != null ? { from, to } : null
+}
+
 /** Delete a bank transaction, restore the account balance and linked card row. */
 export async function deleteTransactionCascade(txn: Transaction): Promise<void> {
   if (txn.id == null) return
   await db.transaction('rw', db.transactions, db.sources, db.creditCardTransactions, async () => {
+    // Delete both legs of a self-transfer together.
+    if (txn.transferGroupId != null) {
+      const legs = await db.transactions
+        .filter((t) => t.transferGroupId === txn.transferGroupId)
+        .toArray()
+      for (const leg of legs) {
+        if (leg.id == null) continue
+        await db.transactions.delete(leg.id)
+        await adjustBalance(leg.source, leg.type === 'Income' ? -leg.amount : leg.amount)
+      }
+      return
+    }
+
     await db.transactions.delete(txn.id!)
     await adjustBalance(txn.source, txn.type === 'Income' ? -txn.amount : txn.amount)
 
     if (txn.linkedCardTxnId != null) {
       await db.creditCardTransactions.delete(txn.linkedCardTxnId)
     } else {
-      // Deleting a card payment from the card side removes its bank expense too.
-      // `linkedCardTxnId` is not indexed (Dexie cannot index nullable columns
-      // usefully here), so scan instead of using where().
-      const linked = await db.transactions.filter((t) => t.linkedCardTxnId === txn.id).first()
-      if (linked?.id != null) {
-        await db.transactions.delete(linked.id)
-        await adjustBalance(linked.source, linked.amount)
+      // Older/imported data may only carry the card-side backlink. Remove the
+      // card payment that points at this bank row so outstanding doesn't drift.
+      // `linkedTransactionId` is not indexed, so scan with filter().
+      const linkedCard = await db.creditCardTransactions
+        .filter((c) => c.linkedTransactionId === txn.id)
+        .first()
+      if (linkedCard?.id != null) {
+        await db.creditCardTransactions.delete(linkedCard.id)
       }
     }
   })
@@ -185,7 +338,7 @@ export function spendSummary(
   end: number,
 ): SpendSummary {
   const bank = transactions
-    .filter((t) => t.type === 'Expense' && !isCardPayment(t) && t.date >= start && t.date <= end)
+    .filter((t) => t.type === 'Expense' && !isCardPayment(t) && !isSelfTransfer(t) && t.date >= start && t.date <= end)
     .reduce((sum, t) => sum + t.amount, 0)
   const card = cardTransactions
     .filter((t) => t.type === 'Purchase' && t.date >= start && t.date <= end)
@@ -193,25 +346,54 @@ export function spendSummary(
   return { bank, card, total: bank + card }
 }
 
-export async function getCardOutstanding(cardId: number): Promise<number> {
-  const txns = await db.creditCardTransactions.where('cardId').equals(cardId).toArray()
-  return cardOutstanding(txns)
+/**
+ * Purchases on a card inside the billing cycle that ends in the given month —
+ * the same window the card detail screen uses for that month.
+ */
+export function cardPurchasesInCycle(
+  card: { id?: number; billingCycleDay: number },
+  cardTransactions: CreditCardTransaction[],
+  year: number,
+  month: number,
+): number {
+  if (card.id == null) return 0
+  const cycle = billingCycle(year, month, card.billingCycleDay)
+  return cardTransactions
+    .filter(
+      (t) =>
+        t.cardId === card.id &&
+        t.type === 'Purchase' &&
+        t.date >= cycle.start &&
+        t.date < cycle.end,
+    )
+    .reduce((sum, t) => sum + t.amount, 0)
 }
 
-export async function getCardOutstandingInRange(
-  cardId: number,
+export interface DailySummary {
+  spent: number
+  earned: number
+}
+
+/** Spent and earned in a window; self-transfers and bill payments are excluded. */
+export function dailySummary(
+  transactions: Transaction[],
+  cardTransactions: CreditCardTransaction[],
   start: number,
   end: number,
-): Promise<number> {
-  const txns = await db.creditCardTransactions
-    .where('cardId')
-    .equals(cardId)
-    .filter((t) => t.date >= start && t.date <= end)
-    .toArray()
-  return cardOutstanding(txns)
+): DailySummary {
+  const spent = spendSummary(transactions, cardTransactions, start, end).total
+  const earned =
+    transactions
+      .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= start && t.date <= end)
+      .reduce((sum, t) => sum + t.amount, 0) +
+    cardTransactions
+      .filter((t) => t.type === 'Credit' && t.date >= start && t.date <= end)
+      .reduce((sum, t) => sum + t.amount, 0)
+  return { spent, earned }
 }
 
-export async function addCardTransaction(
+/** Record a spend/credit straight onto a card (budget quick-add). */
+export async function recordCardTransaction(
   cardId: number,
   type: CardTxnType,
   amount: number,
@@ -345,72 +527,3 @@ export function billingCycle(year: number, month: number, cycleDay: number): Bil
   return { start: start.getTime(), end: end.getTime(), startLabel: fmt(start), endLabel: fmt(new Date(end.getTime() - 1)) }
 }
 
-// ---------------------------------------------------------------- metrics
-
-export interface BudgetMetrics {
-  income: number
-  expenses: number
-  net: number
-  incomeBySource: [string, number][]
-  expensesBySource: [string, number][]
-  categorySpending: [string, number][]
-  cardSpending: [string, number][]
-  totalInvested: number
-  totalCurrent: number
-  profitLoss: number
-}
-
-function groupSum(items: Transaction[], key: (t: Transaction) => string): [string, number][] {
-  const map = new Map<string, number>()
-  for (const item of items) {
-    const k = key(item) || 'Unknown'
-    map.set(k, (map.get(k) ?? 0) + item.amount)
-  }
-  return [...map.entries()].sort((a, b) => b[1] - a[1])
-}
-
-export async function getBudgetMetrics(year: number, month: number): Promise<BudgetMetrics> {
-  const [start, end] = monthRange(year, month)
-  const [transactions, cards, investments, cardTxns] = await Promise.all([
-    db.transactions.toArray(),
-    db.creditCards.toArray(),
-    db.investments.toArray(),
-    db.creditCardTransactions.toArray(),
-  ])
-
-  const monthTxns = transactions.filter((t) => t.date >= start && t.date <= end)
-  const incomeTxns = monthTxns.filter((t) => t.type === 'Income')
-  const expenseTxns = monthTxns.filter((t) => t.type === 'Expense')
-  const income = incomeTxns.reduce((s, t) => s + t.amount, 0)
-  const expenses = expenseTxns.reduce((s, t) => s + t.amount, 0)
-
-  const cardSpending: [string, number][] = cards
-    .map((card) => {
-      const spends = cardTxns
-        .filter((t) => t.cardId === card.id && t.type === 'Purchase' && t.date >= start && t.date <= end)
-        .reduce((s, t) => s + t.amount, 0)
-      return [card.name, spends] as [string, number]
-    })
-    .filter(([, amount]) => amount > 0)
-    .sort((a, b) => b[1] - a[1])
-
-  const totalInvested = investments.reduce((s, i) => s + i.units * i.purchasePrice, 0)
-  const totalCurrent = investments.reduce((s, i) => s + i.units * i.currentPrice, 0)
-
-  return {
-    income,
-    expenses,
-    net: income - expenses,
-    incomeBySource: groupSum(incomeTxns, (t) => t.source),
-    expensesBySource: groupSum(expenseTxns, (t) => t.source),
-    categorySpending: groupSum(expenseTxns, (t) => t.category),
-    cardSpending,
-    totalInvested,
-    totalCurrent,
-    profitLoss: totalCurrent - totalInvested,
-  }
-}
-
-export function transactionLabel(txn: Transaction): string {
-  return txn.description.trim() || txn.category || txn.source || txn.type
-}

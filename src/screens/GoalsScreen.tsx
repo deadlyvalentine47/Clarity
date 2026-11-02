@@ -107,7 +107,7 @@ function GoalCard({
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="bold">{goal.title}</div>
           <div className="row" style={{ gap: 8, marginTop: 2 }}>
-            <span className="badge soft">{goal.type}</span>
+            <span className="badge">{goal.type}</span>
             {goal.isCompleted && <span className="badge low">Completed</span>}
           </div>
         </div>

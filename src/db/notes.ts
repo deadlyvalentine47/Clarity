@@ -1,6 +1,5 @@
 import { db } from './db'
 import type { Note } from './types'
-import { toDateKey } from '../lib/dates'
 
 export const NOTE_IMAGE_REGEX = /!\[img:([a-fA-F0-9-]+)\]/g
 
@@ -38,24 +37,19 @@ export interface FlatNote {
 }
 
 /** DFS tree; children are only emitted when their parent is expanded. */
-export function flattenTree(
-  notes: Note[],
-  expanded: Set<number>,
-  rootParent: number | null = null,
-  depth = 0,
-  seen = new Set<number>(),
-): FlatNote[] {
+export function flattenTree(notes: Note[], expanded: Set<number>): FlatNote[] {
   const map = childrenByParent(notes)
+  const seen = new Set<number>()
   const out: FlatNote[] = []
-  const walk = (parent: number | null, d: number) => {
+  const walk = (parent: number | null, depth: number) => {
     for (const note of map.get(parent) ?? []) {
       if (note.id == null || seen.has(note.id)) continue
       seen.add(note.id)
-      out.push({ note, depth: d })
-      if (expanded.has(note.id)) walk(note.id, d + 1)
+      out.push({ note, depth })
+      if (expanded.has(note.id)) walk(note.id, depth + 1)
     }
   }
-  walk(rootParent, depth)
+  walk(null, 0)
   return out
 }
 
@@ -241,24 +235,6 @@ async function downscaleImage(file: Blob, maxSide = 1280, quality = 0.82): Promi
   } catch {
     return file
   }
-}
-
-export function newNote(partial: Partial<Note> & { title: string }): Note {
-  const now = Date.now()
-  return {
-    content: '',
-    isPinned: false,
-    category: '',
-    parentNoteId: null,
-    sortOrder: 0,
-    createdAt: now,
-    updatedAt: now,
-    ...partial,
-  }
-}
-
-export function todayKey(): string {
-  return toDateKey(new Date())
 }
 
 /** Markdown/image markers stripped for compact list previews. */

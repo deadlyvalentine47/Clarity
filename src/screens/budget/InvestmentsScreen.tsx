@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import { Pencil, Plus, Trash2, TrendingUp } from 'lucide-react'
 import { db } from '../../db/db'
 import { INVESTMENT_TYPES, type Investment } from '../../db/types'
-import { formatDate } from '../../lib/dates'
+import { formatDate, toDateKey } from '../../lib/dates'
 import { formatMoney, formatPercent } from '../../lib/format'
 import {
   ConfirmDialog,
   Dialog,
   EmptyState,
   Field,
+  MoneyInput,
   PageHeader,
   TextArea,
   TextInput,
@@ -216,7 +217,7 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
   const [purchasePrice, setPurchasePrice] = useState(investment?.purchasePrice != null ? String(investment.purchasePrice) : '')
   const [currentPrice, setCurrentPrice] = useState(investment?.currentPrice != null ? String(investment.currentPrice) : '')
   const [purchaseDate, setPurchaseDate] = useState(
-    investment ? new Date(investment.purchaseDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    investment ? toDateKey(investment.purchaseDate) : toDateKey(new Date()),
   )
   const [notes, setNotes] = useState(investment?.notes ?? '')
 
@@ -274,10 +275,10 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
             <TextInput type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
           </Field>
           <Field label="Purchase price / unit *">
-            <TextInput type="number" inputMode="decimal" step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+            <MoneyInput value={purchasePrice} onChange={setPurchasePrice} label="Purchase price" />
           </Field>
           <Field label="Current price / unit *">
-            <TextInput type="number" inputMode="decimal" step="0.01" value={currentPrice} onChange={(e) => setCurrentPrice(e.target.value)} />
+            <MoneyInput value={currentPrice} onChange={setCurrentPrice} label="Current price" />
           </Field>
         </div>
         <Field label="Notes">
