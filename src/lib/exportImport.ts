@@ -20,10 +20,11 @@ import type {
   NoteCategory,
   PomodoroFocusSession,
   PomodoroSession,
+  RunSession,
   Source,
   Transaction,
 } from '../db/types'
-import { HOME_SECTIONS, type HomeSection, type ThemeMode } from '../db/types'
+import { HOME_SECTIONS, type DistanceUnit, type HomeSection, type ThemeMode } from '../db/types'
 import { eventDefaults } from '../db/events'
 import { saveFileToDevice } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
@@ -34,6 +35,7 @@ export interface BackupSettings {
   darkMode: ThemeMode
   sectionOrder: string[]
   sectionEnabled: string[]
+  distanceUnit?: DistanceUnit
 }
 
 /** Note pictures travel as data URLs so a backup is self-contained. */
@@ -61,6 +63,8 @@ export interface AppData {
   creditCardTransactions: CreditCardTransaction[]
   investments: Investment[]
   dayJournals: DayJournal[]
+  /** optional: backups from before the Runs feature have none */
+  runs?: RunSession[]
   noteImages?: ExportedImage[]
   settings: BackupSettings
 }
@@ -114,6 +118,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCardTransactions,
     investments,
     dayJournals,
+    runs,
     noteImages,
   ] = await Promise.all([
     db.habits.toArray(),
@@ -132,6 +137,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.creditCardTransactions.toArray(),
     db.investments.toArray(),
     db.dayJournals.toArray(),
+    db.runs.toArray(),
     db.noteImages.toArray(),
   ])
 
@@ -152,6 +158,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCardTransactions,
     investments,
     dayJournals,
+    runs,
     noteImages: await Promise.all(
       noteImages.map(async (image) => ({
         id: image.id,
@@ -165,6 +172,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
       darkMode: prefs.darkMode,
       sectionOrder: prefs.sectionOrder,
       sectionEnabled: prefs.sectionEnabled,
+      distanceUnit: prefs.distanceUnit,
     },
   }
   // Compact: a backup with note images is large enough without indentation.
@@ -422,6 +430,29 @@ export async function importData(jsonText: string): Promise<ImportResult> {
         updatedAt: journal.updatedAt ?? Date.now(),
       })
     }
+
+    for (const run of arr<RunSession>(raw.runs)) {
+      const { id: _id, ...rest } = run
+      await db.runs.add({
+        startedAt: Number(rest.startedAt ?? Date.now()),
+        endedAt: rest.endedAt == null ? null : Number(rest.endedAt),
+        durationSeconds: Math.max(0, Number(rest.durationSeconds ?? 0)),
+        distanceMeters: Math.max(0, Number(rest.distanceMeters ?? 0)),
+        isManualDistance: Boolean(rest.isManualDistance),
+        points: Array.isArray(rest.points)
+          ? rest.points.filter(
+              (point) =>
+                point != null &&
+                Number.isFinite(point.lat) &&
+                Number.isFinite(point.lng) &&
+                Number.isFinite(point.t),
+            )
+          : [],
+        notes: rest.notes ?? '',
+        createdAt: Number(rest.createdAt ?? Date.now()),
+      })
+    }
+    counts.runs = arr<RunSession>(raw.runs).length
   })
 
   const settings = (raw.settings ?? {}) as Partial<BackupSettings>
@@ -431,6 +462,7 @@ export async function importData(jsonText: string): Promise<ImportResult> {
     darkMode: settings.darkMode ?? 'system',
     sectionOrder: (settings.sectionOrder ?? [...HOME_SECTIONS]) as HomeSection[],
     sectionEnabled: (settings.sectionEnabled ?? [...HOME_SECTIONS]) as HomeSection[],
+    distanceUnit: settings.distanceUnit,
   })
 
   return { preferences, counts }

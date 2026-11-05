@@ -108,6 +108,143 @@ export async function cancelTimerNotification(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------- location
+
+export interface LocationFix {
+  lat: number
+  lng: number
+  /** horizontal accuracy in metres */
+  accuracy: number
+  altitude: number | null
+  speed: number | null
+  /** epoch ms */
+  timestamp: number
+}
+
+export interface LocationError {
+  /** plugin/browser code, e.g. NOT_AUTHORIZED or UNAVAILABLE */
+  code: string
+  message?: string
+}
+
+// BackgroundGeolocation keeps delivering fixes through a foreground service
+// (Android) / location updates (iOS) while the screen is locked. Importing the
+// package directly is pointless here — registerPlugin avoids loading its web
+// shim and keeps the browser fallback dependency-free.
+interface BackgroundLocation {
+  latitude: number
+  longitude: number
+  accuracy: number
+  altitude: number | null
+  speed: number | null
+  time: number | null
+}
+
+interface BackgroundGeolocationPlugin {
+  addWatcher(
+    options: {
+      backgroundMessage?: string
+      backgroundTitle?: string
+      requestPermissions?: boolean
+      stale?: boolean
+      distanceFilter?: number
+    },
+    callback: (
+      position?: BackgroundLocation,
+      error?: { code?: string; message?: string },
+    ) => void,
+  ): Promise<string>
+  removeWatcher(options: { id: string }): Promise<void>
+  openSettings(): Promise<void>
+}
+
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation')
+
+/**
+ * Start watching the device location. Returns an idempotent stop function.
+ * Native: background-capable plugin watcher. Web: best-effort
+ * `navigator.geolocation` — permission failures are reported through
+ * `onError`, never as console errors.
+ */
+export async function startLocationWatcher(
+  onFix: (fix: LocationFix) => void,
+  onError: (error: LocationError) => void,
+): Promise<() => void> {
+  if (!isNative()) {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      onError({ code: 'UNAVAILABLE', message: 'Location is not available' })
+      return () => {}
+    }
+    const id = navigator.geolocation.watchPosition(
+      (position) =>
+        onFix({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude,
+          speed: position.coords.speed,
+          timestamp: position.timestamp || Date.now(),
+        }),
+      (error) =>
+        onError({
+          code:
+            error.code === error.PERMISSION_DENIED
+              ? 'NOT_AUTHORIZED'
+              : error.code === error.POSITION_UNAVAILABLE
+                ? 'UNAVAILABLE'
+                : 'TIMEOUT',
+          message: error.message,
+        }),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+    )
+    return () => navigator.geolocation.clearWatch(id)
+  }
+
+  const id = await BackgroundGeolocation.addWatcher(
+    {
+      backgroundMessage: 'Tracking your run',
+      backgroundTitle: 'Clarity run',
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 5,
+    },
+    (position, error) => {
+      if (error) {
+        onError({ code: error.code ?? 'UNAVAILABLE', message: error.message })
+        return
+      }
+      if (!position) return
+      onFix({
+        lat: position.latitude,
+        lng: position.longitude,
+        accuracy: position.accuracy,
+        altitude: position.altitude,
+        speed: position.speed,
+        timestamp: position.time ?? Date.now(),
+      })
+    },
+  )
+
+  let stopped = false
+  return () => {
+    if (stopped) return
+    stopped = true
+    void BackgroundGeolocation.removeWatcher({ id }).catch(() => {
+      // The watcher may already be gone after a process restart.
+    })
+  }
+}
+
+/** Open this app's system settings so a denied location permission can be fixed. */
+export async function openLocationSettings(): Promise<void> {
+  if (!isNative()) return
+  try {
+    await BackgroundGeolocation.openSettings()
+  } catch {
+    // ignore
+  }
+}
+
 // ---------------------------------------------------------------- back button
 
 /**

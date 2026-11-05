@@ -88,7 +88,25 @@ const seeded = await page.evaluate(async () => {
     { duration: 25, type: 'Focus', completedAt: now, distractions: [] },
     { duration: 25, type: 'Focus', completedAt: now - day, distractions: [] },
   ])
-  return { sid, habitId, noteId: notes[0].id, cardId, todayKey }
+  const runPoints = Array.from({ length: 11 }, (_, i) => ({
+    t: now - 2 * day + i * 180_000,
+    lat: 19.076 + i * 0.0045,
+    lng: 72.8777,
+    acc: 4,
+    alt: null,
+    spd: 2.8,
+  }))
+  const runId = await db.runs.add({
+    startedAt: now - 2 * day,
+    endedAt: now - 2 * day + 1_800_000,
+    durationSeconds: 1800,
+    distanceMeters: 5000,
+    isManualDistance: false,
+    points: runPoints,
+    notes: 'Morning loop',
+    createdAt: now - 2 * day,
+  })
+  return { sid, habitId, noteId: notes[0].id, cardId, todayKey, runId }
 })
 console.log('seeded', seeded)
 
@@ -119,6 +137,8 @@ const routes = [
   ['habit-detail', `/habits/${seeded.habitId}`],
   ['habit-metrics', '/habits/metrics'],
   ['habit-metrics-day', `/habits/metrics/${seeded.todayKey}`],
+  ['runs', '/runs'],
+  ['run-detail', `/runs/${seeded.runId}`],
   ['notes', '/notes'],
   ['note-detail', `/notes/${seeded.noteId}`],
   ['goals', '/goals'],

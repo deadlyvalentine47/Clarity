@@ -29,10 +29,18 @@ const result = await page.evaluate(async () => {
   const { moveNote } = await import('/src/db/notes.ts')
   const { exportData, importData } = await import('/src/lib/exportImport.ts')
   const { loadPreferences } = await import('/src/lib/prefs.ts')
+  const {
+    acceptFix,
+    distanceLabel,
+    formatClock,
+    formatPace,
+    haversineMeters,
+    splitSeconds,
+  } = await import('/src/lib/geo.ts')
 
   await Promise.all([
     db.habits.clear(), db.notes.clear(), db.transactions.clear(),
-    db.goals.clear(), db.events.clear(),
+    db.goals.clear(), db.events.clear(), db.runs.clear(),
   ])
 
   // --- Events: recurrence, due state and completion -----------------------
@@ -148,6 +156,29 @@ const result = await page.evaluate(async () => {
   await toggleHabitForDate(hid, key(now), false)
   const afterUncheck = await db.habits.get(hid)
 
+  // --- Habit order: grouped habits flatten group by group ------------------
+  // Per-group sortOrder values collide, so the home strip must flatten the
+  // same top-level rows as the Habits screen instead of a flat sort.
+  const { buildTopLevelRows } = await import('/src/db/habitGroups.ts')
+  const mkHabit = (id, sortOrder, groupId, createdAt) => ({
+    id, name: `h${id}`, sortOrder, groupId, createdAt,
+  })
+  const habitOrder = buildTopLevelRows(
+    [
+      mkHabit(1, 10, 1, 10),
+      mkHabit(2, 20, 1, 11),
+      mkHabit(3, 10, 2, 12),
+      mkHabit(4, 20, 2, 13),
+      mkHabit(5, 30, null, 14),
+    ],
+    [
+      { id: 1, name: 'A', sortOrder: 10, createdAt: 1 },
+      { id: 2, name: 'B', sortOrder: 20, createdAt: 2 },
+    ],
+  )
+    .flatMap((row) => (row.kind === 'group' ? row.habits : [row.habit]))
+    .map((h) => h.id)
+
   // --- Billing cycle ------------------------------------------------------
   const feb = billingCycle(2026, 2, 31)
   const febStart = new Date(feb.start)
@@ -201,6 +232,19 @@ const result = await page.evaluate(async () => {
   const drift = await db.transactions.where('source').equals('Logic Bank').count()
 
   // --- Export -> clear -> import round trip -------------------------------
+  const logicRunId = await db.runs.add({
+    startedAt: now - day,
+    endedAt: now - day + 600_000,
+    durationSeconds: 600,
+    distanceMeters: 1234.5,
+    isManualDistance: false,
+    points: [
+      { t: now - day, lat: 1, lng: 1, acc: 5, alt: null, spd: 2.8 },
+      { t: now - day + 600_000, lat: 1.009, lng: 1, acc: 5, alt: null, spd: 2.8 },
+    ],
+    notes: 'round trip',
+    createdAt: now,
+  })
   const roundTripId = await addEvent({
     title: 'Round trip event',
     priority: 'High',
@@ -214,7 +258,43 @@ const result = await page.evaluate(async () => {
   await importData(json)
   const restoredEvents = await db.events.toArray()
   const roundTripEvent = restoredEvents.find((e) => e.title === 'Round trip event')
+  const restoredRuns = await db.runs.toArray()
   const todayKey = key(new Date())
+
+  // --- Runs: distance filtering + split math ------------------------------
+  const firstFix = acceptFix(null, { t: 0, lat: 0, lng: 0, acc: 5 })
+  const filter = {
+    accuracyRejected: acceptFix(null, { t: 0, lat: 0, lng: 0, acc: 40 }).reason,
+    firstAccepted: firstFix.accepted,
+    jitterReason: acceptFix(
+      { t: 0, lat: 0, lng: 0, acc: 5 },
+      { t: 10_000, lat: 0.000001, lng: 0, acc: 5 },
+    ).reason,
+    speedReason: acceptFix(
+      { t: 0, lat: 0, lng: 0, acc: 5 },
+      { t: 1000, lat: 0.01, lng: 0, acc: 5 },
+    ).reason,
+    okAccepted: acceptFix(
+      { t: 0, lat: 0, lng: 0, acc: 5 },
+      { t: 300_000, lat: 0.009, lng: 0, acc: 5 },
+    ).accepted,
+  }
+  const splits = splitSeconds([
+    { t: 0, lat: 0, lng: 0, acc: 5 },
+    { t: 150_000, lat: 0.0045, lng: 0, acc: 5 },
+    { t: 300_000, lat: 0.009, lng: 0, acc: 5 },
+    { t: 450_000, lat: 0.0135, lng: 0, acc: 5 },
+  ])
+  const geo = {
+    oneDegreeLatMeters: Math.round(haversineMeters({ lat: 0, lng: 0 }, { lat: 1, lng: 0 })),
+    ...filter,
+    splitCount: splits.length,
+    firstSplitSeconds: splits[0]?.seconds ?? null,
+    clockUnderHour: formatClock(2539),
+    clockOverHour: formatClock(3764),
+    pace: formatPace(300, 1000, 'km'),
+    mileLabel: distanceLabel(1609.344, 'mi'),
+  }
 
   return {
     recurrence,
@@ -224,8 +304,16 @@ const result = await page.evaluate(async () => {
     streakBefore,
     streakAfterUncheck: afterUncheck.currentStreak,
     bestStreak: afterUncheck.bestStreak,
+    habitOrder,
     exportShape: Object.keys(parsed).sort(),
     exportHasTasks: 'tasks' in parsed || 'subtasks' in parsed,
+    geo,
+    runsRoundTrip: {
+      exported: Array.isArray(parsed.runs) && parsed.runs.length === 1,
+      restored: restoredRuns.length,
+      distance: restoredRuns.find((r) => r.notes === 'round trip')?.distanceMeters ?? null,
+      points: restoredRuns[0]?.points?.length ?? 0,
+    },
     restoredEvent: roundTripEvent
       ? {
           priority: roundTripEvent.priority,

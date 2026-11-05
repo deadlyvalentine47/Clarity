@@ -67,6 +67,11 @@ npm run typecheck  # tsc --noEmit
   archive/restore, soft delete. Detail shows weekly/monthly calendars and per-day
   status/notes; metrics show monthly completion, a day calendar and per-habit
   grids; the day screen has a journal.
+- **Runs** — GPS distance and pace tracking with a live screen, pause/resume,
+  km/miles switch, manual distance correction at save, history with per-week/
+  month/all-time totals, derived splits and an inline SVG route. Background
+  tracking uses the Capacitor background-geolocation plugin; the browser falls
+  back to `navigator.geolocation`.
 - **Notes** — nested pages with expand/collapse, drag-and-drop reorder/nest
   (cycles rejected), search, pinning, tag filters, tag management, markdown
   preview, inline images, delete-with-descendants.
@@ -74,7 +79,7 @@ npm run typecheck  # tsc --noEmit
 - **Pomodoro** — session list, focus/break timer that survives navigation and reload,
   configurable durations, distraction log, alarm.
 - **Settings** — username, theme mode (system/light/dark), six colour themes,
-  home-section order/toggles, JSON export/import.
+  distance unit (km/miles), home-section order/toggles, JSON export/import.
 - **Onboarding** — restore from a backup or start fresh, then ask for a name.
 
 ## Data
@@ -83,8 +88,8 @@ Everything is local to the browser profile:
 
 - `clarity` IndexedDB holds habits, notes, note categories,
   note images, transactions, categories, sources, budget limits, goals, events,
-  pomodoro sessions, credit cards, credit-card transactions, investments and
-  day journals.
+  pomodoro sessions, credit cards, credit-card transactions, investments,
+  day journals and runs.
 - No rows are seeded. Like the Android app, accounts and categories start empty
   and are created by the user, so a fresh database can never contain duplicate
   defaults.
@@ -156,7 +161,8 @@ The port fixes upstream bugs instead of reproducing them:
 src/
 ├── db/          types.ts (entities), db.ts (Dexie schema + migrations),
 │                budget.ts, events.ts, habits.ts, notes.ts (data operations)
-├── lib/         dates, formatting, preferences, themes, export/import, pomodoro store
+├── lib/         dates, formatting, preferences, themes, export/import, pomodoro
+│                and run stores, geo distance helpers
 ├── context/     preferences provider (username, theme, home sections)
 ├── components/  layout, UI primitives, markdown preview
 ├── screens/     one file per screen; budget/ holds the budget sub-screens
@@ -172,7 +178,7 @@ every route, exercise the main flows, and fail on console errors.
 
 ```bash
 npm run dev             # in one terminal
-npm run smoke           # renders all 21 routes + dark/empty home, screenshots -> /tmp/opencode/clarity-shots
+npm run smoke           # renders all 23 routes + dark/empty home, screenshots -> /tmp/opencode/clarity-shots
                         # (clears the dev database when it finishes)
 npm run smoke:interact  # add event/transaction, toggle habit, timer, dark mode, onboarding
 npm run smoke:logic     # event recurrence, streak, billing clamp, card cascade, note tree, export/import
@@ -199,6 +205,11 @@ https://github.com/deadlyvalentine47/Clarity/releases/download/apk-latest/clarit
   both stop at the `apk-build` environment). Debug builds share one committed
   key, so a new APK installs over the old one without losing data.
 - Local builds need JDK 17+ and the Android SDK: `npm run android:apk`.
+- **Run tracking** uses the background-geolocation plugin's foreground service
+  (location type) so fixes continue with the screen locked. The manifest asks for
+  fine/coarse location plus `FOREGROUND_SERVICE_LOCATION`; it deliberately does
+  not request `ACCESS_BACKGROUND_LOCATION`. `useLegacyBridge` is enabled because
+  the new Android bridge stops background fixes after ~5 minutes.
 
 Details — signing secrets, app id, versioning and WebView differences — are in
 [`android/README.md`](android/README.md).
@@ -225,4 +236,7 @@ Sideloadly or Xcode using your own Apple ID, or with a developer team profile.
 - Local builds need a Mac with Xcode 16+: `npm run ios:sync && npm run ios:open`.
 - Backups live in `Files → Clarity` (the app's Documents folder); the 23:30 job
   is best-effort because iOS schedules background work opportunistically.
+- Run tracking adds the `location` background mode and the when-in-use / always
+  location usage descriptions to `Info.plist`, provided by the same plugin
+  through SPM.
 - The iOS bundle is `com.clarity.app`, version 1.4 (build 5), matching Android.

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { HomeSection, ThemeMode } from '../db/types'
+import type { DistanceUnit, HomeSection, ThemeMode } from '../db/types'
 import { HOME_SECTIONS } from '../db/types'
 import {
   isFirstLaunch,
@@ -22,6 +22,7 @@ interface PreferencesContextValue {
   setSectionEnabled: (enabled: HomeSection[]) => void
   toggleSection: (section: HomeSection) => void
   moveSection: (section: HomeSection, direction: -1 | 1) => void
+  setDistanceUnit: (unit: DistanceUnit) => void
   importPreferences: (prefs: Partial<Preferences>) => void
 }
 
@@ -98,6 +99,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           order.splice(next, 0, section)
           return { ...p, sectionOrder: order }
         }),
+      setDistanceUnit: (distanceUnit) => setPrefs((p) => ({ ...p, distanceUnit })),
       importPreferences: (next) =>
         setPrefs((p) => {
           const isSection = (s: string): s is HomeSection =>

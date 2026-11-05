@@ -4,6 +4,7 @@ import {
   Activity,
   CalendarDays,
   Flag,
+  Footprints,
   Home,
   Menu,
   Settings,
@@ -18,6 +19,7 @@ export const NAV_ITEMS = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/budget', label: 'Budget', icon: Wallet },
   { to: '/habits', label: 'Habits', icon: Activity },
+  { to: '/runs', label: 'Runs', icon: Footprints },
   { to: '/notes', label: 'Notes', icon: StickyNote },
   { to: '/goals', label: 'Goals', icon: Flag },
   { to: '/pomodoro', label: 'Pomodoro', icon: Timer },
@@ -52,7 +54,8 @@ export default function Layout() {
     location.pathname.startsWith('/notes/') ||
     location.pathname.startsWith('/pomodoro/') ||
     location.pathname.startsWith('/budget/') ||
-    location.pathname.startsWith('/habits/')
+    location.pathname.startsWith('/habits/') ||
+    location.pathname.startsWith('/runs/')
 
   useEffect(() => {
     if (!drawerOpen) return

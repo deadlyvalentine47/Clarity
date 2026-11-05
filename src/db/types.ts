@@ -8,6 +8,7 @@ export type TransactionType = 'Income' | 'Expense'
 export type PomodoroType = 'Focus' | 'ShortBreak' | 'LongBreak'
 export type CardTxnType = 'Purchase' | 'Payment' | 'Credit'
 export type ThemeMode = 'system' | 'light' | 'dark'
+export type DistanceUnit = 'km' | 'mi'
 
 export interface Habit {
   id?: number
@@ -215,6 +216,33 @@ export interface DayJournal {
   date: string
   content: string
   updatedAt: number
+}
+
+/** One accepted GPS fix. Coordinates are stored at 6 decimal places. */
+export interface RunPoint {
+  /** epoch ms */
+  t: number
+  lat: number
+  lng: number
+  /** horizontal accuracy in metres */
+  acc: number
+  alt?: number | null
+  spd?: number | null
+}
+
+export interface RunSession {
+  id?: number
+  startedAt: number
+  endedAt: number | null
+  /** active time, pauses excluded */
+  durationSeconds: number
+  distanceMeters: number
+  /** true when the user typed/corrected the distance — never indexed */
+  isManualDistance: boolean
+  /** downsampled: >= 5 m apart, cap 5000 */
+  points: RunPoint[]
+  notes: string
+  createdAt: number
 }
 
 export const HOME_SECTIONS = [

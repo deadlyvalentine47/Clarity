@@ -21,6 +21,9 @@ import HabitsScreen from './screens/HabitsScreen'
 import HabitDetailScreen from './screens/HabitDetailScreen'
 import HabitMetricsScreen from './screens/HabitMetricsScreen'
 import HabitDayScreen from './screens/HabitDayScreen'
+import RunsScreen from './screens/RunsScreen'
+import RunScreen from './screens/RunScreen'
+import RunDetailScreen from './screens/RunDetailScreen'
 import NotesScreen from './screens/NotesScreen'
 import NoteDetailScreen from './screens/NoteDetailScreen'
 import GoalsScreen from './screens/GoalsScreen'
@@ -102,6 +105,10 @@ export default function App() {
         <Route path="habits/metrics" element={<HabitMetricsScreen />} />
         <Route path="habits/metrics/:date" element={<HabitDayScreen />} />
         <Route path="habits/:habitId" element={<HabitDetailScreen />} />
+
+        <Route path="runs" element={<RunsScreen />} />
+        <Route path="runs/live" element={<RunScreen />} />
+        <Route path="runs/:runId" element={<RunDetailScreen />} />
 
         <Route path="notes" element={<NotesScreen />} />
         <Route path="notes/:noteId" element={<NoteDetailScreen />} />

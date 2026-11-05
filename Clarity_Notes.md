@@ -9,7 +9,7 @@ Phase 1 (10 screens) complete. Phase 2: repo pulled ~30 commits ahead (123 files
 — porting the budget overhaul, habit metrics/journal, notes tree, home sections, themes and the
 larger backup format, while fixing the bugs/duplications in master.
 
-**Status (2026-11-01): port complete; Android sources removed; Node app at repo root.** — 20 app routes + not-found, all four smoke scripts pass with
+**Status (2026-11-05): port complete; Android sources removed; Node app at repo root.** — 23 app routes + not-found (Runs added 2026-11-05), all four smoke scripts pass with
 0 console errors, `tsc --noEmit` and `npm run build` clean.
 
 ## Decisions
@@ -28,6 +28,8 @@ larger backup format, while fixing the bugs/duplications in master.
   note drag-drop cycles, non-atomic import, backup ID remapping, dark-mode contrast.
 - Habit Weekly/Monthly are no-ops in Android; web treats Weekly as every 7 days from creation and
   Monthly as the same day-of-month (documented improvement).
+- Any flat habit list (home strip) must flatten `buildTopLevelRows`, never a flat `compareHabits`
+  sort: `sortOrder` restarts at 10 inside every group, so a flat sort interleaves groups.
 - Notes `category` is a comma tag list; web treats it consistently as tags (filter matches any tag).
 - Images stored in IndexedDB (`noteImages`) and referenced as `![img:uuid]` (Android uses files).
 - No default accounts/categories are seeded (Android doesn't either) — kills the duplicate-defaults
@@ -61,6 +63,10 @@ larger backup format, while fixing the bugs/duplications in master.
   AltStore/Sideloadly/Apple team re-signing. iOS background work is best-effort, so the
   23:30 backup runs opportunistically and the snapshot is also copied to
   `Documents/Clarity` on every foreground/background transition.
+- Runs use `@capacitor-community/background-geolocation` 1.3.1. Keep
+  `android.useLegacyBridge: true` — the new bridge stalls location after ~5 min in
+  the background. No `ACCESS_BACKGROUND_LOCATION` (foreground service only).
+  Distance/route is always stored in metres; km/mi is display-only.
 
 ## Done
 
@@ -168,10 +174,44 @@ larger backup format, while fixing the bugs/duplications in master.
   - Added the route to `scripts/smoke.mjs` (21 routes) and updated README.
     `smoke`, `smoke:flows`, `typecheck` and `build` are green (0 console errors).
 
+- 2026-11-05 Runs (GPS distance tracking):
+  - Dexie **v6** adds `runs` (`++id, startedAt, distanceMeters, createdAt`);
+    `isManualDistance` is stored but never indexed. `AppData.runs` is additive,
+    so Android backups still read.
+  - `lib/geo.ts` is pure: haversine, `acceptFix` (accuracy > 25 m, speed > 12 m/s,
+    move < 2.5 m), km/mi + clock/pace formatting, per-unit splits. Filters live in
+    `RUN_FILTERS`; stored points are >= 5 m apart and capped at 5000 (halved when
+    full, endpoints kept).
+  - `lib/runStore.ts` mirrors the Pomodoro store: wall-clock elapsed (pauses
+    excluded), snapshot per accepted fix in `clarity.run`, 6 h resume banner,
+    manual distance correction (>10 m from GPS) hides route/splits.
+  - New screens: `/runs` (stats, range chips, history, resume/active banners),
+    `/runs/live` (distance/pace/GPS chip, km/mi, pause/stop, save dialog, dev
+    5 km simulator) and `/runs/:runId` (summary, splits, SVG route, notes,
+    delete). `RouteMap` is offline SVG only — CSP untouched.
+  - Native: background-geolocation plugin, `useLegacyBridge`, Android manifest
+    location/foreground-service permissions, iOS `location` background mode and
+    usage strings. `cap sync` wired the Android gradle deps and iOS Package.swift.
+  - Verified: `typecheck`, `build`, `smoke` (23 routes), `smoke:interact`,
+    `smoke:logic` (geo filters/splits + run export round trip), `smoke:flows` all
+    green with 0 console errors; browser flow simulated 5 km → save → splits/route
+    → mi toggle → resume banner → discard → delete.
+
+- 2026-11-05 home habit order fix: home sorted all habits with `compareHabits`, but `sortOrder`
+  is group-scoped (drag reorder restarts at 10 per group), so groups interleaved —
+  group1[h1,h2,h3] + group2[h4,h5,h6] + h7,h8 rendered h1,h4,h2,h5,… Home now loads
+  `habitGroups` and flattens `buildTopLevelRows` (the Habits screen's own order).
+  `smoke:logic` asserts `[1,2,3,4,5]` with two groups using colliding per-group orders; a
+  Puppeteer probe rendered h1…h8 in order with 0 errors; `typecheck`, `build`, `smoke:flows`,
+  `smoke:interact`, `smoke:logic` green.
+
 ## Next
 
 - Merge PR #2 (`feature/web-port` → `master`) once the approved APK build is green.
 - Verify on device: Save-as export, background alarm, back button, clear data.
+- Verify Runs on a real device: lock screen for ~1 km (Android foreground-service
+  notification, iOS blue location pill), battery drain, and distance within
+  ~2–4% of a known route/watch.
 - Optional: code-split the bundle (build warns >500 kB) — e.g. lazy-load budget/habits routes.
 - Optional: richer charts (Android uses Vico) and a calendar-year heat map.
 - Keep `README.md` in sync when screens change.

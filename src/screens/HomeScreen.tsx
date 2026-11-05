@@ -18,7 +18,8 @@ import {
 import { db } from '../db/db'
 import type { Event as ClarityEvent, Habit, HomeSection } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
-import { compareHabits, isScheduledOn, toggleHabitForDate } from '../db/habits'
+import { isScheduledOn, toggleHabitForDate } from '../db/habits'
+import { buildTopLevelRows } from '../db/habitGroups'
 import {
   eventCompletionKey,
   eventFrequencyLabel,
@@ -89,6 +90,7 @@ export default function HomeScreen() {
   const [monthStart, monthEnd] = monthRange(now.getFullYear(), now.getMonth() + 1)
 
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
+  const habitGroups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
   const events = useLiveQuery(async () => db.events.toArray(), [], [])
   const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
@@ -103,9 +105,12 @@ export default function HomeScreen() {
   )
 
   // --------------------------------------------------------------- habits
-  const activeHabits = (habits ?? [])
-    .filter((h) => !h.isArchived && !h.isDeleted)
-    .sort(compareHabits)
+  // sortOrder is only unique inside a group, so a flat sort interleaves groups.
+  // Flatten the same top-level rows the Habits screen uses instead.
+  const activeHabits = buildTopLevelRows(
+    (habits ?? []).filter((h) => !h.isArchived && !h.isDeleted),
+    habitGroups ?? [],
+  ).flatMap((row) => (row.kind === 'group' ? row.habits : [row.habit]))
   const habitsToday = activeHabits.filter((h) => isScheduledOn(h, now))
   const habitsDone = habitsToday.filter((h) => h.completionHistory[todayKey] === true).length
   // Completed (including late) habits leave the home list; the underlying

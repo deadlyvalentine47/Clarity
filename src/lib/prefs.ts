@@ -1,5 +1,5 @@
 // Port of data/local/datastore/UserPreferences.kt (backed by localStorage).
-import { HOME_SECTIONS, type HomeSection, type ThemeMode } from '../db/types'
+import { HOME_SECTIONS, type DistanceUnit, type HomeSection, type ThemeMode } from '../db/types'
 import { DEFAULT_THEME, THEME_NAMES } from './themes'
 
 export interface Preferences {
@@ -11,6 +11,7 @@ export interface Preferences {
   darkMode: ThemeMode
   sectionOrder: HomeSection[]
   sectionEnabled: HomeSection[]
+  distanceUnit: DistanceUnit
 }
 
 const KEY = 'clarity.preferences'
@@ -22,6 +23,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   darkMode: 'system',
   sectionOrder: [...HOME_SECTIONS],
   sectionEnabled: [...HOME_SECTIONS],
+  distanceUnit: 'km',
 }
 
 function isSection(value: string): value is HomeSection {
@@ -49,6 +51,9 @@ export function normalizePreferences(input: Partial<Preferences> | null | undefi
 
   const username = typeof raw.username === 'string' ? raw.username : ''
 
+  // Old localStorage entries and backups have no unit; they silently become km.
+  const distanceUnit: DistanceUnit = raw.distanceUnit === 'mi' ? 'mi' : 'km'
+
   return {
     username,
     // Existing installs (which always had a name) migrate to "onboarded".
@@ -57,6 +62,7 @@ export function normalizePreferences(input: Partial<Preferences> | null | undefi
     darkMode,
     sectionOrder,
     sectionEnabled,
+    distanceUnit,
   }
 }
 

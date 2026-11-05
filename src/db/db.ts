@@ -15,6 +15,7 @@ import type {
   NoteImage,
   PomodoroFocusSession,
   PomodoroSession,
+  RunSession,
   Source,
   Transaction,
 } from './types'
@@ -37,6 +38,7 @@ export class ClarityDB extends Dexie {
   creditCardTransactions!: Table<CreditCardTransaction, number>
   investments!: Table<Investment, number>
   dayJournals!: Table<DayJournal, string>
+  runs!: Table<RunSession, number>
 
   constructor() {
     super('clarity')
@@ -164,6 +166,11 @@ export class ClarityDB extends Dexie {
             h.groupId ??= null
           })
       })
+
+    // v6 adds saved runs. Booleans (isManualDistance) stay unindexed.
+    this.version(6).stores({
+      runs: '++id, startedAt, distanceMeters, createdAt',
+    })
   }
 }
 

@@ -62,7 +62,12 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>location</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Clarity uses your location to measure the distance and route of your runs.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Clarity keeps tracking your run while the screen is locked or the app is in the background.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UISupportedInterfaceOrientations</key>

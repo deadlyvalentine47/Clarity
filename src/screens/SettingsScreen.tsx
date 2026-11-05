@@ -8,6 +8,7 @@ import {
   FolderDown,
   Moon,
   Palette,
+  Ruler,
   Share2,
   Sun,
   Trash2,
@@ -22,6 +23,7 @@ import { clearAllData } from '../db/db'
 import { isNative, nativePlatform, notificationsGranted, requestNotifications } from '../lib/native'
 import { backupStatus, type BackupStatus } from '../lib/backupScheduler'
 import { clearActiveSession } from '../lib/pomodoroStore'
+import { discardRun } from '../lib/runStore'
 import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
 
 type ImportState =
@@ -40,10 +42,12 @@ export default function SettingsScreen() {
     setSectionEnabled,
     toggleSection,
     moveSection,
+    setDistanceUnit,
     importPreferences,
   } = usePreferences()
 
   const [showEdit, setShowEdit] = useState(false)
+  const [showUnit, setShowUnit] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [exporting, setExporting] = useState(false)
   const [exportNote, setExportNote] = useState('')
@@ -101,6 +105,7 @@ export default function SettingsScreen() {
     try {
       await clearAllData()
       clearActiveSession()
+      discardRun()
       setConfirmClear(false)
       setImportState({ kind: 'idle' })
       setExportNote('')
@@ -168,6 +173,20 @@ export default function SettingsScreen() {
                 <div className="small muted">Username</div>
               </div>
               <span className="small" style={{ color: 'var(--primary)', fontWeight: 600 }}>Edit</span>
+            </button>
+            <button
+              className="list-item"
+              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
+              onClick={() => setShowUnit(true)}
+            >
+              <div className="avatar"><Ruler size={19} /></div>
+              <div className="grow">
+                <div className="bold">Distance unit</div>
+                <div className="small muted">
+                  {prefs.distanceUnit === 'km' ? 'Kilometres (km)' : 'Miles (mi)'}
+                </div>
+              </div>
+              <span className="small" style={{ color: 'var(--primary)', fontWeight: 600 }}>Change</span>
             </button>
           </div>
         )}
@@ -419,6 +438,45 @@ export default function SettingsScreen() {
           e.target.value = ''
         }}
       />
+
+      <Dialog
+        open={showUnit}
+        onClose={() => setShowUnit(false)}
+        title="Distance unit"
+        footer={
+          <button className="btn btn-primary btn-block" onClick={() => setShowUnit(false)}>
+            Done
+          </button>
+        }
+      >
+        <div className="stack" style={{ gap: 8 }}>
+          {([
+            ['km', 'Kilometres (km)'],
+            ['mi', 'Miles (mi)'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              className={`list-item ${prefs.distanceUnit === value ? 'active' : ''}`}
+              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 14, cursor: 'pointer' }}
+              onClick={() => {
+                setDistanceUnit(value)
+                setShowUnit(false)
+              }}
+            >
+              <div className="avatar"><Ruler size={19} /></div>
+              <div className="grow">
+                <div className="bold">{label}</div>
+                <div className="small muted">
+                  {value === 'km'
+                    ? 'Runs and pace are shown in kilometres.'
+                    : 'Runs and pace are shown in miles.'}
+                </div>
+              </div>
+              {prefs.distanceUnit === value && <Check size={18} color="var(--primary)" />}
+            </button>
+          ))}
+        </div>
+      </Dialog>
 
       <Dialog
         open={showEdit}
