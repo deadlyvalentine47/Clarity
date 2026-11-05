@@ -14,8 +14,11 @@ import {
   formatPaceValue,
   splitSeconds,
 } from '../lib/geo'
-import { ConfirmDialog, EmptyState, PageHeader, TextArea } from '../components/ui'
+import { altitudeSource, altitudeStats, hasAltitude } from '../lib/route3d'
+import { ConfirmDialog, EmptyState, Field, PageHeader, TextArea, TextInput } from '../components/ui'
 import RouteMap from '../components/RouteMap'
+import RouteMap3D from '../components/RouteMap3D'
+import ElevationProfile from '../components/ElevationProfile'
 
 export default function RunDetailScreen() {
   const { runId } = useParams()
@@ -30,22 +33,35 @@ export default function RunDetailScreen() {
     undefined,
   )
 
+  const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
-  const [notesFor, setNotesFor] = useState<number | null>(null)
+  const [detailsFor, setDetailsFor] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
-    if (run?.id != null && run.id !== notesFor) {
+    if (run?.id != null && run.id !== detailsFor) {
+      setName(run.name ?? '')
       setNotes(run.notes)
-      setNotesFor(run.id)
+      setDetailsFor(run.id)
     }
-  }, [run?.id, run?.notes, notesFor])
+  }, [run?.id, run?.name, run?.notes, detailsFor])
 
   const splits = useMemo(
     () =>
       run && !run.isManualDistance ? splitSeconds(run.points ?? [], unit) : [],
     [run, unit],
   )
+
+  const [routeView, setRouteView] = useState<'2d' | '3d' | null>(null)
+  const routePoints = useMemo(
+    () => (run && !run.isManualDistance ? run.points ?? [] : []),
+    [run],
+  )
+  const elevation = useMemo(() => altitudeStats(routePoints), [routePoints])
+  const elevationSource = useMemo(() => altitudeSource(routePoints), [routePoints])
+  const canShow3d =
+    hasAltitude(routePoints) && elevation != null && elevation.max - elevation.min >= 3
+  const view = routeView ?? (canShow3d ? '3d' : '2d')
 
   if (run === undefined) return null
 
@@ -64,12 +80,12 @@ export default function RunDetailScreen() {
     )
   }
 
-  const dirty = notes !== run.notes
+  const dirty = name.trim() !== (run.name ?? '') || notes.trim() !== run.notes
 
   return (
     <>
       <PageHeader
-        title={formatDateTime(run.startedAt)}
+        title={run.name?.trim() || formatDateTime(run.startedAt)}
         subtitle={`${distanceLabel(run.distanceMeters, unit)} · ${formatClock(run.durationSeconds)}`}
         onBack={() => navigate('/runs')}
         wrapTitle
@@ -126,9 +142,28 @@ export default function RunDetailScreen() {
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row-between" style={{ marginBottom: 10 }}>
           <span className="section-label">Route</span>
-          {run.isManualDistance && <span className="badge">Manual distance</span>}
+          <div className="row" style={{ gap: 8 }}>
+            {canShow3d && (
+              <div className="segmented" aria-label="Route view">
+                {(['2d', '3d'] as const).map((option) => (
+                  <button
+                    key={option}
+                    className={view === option ? 'active' : ''}
+                    onClick={() => setRouteView(option)}
+                  >
+                    {option.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+            {run.isManualDistance && <span className="badge">Manual distance</span>}
+          </div>
         </div>
-        <RouteMap points={run.isManualDistance ? [] : run.points} />
+        {view === '3d' && canShow3d ? (
+          <RouteMap3D points={routePoints} />
+        ) : (
+          <RouteMap points={run.isManualDistance ? [] : run.points} />
+        )}
         {run.isManualDistance && (
           <p className="tiny muted" style={{ marginTop: 8 }}>
             This run was saved with a corrected distance, so the GPS route and splits are
@@ -136,6 +171,28 @@ export default function RunDetailScreen() {
           </p>
         )}
       </div>
+
+      {elevation && elevation.max - elevation.min >= (elevationSource === 'barometer' ? 1 : 5) && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="row-between" style={{ marginBottom: 8 }}>
+            <span className="section-label">Elevation</span>
+            <span className="tiny muted">
+              {elevationSource === 'barometer' ? 'Barometric' : 'GPS'}
+            </span>
+          </div>
+          <ElevationProfile points={routePoints} unit={unit} />
+          <p className="tiny muted" style={{ marginTop: 8 }}>
+            {Math.round(elevation.min)}–{Math.round(elevation.max)} m · gain +
+            {Math.round(elevation.gain)} m · loss −{Math.round(elevation.loss)} m
+            {run.distanceMeters <= 2000 && (
+              <>
+                {' '}
+                · ≈{Math.max(1, Math.round((elevation.max - elevation.min) / 3))} floors at 3 m
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
       {!run.isManualDistance && (
         <div className="card" style={{ marginBottom: 14 }}>
@@ -170,26 +227,37 @@ export default function RunDetailScreen() {
 
       <div className="card">
         <div className="section-label" style={{ marginBottom: 8 }}>
-          Notes
+          Details
         </div>
-        <TextArea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="How did the run feel?"
-          style={{ minHeight: 100 }}
-        />
+        <Field label="Name">
+          <TextInput
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning loop"
+            maxLength={60}
+          />
+        </Field>
+        <Field label="Notes">
+          <TextArea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="How did the run feel?"
+            style={{ minHeight: 100 }}
+          />
+        </Field>
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
           <button
             className="btn btn-sm btn-primary"
             disabled={!dirty}
             onClick={() => {
               if (run.id != null) {
-                void db.runs.update(run.id, { notes: notes.trim() })
+                void db.runs.update(run.id, { name: name.trim(), notes: notes.trim() })
+                setName(name.trim())
                 setNotes(notes.trim())
               }
             }}
           >
-            Save notes
+            Save changes
           </button>
         </div>
       </div>

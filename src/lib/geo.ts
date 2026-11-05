@@ -49,6 +49,25 @@ export function distanceLabel(meters: number, unit: DistanceUnit): string {
   return `${value.toFixed(2)} ${unit}`
 }
 
+/**
+ * True when the track returns to where it started, so a start dot and an end
+ * dot would overlap. The tolerance scales with the route so a short loop is not
+ * judged by the same number as a 20 km one.
+ */
+export function isClosedLoop(points: RunPoint[]): boolean {
+  if (points.length < 8) return false
+  const first = points[0]
+  const last = points[points.length - 1]
+  const gap = haversineMeters(first, last)
+
+  let extent = 0
+  for (const point of points) {
+    extent = Math.max(extent, haversineMeters(first, point))
+  }
+
+  return gap <= Math.max(25, extent * 0.05)
+}
+
 /** "42:19" below an hour, "1:02:44" from one hour up. */
 export function formatClock(totalSeconds: number): string {
   const seconds = Math.max(0, Math.round(Number.isFinite(totalSeconds) ? totalSeconds : 0))

@@ -245,6 +245,71 @@ export async function openLocationSettings(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------- barometer
+
+export interface BarometerReading {
+  /** epoch ms */
+  t: number
+  /** metres relative to when tracking started */
+  relativeAltitude: number
+}
+
+// Local plugins:
+//   Android android/app/src/main/java/com/clarity/app/BarometerPlugin.java
+//   iOS     ios/App/App/BarometerPlugin.swift
+// Readings are buffered natively and polled: pushing them over the bridge
+// while the WebView is suspended would lose most of a run.
+interface BarometerApi {
+  isAvailable(): Promise<{ available: boolean }>
+  start(): Promise<void>
+  drain(): Promise<{ readings: BarometerReading[] }>
+  stop(): Promise<void>
+}
+
+const Barometer = registerPlugin<BarometerApi>('Barometer')
+
+/** Barometric sensors are absent on some phones; callers fall back to GNSS. */
+export async function barometerAvailable(): Promise<boolean> {
+  if (!isNative()) return false
+  try {
+    return (await Barometer.isAvailable()).available
+  } catch {
+    return false
+  }
+}
+
+/** Start sampling and reset the relative-altitude baseline. */
+export async function startBarometer(): Promise<boolean> {
+  if (!isNative()) return false
+  try {
+    if (!(await Barometer.isAvailable()).available) return false
+    await Barometer.start()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function drainBarometer(): Promise<BarometerReading[]> {
+  if (!isNative()) return []
+  try {
+    const { readings } = await Barometer.drain()
+    return Array.isArray(readings) ? readings : []
+  } catch {
+    return []
+  }
+}
+
+export async function stopBarometer(): Promise<void> {
+  if (!isNative()) return
+  try {
+    await Barometer.stop()
+  } catch {
+    // ignore
+  }
+}
+
+
 // ---------------------------------------------------------------- back button
 
 /**

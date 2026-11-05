@@ -5,7 +5,14 @@ import { useSyncExternalStore } from 'react'
 import { db } from '../db/db'
 import type { RunPoint, RunSession } from '../db/types'
 import { acceptFix, haversineMeters, RUN_FILTERS } from './geo'
-import { startLocationWatcher, type LocationError, type LocationFix } from './native'
+import {
+  drainBarometer,
+  startBarometer,
+  startLocationWatcher,
+  stopBarometer,
+  type LocationError,
+  type LocationFix,
+} from './native'
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'finished'
 export type GpsStatus = 'off' | 'searching' | 'ok' | 'denied' | 'unavailable'
@@ -28,6 +35,8 @@ export interface RunSnapshot extends RunState {
   pausedMs: number
   /** start of the current pause, when status === 'paused' */
   pauseStartedAt: number | null
+  /** latest barometric altitude, so a resumed run keeps a usable reference */
+  baroLatest?: number | null
   /** when this snapshot was written */
   savedAt: number
 }
@@ -66,6 +75,15 @@ let tickCount = 0
 let stopWatcher: (() => void) | null = null
 let watcherToken = 0
 
+// Barometric altitude, relative to the start of the run. Polled rather than
+// pushed: the native layer buffers while the WebView is suspended.
+let baroLatest: number | null = null
+/** Keeps a resumed run continuous: the native sensor restarts its baseline at 0. */
+let baroOffset = 0
+let baroTimer: number | null = null
+let baroToken = 0
+let baroActive = false
+
 const listeners = new Set<() => void>()
 
 function hasStorage(): boolean {
@@ -99,6 +117,7 @@ function persistSnapshot() {
     ...state,
     pausedMs,
     pauseStartedAt,
+    baroLatest,
     savedAt: Date.now(),
   }
   try {
@@ -149,6 +168,51 @@ function stopGps() {
   watcherToken += 1
   stopWatcher?.()
   stopWatcher = null
+}
+
+// ---------------------------------------------------------------- barometer
+
+async function pollBarometer() {
+  const readings = await drainBarometer()
+  if (readings.length === 0) return
+  const latest = readings[readings.length - 1]
+  if (Number.isFinite(latest.relativeAltitude)) {
+    baroLatest = baroOffset + latest.relativeAltitude
+    persistSnapshot()
+  }
+}
+
+/**
+ * Barometric altitude is worth having even without GPS (a treadmill climb, a
+ * stairwell with no fix), so tracking follows the run, not the watcher.
+ * `resumeFrom` continues the series when a recovered run restarts the sensor.
+ */
+async function startBarometerTracking(resumeFrom: number | null = null) {
+  const token = ++baroToken
+  baroOffset = typeof resumeFrom === 'number' && Number.isFinite(resumeFrom) ? resumeFrom : 0
+  baroLatest = baroOffset || null
+  const available = await startBarometer()
+  if (token !== baroToken) {
+    void stopBarometer()
+    return
+  }
+  baroActive = available
+  if (!available) return
+  await pollBarometer()
+  if (baroTimer != null) window.clearInterval(baroTimer)
+  baroTimer = window.setInterval(() => void pollBarometer(), 2000)
+}
+
+function stopBarometerTracking() {
+  baroToken += 1
+  if (baroTimer != null) {
+    window.clearInterval(baroTimer)
+    baroTimer = null
+  }
+  if (baroActive) {
+    baroActive = false
+    void stopBarometer()
+  }
 }
 
 function gpsErrorStatus(error: LocationError): GpsStatus {
@@ -212,6 +276,7 @@ function handleFix(fix: LocationFix, force = false) {
     lng: round6(fix.lng),
     acc: fix.accuracy,
     alt: fix.altitude,
+    baro: baroLatest,
     spd: fix.speed,
   }
 
@@ -281,6 +346,7 @@ export function startRun({ gps }: { gps: boolean }) {
   notify()
   startTicker()
   if (gps) void startGps()
+  void startBarometerTracking()
 }
 
 export function pauseRun() {
@@ -289,6 +355,8 @@ export function pauseRun() {
   const elapsedSeconds = elapsedNow()
   stopGps()
   clearTicker()
+  // The barometer keeps sampling through a pause so the altitude series stays
+  // on one baseline instead of restarting at zero.
   state = {
     ...state,
     status: 'paused',
@@ -326,6 +394,7 @@ export function stopRun() {
     pauseStartedAt = null
   }
   stopGps()
+  stopBarometerTracking()
   clearTicker()
   state = {
     ...state,
@@ -340,11 +409,14 @@ export function stopRun() {
 /** Forget the live session and any snapshot. */
 export function discardRun() {
   stopGps()
+  stopBarometerTracking()
   clearTicker()
-  pausedMs = 0
   pauseStartedAt = null
+  pausedMs = 0
   lastAccepted = null
   lastStored = null
+  baroLatest = null
+  baroOffset = 0
   state = { ...DEFAULT_STATE }
   clearSnapshot()
   notify()
@@ -373,9 +445,11 @@ export function setGpsEnabled(enabled: boolean) {
 export async function saveRun({
   distanceMeters,
   notes = '',
+  name = '',
 }: {
   distanceMeters?: number
   notes?: string
+  name?: string
 } = {}): Promise<number | null> {
   if (state.startedAt == null) return null
 
@@ -390,6 +464,7 @@ export async function saveRun({
 
   const endedAt = Date.now()
   const session: RunSession = {
+    name: name.trim(),
     startedAt: state.startedAt,
     endedAt,
     durationSeconds: Math.max(
@@ -470,6 +545,8 @@ export function adoptSnapshot(snapshot: RunSnapshot) {
   if (state.status === 'running') {
     startTicker()
     if (state.gpsEnabled) void startGps()
+    const restored = typeof snapshot.baroLatest === 'number' ? snapshot.baroLatest : null
+    void startBarometerTracking(restored)
   }
 }
 

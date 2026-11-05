@@ -20,6 +20,7 @@
 		5A1000000000000000000004 /* BackupScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000003 /* BackupScheduler.swift */; };
 		5A1000000000000000000006 /* BackupSchedulerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000005 /* BackupSchedulerPlugin.swift */; };
 		5A1000000000000000000008 /* ClarityBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000007 /* ClarityBridgeViewController.swift */; };
+		5A100000000000000000000A /* BarometerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000009 /* BarometerPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		5A1000000000000000000003 /* BackupScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScheduler.swift; sourceTree = "<group>"; };
 		5A1000000000000000000005 /* BackupSchedulerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSchedulerPlugin.swift; sourceTree = "<group>"; };
 		5A1000000000000000000007 /* ClarityBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClarityBridgeViewController.swift; sourceTree = "<group>"; };
+		5A1000000000000000000009 /* BarometerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarometerPlugin.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -77,6 +79,7 @@
 				5A1000000000000000000001 /* SaveFilePlugin.swift */,
 				5A1000000000000000000003 /* BackupScheduler.swift */,
 				5A1000000000000000000005 /* BackupSchedulerPlugin.swift */,
+				5A1000000000000000000009 /* BarometerPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -176,6 +179,7 @@
 				5A1000000000000000000002 /* SaveFilePlugin.swift in Sources */,
 				5A1000000000000000000004 /* BackupScheduler.swift in Sources */,
 				5A1000000000000000000006 /* BackupSchedulerPlugin.swift in Sources */,
+				5A100000000000000000000A /* BarometerPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -293,6 +293,11 @@ function RunCard({
     <div className="card clickable" onClick={onOpen}>
       <div className="row-between" style={{ alignItems: 'flex-start' }}>
         <div className="grow" style={{ minWidth: 0 }}>
+          {run.name?.trim() && (
+            <div className="bold" style={{ marginBottom: 2 }}>
+              {run.name.trim()}
+            </div>
+          )}
           <div className="stat-value">{distanceLabel(run.distanceMeters, unit)}</div>
           <div className="small muted">
             {formatClock(run.durationSeconds)} ·{' '}

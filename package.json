@@ -12,6 +12,7 @@
     "smoke:interact": "node scripts/interact.mjs",
     "smoke:logic": "node scripts/logic.mjs",
     "smoke:flows": "node scripts/interact2.mjs",
+    "scenarios": "node scripts/scenarios.mjs",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "ios:sync": "npm run build && cap sync ios",

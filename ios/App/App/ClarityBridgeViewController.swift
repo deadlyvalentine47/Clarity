@@ -6,5 +6,6 @@ class ClarityBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SaveFilePlugin())
         bridge?.registerPluginInstance(BackupSchedulerPlugin())
+        bridge?.registerPluginInstance(BarometerPlugin())
     }
 }

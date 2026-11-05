@@ -1,4 +1,6 @@
 import type { RunPoint } from '../db/types'
+import { isClosedLoop } from '../lib/geo'
+import LoopBadge from './LoopBadge'
 
 const VIEW = 100
 const PADDING = 6
@@ -74,6 +76,7 @@ export default function RouteMap({
 
   const path = rendered.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')
   const zoom = compact ? 14 : 6
+  const closed = isClosedLoop(points ?? [])
 
   return (
     <div className={`route-map ${compact ? 'compact' : ''}`}>
@@ -92,8 +95,14 @@ export default function RouteMap({
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
-        <circle cx={start.x} cy={start.y} r={zoom / 2} fill="var(--success)" />
-        <circle cx={end.x} cy={end.y} r={zoom / 2} fill="var(--error)" />
+        {closed ? (
+          <LoopBadge x={start.x} y={start.y} radius={zoom / 2} />
+        ) : (
+          <>
+            <circle cx={start.x} cy={start.y} r={zoom / 2} fill="var(--success)" />
+            <circle cx={end.x} cy={end.y} r={zoom / 2} fill="var(--error)" />
+          </>
+        )}
       </svg>
     </div>
   )

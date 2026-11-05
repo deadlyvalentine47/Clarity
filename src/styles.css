@@ -2243,3 +2243,95 @@ p {
   font-size: 12px;
   text-align: center;
 }
+
+.route-map-3d {
+  width: 100%;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.route-map-3d svg {
+  display: block;
+  width: 100%;
+  height: 260px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.route-map-3d svg:active {
+  cursor: grabbing;
+}
+
+.route-3d-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-top: 1px solid var(--outline);
+}
+
+.route-alt-0 {
+  --alt-color: #34d399;
+}
+
+.route-alt-1 {
+  --alt-color: #60a5fa;
+}
+
+.route-alt-2 {
+  --alt-color: #a78bfa;
+}
+
+.route-alt-3 {
+  --alt-color: #fb7185;
+}
+
+.route-alt-4 {
+  --alt-color: #fbbf24;
+}
+
+.route-map-3d polyline.route-seg {
+  stroke: var(--alt-color, var(--primary));
+}
+
+.route-alt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 10px 0;
+}
+
+.route-alt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.route-alt-swatch {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--alt-color, var(--primary));
+}
+
+.elevation-profile {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 8px 4px;
+}
+
+.elevation-profile svg {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+
+.elevation-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}

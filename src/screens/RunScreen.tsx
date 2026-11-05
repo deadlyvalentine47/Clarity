@@ -41,6 +41,15 @@ function gpsLabel(state: ReturnType<typeof useRunState>): string {
   }
 }
 
+/** A starting point for the name field; the user can always type over it. */
+function suggestedName(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Morning run'
+  if (hour < 17) return 'Afternoon run'
+  if (hour < 21) return 'Evening run'
+  return 'Night run'
+}
+
 export default function RunScreen() {
   const navigate = useNavigate()
   const { prefs, setDistanceUnit } = usePreferences()
@@ -50,6 +59,7 @@ export default function RunScreen() {
   const [showSave, setShowSave] = useState(false)
   const [saveDistance, setSaveDistance] = useState('0.00')
   const [saveNotes, setSaveNotes] = useState('')
+  const [saveName, setSaveName] = useState('')
   const [saving, setSaving] = useState(false)
 
   // A session may already be finished when this screen mounts (e.g. the app was
@@ -57,6 +67,7 @@ export default function RunScreen() {
   useEffect(() => {
     if (state.status === 'finished' && !showSave) {
       setSaveDistance(metersToUnit(state.distanceMeters, unit).toFixed(2))
+      setSaveName(suggestedName())
       setSaveNotes('')
       setShowSave(true)
     }
@@ -107,6 +118,7 @@ export default function RunScreen() {
     const gpsMeters = state.distanceMeters
     stopRun()
     setSaveDistance(metersToUnit(gpsMeters, unit).toFixed(2))
+    setSaveName(suggestedName())
     setSaveNotes('')
     setShowSave(true)
   }
@@ -129,7 +141,7 @@ export default function RunScreen() {
         saveDistance.trim() !== '' && Number.isFinite(value)
           ? Math.max(0, value) * metersPerUnit(unit)
           : undefined
-      const id = await saveRun({ distanceMeters: meters, notes: saveNotes })
+      const id = await saveRun({ distanceMeters: meters, notes: saveNotes, name: saveName })
       setShowSave(false)
       navigate(id != null ? `/runs/${id}` : '/runs')
     } finally {
@@ -312,6 +324,14 @@ export default function RunScreen() {
         }
       >
         <div className="stack">
+          <Field label="Name">
+            <TextInput
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="e.g. Morning loop"
+              maxLength={60}
+            />
+          </Field>
           <div className="row-between">
             <span className="label">Distance unit</span>
             <div className="segmented">

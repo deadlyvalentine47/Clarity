@@ -93,7 +93,8 @@ const seeded = await page.evaluate(async () => {
     lat: 19.076 + i * 0.0045,
     lng: 72.8777,
     acc: 4,
-    alt: null,
+    // A rolling profile so the smoke run exercises the 3D route view too.
+    alt: 20 + Math.sin(i / 1.5) * 9,
     spd: 2.8,
   }))
   const runId = await db.runs.add({

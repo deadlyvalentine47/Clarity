@@ -226,12 +226,17 @@ export interface RunPoint {
   lng: number
   /** horizontal accuracy in metres */
   acc: number
+  /** GNSS altitude in metres — coarse (±10-30 m) */
   alt?: number | null
+  /** barometric altitude in metres relative to the start of the run */
+  baro?: number | null
   spd?: number | null
 }
 
 export interface RunSession {
   id?: number
+  /** optional user-given name, e.g. "Morning loop"; empty falls back to the date */
+  name?: string
   startedAt: number
   endedAt: number | null
   /** active time, pauses excluded */
