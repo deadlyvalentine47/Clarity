@@ -2,14 +2,11 @@
 // modules directly and everything degrades to a no-op in the browser.
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
-import { LocalNotifications } from '@capacitor/local-notifications'
 
 export const isNative = (): boolean => Capacitor.isNativePlatform()
 
 /** 'android' | 'ios' | 'web' — for the few places the two shells differ. */
 export const nativePlatform = (): string => Capacitor.getPlatform()
-
-const TIMER_NOTIFICATION_ID = 1001
 
 // Local plugins:
 //   Android android/app/src/main/java/com/clarity/app/SaveFilePlugin.java
@@ -39,73 +36,6 @@ export async function saveFileToDevice(
   const result = await SaveFile.save({ filename, sourcePath, mimeType })
   if (result.cancelled) return null
   return { bytes: result.bytes ?? 0, location: result.location ?? '' }
-}
-
-// ---------------------------------------------------------------- notifications
-
-export async function notificationsGranted(): Promise<boolean> {
-  if (!isNative()) return false
-  try {
-    const { display } = await LocalNotifications.checkPermissions()
-    return display === 'granted'
-  } catch {
-    return false
-  }
-}
-
-export async function requestNotifications(): Promise<boolean> {
-  if (!isNative()) return false
-  try {
-    const { display } = await LocalNotifications.requestPermissions()
-    return display === 'granted'
-  } catch {
-    return false
-  }
-}
-
-const PERMISSIONS_ASKED_KEY = 'clarity.permissionsAsked'
-
-/**
- * Ask for the permission the app can actually use, once per install:
- * notifications (Pomodoro alarms). It is optional — the app works without it,
- * and Settings → Permissions re-opens the prompt.
- */
-export async function requestStartupPermissions(): Promise<void> {
-  if (!isNative()) return
-  if (localStorage.getItem(PERMISSIONS_ASKED_KEY) === '1') return
-  localStorage.setItem(PERMISSIONS_ASKED_KEY, '1')
-
-  await requestNotifications()
-}
-
-/** Fire a notification when the Pomodoro phase ends, even if the app is backgrounded. */
-export async function scheduleTimerNotification(seconds: number, isBreak: boolean): Promise<void> {
-  if (!isNative() || seconds <= 0) return
-  if (!(await notificationsGranted())) return
-  try {
-    await LocalNotifications.cancel({ notifications: [{ id: TIMER_NOTIFICATION_ID }] })
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: TIMER_NOTIFICATION_ID,
-          title: isBreak ? 'Break over' : 'Focus session complete',
-          body: isBreak ? 'Ready for another focus session?' : 'Nice work — take a break.',
-          schedule: { at: new Date(Date.now() + seconds * 1000) },
-        },
-      ],
-    })
-  } catch {
-    // Notifications are a nicety; the in-app alarm still fires.
-  }
-}
-
-export async function cancelTimerNotification(): Promise<void> {
-  if (!isNative()) return
-  try {
-    await LocalNotifications.cancel({ notifications: [{ id: TIMER_NOTIFICATION_ID }] })
-  } catch {
-    // ignore
-  }
 }
 
 // ---------------------------------------------------------------- location

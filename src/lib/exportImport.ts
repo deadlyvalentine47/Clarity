@@ -18,8 +18,6 @@ import type {
   Investment,
   Note,
   NoteCategory,
-  PomodoroFocusSession,
-  PomodoroSession,
   RunSession,
   Source,
   Transaction,
@@ -57,8 +55,6 @@ export interface AppData {
   sources: Source[]
   noteCategories: NoteCategory[]
   budgetLimits: BudgetLimit[]
-  pomodoroSessions: PomodoroSession[]
-  pomodoroFocusSessions: PomodoroFocusSession[]
   creditCards: CreditCard[]
   creditCardTransactions: CreditCardTransaction[]
   investments: Investment[]
@@ -112,8 +108,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     sources,
     noteCategories,
     budgetLimits,
-    pomodoroSessions,
-    pomodoroFocusSessions,
     creditCards,
     creditCardTransactions,
     investments,
@@ -131,8 +125,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.sources.toArray(),
     db.noteCategories.toArray(),
     db.budgetLimits.toArray(),
-    db.pomodoroSessions.toArray(),
-    db.pomodoroFocusSessions.toArray(),
     db.creditCards.toArray(),
     db.creditCardTransactions.toArray(),
     db.investments.toArray(),
@@ -152,8 +144,6 @@ export async function exportData(prefs: Preferences): Promise<string> {
     sources,
     noteCategories,
     budgetLimits,
-    pomodoroSessions,
-    pomodoroFocusSessions,
     creditCards,
     creditCardTransactions,
     investments,
@@ -402,19 +392,6 @@ export async function importData(jsonText: string): Promise<ImportResult> {
     for (const event of arr<Event>(raw.events)) {
       const { id: _id, ...rest } = event
       await db.events.add(eventDefaults(rest))
-    }
-
-    for (const session of arr<PomodoroFocusSession>(raw.pomodoroFocusSessions)) {
-      const { id: _id, ...rest } = session
-      await db.pomodoroFocusSessions.add(rest)
-    }
-
-    for (const session of arr<PomodoroSession>(raw.pomodoroSessions)) {
-      const { id: _id, ...rest } = session
-      await db.pomodoroSessions.add({
-        ...rest,
-        distractions: Array.isArray(rest.distractions) ? rest.distractions : [],
-      })
     }
 
     for (const investment of arr<Investment>(raw.investments)) {

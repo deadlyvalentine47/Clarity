@@ -13,8 +13,6 @@ import type {
   Note,
   NoteCategory,
   NoteImage,
-  PomodoroFocusSession,
-  PomodoroSession,
   RunSession,
   Source,
   Transaction,
@@ -32,8 +30,6 @@ export class ClarityDB extends Dexie {
   budgetLimits!: Table<BudgetLimit, number>
   goals!: Table<Goal, number>
   events!: Table<Event, number>
-  pomodoroSessions!: Table<PomodoroSession, number>
-  pomodoroFocusSessions!: Table<PomodoroFocusSession, number>
   creditCards!: Table<CreditCard, number>
   creditCardTransactions!: Table<CreditCardTransaction, number>
   investments!: Table<Investment, number>
@@ -170,6 +166,12 @@ export class ClarityDB extends Dexie {
     // v6 adds saved runs. Booleans (isManualDistance) stay unindexed.
     this.version(6).stores({
       runs: '++id, startedAt, distanceMeters, createdAt',
+    })
+
+    // v7 drops the Pomodoro tables; the feature moved out of the app.
+    this.version(7).stores({
+      pomodoroSessions: null,
+      pomodoroFocusSessions: null,
     })
   }
 }

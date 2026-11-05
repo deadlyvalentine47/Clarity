@@ -103,9 +103,7 @@ larger backup format, while fixing the bugs/duplications in master.
   - Back button steps through screens; only exits from Home after a second press (toast).
   - Onboarding now tracks `onboarded` separately from the username, so importing a backup lands on
     Home instead of asking for a name again.
-  - Permissions at launch: notifications only (`POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`,
-    `VIBRATE`). No storage permission anywhere.
-  - Pomodoro schedules a local notification so the alarm fires in the background.
+  - No notification permissions: the app requests nothing at launch.
   - *Settings → Data*: Export (SAF picker), Import, Clear data (keeps name/theme/home layout).
   - CI publishes the APK to the rolling `apk-latest` release (artifacts are always zips).
   - Uploading a picture needs no permission (system picker -> copy); it is downscaled to 1280px
@@ -182,7 +180,8 @@ larger backup format, while fixing the bugs/duplications in master.
     move < 2.5 m), km/mi + clock/pace formatting, per-unit splits. Filters live in
     `RUN_FILTERS`; stored points are >= 5 m apart and capped at 5000 (halved when
     full, endpoints kept).
-  - `lib/runStore.ts` mirrors the Pomodoro store: wall-clock elapsed (pauses
+  - `lib/runStore.ts` uses the same module-singleton shape the Pomodoro store
+    used: wall-clock elapsed (pauses
     excluded), snapshot per accepted fix in `clarity.run`, 6 h resume banner,
     manual distance correction (>10 m from GPS) hides route/splits.
   - New screens: `/runs` (stats, range chips, history, resume/active banners),

@@ -9,7 +9,6 @@ import {
   Menu,
   Settings,
   StickyNote,
-  Timer,
   Wallet,
 } from 'lucide-react'
 import { IconButton } from './ui'
@@ -22,7 +21,6 @@ export const NAV_ITEMS = [
   { to: '/runs', label: 'Runs', icon: Footprints },
   { to: '/notes', label: 'Notes', icon: StickyNote },
   { to: '/goals', label: 'Goals', icon: Flag },
-  { to: '/pomodoro', label: 'Pomodoro', icon: Timer },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
@@ -52,7 +50,6 @@ export default function Layout() {
 
   const isDetail =
     location.pathname.startsWith('/notes/') ||
-    location.pathname.startsWith('/pomodoro/') ||
     location.pathname.startsWith('/budget/') ||
     location.pathname.startsWith('/habits/') ||
     location.pathname.startsWith('/runs/')

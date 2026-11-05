@@ -48,14 +48,12 @@ await page.evaluate(async () => {
     db.sources.clear(),
     db.transactions.clear(),
     db.events.clear(),
-    db.pomodoroFocusSessions.clear(),
   ])
   await db.habits.bulkAdd([
     { name: 'Drink water', description: '8 glasses', frequency: 'Daily', alternateDays: null, selectedDays: null, targetCount: 1, currentStreak: 0, bestStreak: 2, completionHistory: {}, lateCompletions: [], reminderTime: null, isArchived: false, archivedAt: null, isDeleted: false, deletedAt: null, deadlineHour: null, deadlineMinute: null, dailyNotes: {}, createdAt: now },
   ])
   await db.categories.bulkAdd([{ name: 'Food', isDefault: true, createdAt: now }])
   await db.sources.bulkAdd([{ name: 'Bank Account', isDefault: true, createdAt: now }])
-  await db.pomodoroFocusSessions.add({ title: 'Deep work', focusDurationMinutes: 25, breakDurationMinutes: 5, sessionCount: 0, totalFocusMinutes: 0, distractions: '', createdAt: now, updatedAt: now })
 })
 
 await page.goto('http://localhost:5173/calendar', { waitUntil: 'networkidle2' })
@@ -112,19 +110,6 @@ const txCount = await page.evaluate(async () => {
   return (await db.transactions.toArray()).filter((t) => t.description === 'Browser expense').length
 })
 console.log('transaction add clicked:', txAdded, '| created:', txCount)
-
-// --- Pomodoro start / pause ---
-await page.goto('http://localhost:5173/pomodoro/1', { waitUntil: 'networkidle2' })
-await clickText('Start')
-await sleep(2400)
-const beforePause = await page.evaluate(() => document.querySelector('.timer-text')?.textContent)
-await clickText('Pause')
-await sleep(300)
-const afterPause = await page.evaluate(() => document.querySelector('.timer-text')?.textContent)
-await sleep(1200)
-const stillPaused = await page.evaluate(() => document.querySelector('.timer-text')?.textContent)
-console.log('timer:', beforePause, '-> paused:', afterPause, '-> 1.2s later:', stillPaused)
-await page.screenshot({ path: `${OUT}/pomodoro-running.png` })
 
 // --- Dark mode ---
 await page.goto('http://localhost:5173/settings', { waitUntil: 'networkidle2' })

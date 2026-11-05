@@ -1,7 +1,7 @@
 # Clarity
 
 Personal management app — calendar events (with task fields), habits, budget,
-notes, goals and Pomodoro — running in the browser with `npm run dev`.
+notes, goals and runs — running in the browser with `npm run dev`.
 
 This started as a port of the original Android app (Kotlin + Jetpack Compose +
 Room); once it reached feature parity the Kotlin sources were removed and this
@@ -76,8 +76,6 @@ npm run typecheck  # tsc --noEmit
   (cycles rejected), search, pinning, tag filters, tag management, markdown
   preview, inline images, delete-with-descendants.
 - **Goals** — active/completed tabs, progress, milestones, edit dialog with slider.
-- **Pomodoro** — session list, focus/break timer that survives navigation and reload,
-  configurable durations, distraction log, alarm.
 - **Settings** — username, theme mode (system/light/dark), six colour themes,
   distance unit (km/miles), home-section order/toggles, JSON export/import.
 - **Onboarding** — restore from a backup or start fresh, then ask for a name.
@@ -88,8 +86,7 @@ Everything is local to the browser profile:
 
 - `clarity` IndexedDB holds habits, notes, note categories,
   note images, transactions, categories, sources, budget limits, goals, events,
-  pomodoro sessions, credit cards, credit-card transactions, investments,
-  day journals and runs.
+  credit cards, credit-card transactions, investments, day journals and runs.
 - No rows are seeded. Like the Android app, accounts and categories start empty
   and are created by the user, so a fresh database can never contain duplicate
   defaults.
@@ -161,8 +158,8 @@ The port fixes upstream bugs instead of reproducing them:
 src/
 ├── db/          types.ts (entities), db.ts (Dexie schema + migrations),
 │                budget.ts, events.ts, habits.ts, notes.ts (data operations)
-├── lib/         dates, formatting, preferences, themes, export/import, pomodoro
-│                and run stores, geo distance helpers
+├── lib/         dates, formatting, preferences, themes, export/import,
+│                run store, geo distance helpers
 ├── context/     preferences provider (username, theme, home sections)
 ├── components/  layout, UI primitives, markdown preview
 ├── screens/     one file per screen; budget/ holds the budget sub-screens

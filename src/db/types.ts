@@ -5,7 +5,6 @@ export type RecurringType = 'Daily' | 'Weekly' | 'Monthly' | 'Custom'
 export type GoalType = 'Short-term' | 'Long-term'
 export type HabitFrequency = 'Daily' | 'Weekly' | 'Monthly' | 'Alternate' | 'Custom'
 export type TransactionType = 'Income' | 'Expense'
-export type PomodoroType = 'Focus' | 'ShortBreak' | 'LongBreak'
 export type CardTxnType = 'Purchase' | 'Payment' | 'Credit'
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type DistanceUnit = 'km' | 'mi'
@@ -159,26 +158,6 @@ export interface Event {
   createdAt: number
 }
 
-export interface PomodoroFocusSession {
-  id?: number
-  title: string
-  focusDurationMinutes: number
-  breakDurationMinutes: number
-  sessionCount: number
-  totalFocusMinutes: number
-  distractions: string
-  createdAt: number
-  updatedAt: number
-}
-
-export interface PomodoroSession {
-  id?: number
-  duration: number
-  type: PomodoroType
-  completedAt: number
-  distractions: string[]
-}
-
 export interface CreditCard {
   id?: number
   name: string
@@ -253,10 +232,10 @@ export interface RunSession {
 export const HOME_SECTIONS = [
   'Events',
   'Habits',
+  'Runs',
   'Budget',
   'Notes',
   'Goals',
-  'Pomodoro',
 ] as const
 export type HomeSection = (typeof HOME_SECTIONS)[number]
 

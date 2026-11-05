@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  BellRing,
   Check,
   ChevronDown,
   ChevronUp,
@@ -20,9 +19,8 @@ import { exportData, exportToDevice, importData, shareExport } from '../lib/expo
 import { THEMES } from '../lib/themes'
 import type { HomeSection, ThemeMode } from '../db/types'
 import { clearAllData } from '../db/db'
-import { isNative, nativePlatform, notificationsGranted, requestNotifications } from '../lib/native'
+import { isNative, nativePlatform } from '../lib/native'
 import { backupStatus, type BackupStatus } from '../lib/backupScheduler'
-import { clearActiveSession } from '../lib/pomodoroStore'
 import { discardRun } from '../lib/runStore'
 import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
 
@@ -57,10 +55,8 @@ export default function SettingsScreen() {
     profile: true,
     appearance: true,
     home: true,
-    permissions: true,
     data: true,
   })
-  const [notifications, setNotifications] = useState(false)
   const [backupInfo, setBackupInfo] = useState<BackupStatus | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -68,7 +64,6 @@ export default function SettingsScreen() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    void notificationsGranted().then(setNotifications)
     if (isNative()) void backupStatus().then(setBackupInfo)
   }, [])
 
@@ -104,7 +99,6 @@ export default function SettingsScreen() {
     setClearing(true)
     try {
       await clearAllData()
-      clearActiveSession()
       discardRun()
       setConfirmClear(false)
       setImportState({ kind: 'idle' })
@@ -265,44 +259,6 @@ export default function SettingsScreen() {
                 Reverse order
               </button>
             </div>
-          </div>
-        )}
-      </section>
-
-      <section style={{ marginBottom: 20 }}>
-        <button
-          className="collapse-head"
-          aria-expanded={open.permissions}
-          onClick={() => setOpen((v) => ({ ...v, permissions: !v.permissions }))}
-        >
-          <span className="section-label">Permissions</span>
-          <span className={`chevron ${open.permissions ? 'open' : ''}`}>⌄</span>
-        </button>
-        {open.permissions && (
-          <div className="card flush" style={{ marginTop: 8 }}>
-            <button
-              className="list-item"
-              style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: 16, cursor: 'pointer' }}
-              onClick={() => void requestNotifications().then(setNotifications)}
-              disabled={!isNative()}
-            >
-              <div className="avatar"><BellRing size={19} /></div>
-              <div className="grow">
-                <div className="bold">Notifications</div>
-                <div className="small muted">
-                  {!isNative()
-                    ? 'Only used by the mobile app (timer alarms)'
-                    : notifications
-                      ? 'Allowed — timer alarms can notify you in the background'
-                      : 'Tap to allow timer alarms outside the app'}
-                </div>
-              </div>
-              {isNative() && (
-                <span className="small" style={{ color: notifications ? 'var(--primary)' : 'var(--error)', fontWeight: 600 }}>
-                  {notifications ? 'Allowed' : 'Off'}
-                </span>
-              )}
-            </button>
           </div>
         )}
       </section>

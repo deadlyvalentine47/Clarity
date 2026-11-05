@@ -14,10 +14,12 @@ import {
   discardRun,
   pauseRun,
   resumeRun,
+  retryGps,
   saveRun,
   setGpsEnabled,
   simulateRun,
   startRun,
+  startWithoutGps,
   stopRun,
   useRunState,
 } from '../lib/runStore'
@@ -26,6 +28,9 @@ import { Dialog, Field, PageHeader, TextArea, TextInput } from '../components/ui
 type WakeLockSentinelLike = { release: () => Promise<void> }
 
 function gpsLabel(state: ReturnType<typeof useRunState>): string {
+  if (state.status === 'acquiring') {
+    return state.gpsStatus === 'timeout' ? 'No GPS fix' : 'Acquiring GPS…'
+  }
   if (state.status === 'finished' || !state.gpsEnabled) return 'GPS off'
   switch (state.gpsStatus) {
     case 'ok':
@@ -34,6 +39,8 @@ function gpsLabel(state: ReturnType<typeof useRunState>): string {
       return 'Permission denied'
     case 'unavailable':
       return 'GPS unavailable'
+    case 'timeout':
+      return 'No GPS fix'
     case 'searching':
       return 'Searching…'
     default:
@@ -156,13 +163,15 @@ export default function RunScreen() {
   }
 
   const statusText =
-    state.status === 'running'
-      ? 'Tracking'
-      : state.status === 'paused'
-        ? 'Paused'
-        : state.status === 'finished'
-          ? 'Finished'
-          : 'Ready'
+    state.status === 'acquiring'
+      ? 'Waiting for GPS'
+      : state.status === 'running'
+        ? 'Tracking'
+        : state.status === 'paused'
+          ? 'Paused'
+          : state.status === 'finished'
+            ? 'Finished'
+            : 'Ready'
 
   return (
     <>
@@ -185,7 +194,64 @@ export default function RunScreen() {
         }
       />
 
-      {state.gpsStatus === 'denied' && (
+      {state.status === 'acquiring' && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          {state.gpsStatus === 'timeout' ||
+          state.gpsStatus === 'denied' ||
+          state.gpsStatus === 'unavailable' ? (
+            <>
+              <div className="bold">Couldn&apos;t get a GPS fix</div>
+              <div className="small muted">
+                {state.gpsStatus === 'denied'
+                  ? 'Location permission is off. Allow it in the system settings and retry, or run without GPS and enter the distance at the end.'
+                  : 'No usable satellite fix yet. Move somewhere with a clearer view of the sky and retry, or run without GPS and enter the distance at the end.'}
+              </div>
+              <div className="row wrap" style={{ marginTop: 12 }}>
+                {state.gpsStatus === 'denied' && isNative() && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => void openLocationSettings()}
+                  >
+                    Open settings
+                  </button>
+                )}
+                <button className="btn btn-sm btn-primary" onClick={retryGps}>
+                  Retry GPS
+                </button>
+                <button className="btn btn-sm btn-outline" onClick={startWithoutGps}>
+                  Run without GPS
+                </button>
+                <button className="btn btn-sm btn-outline" onClick={handleDiscard}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+                <span className="spinner" aria-hidden="true" />
+                <div>
+                  <div className="bold">Getting a GPS fix…</div>
+                  <div className="small muted">
+                    The timer starts as soon as the first fix arrives — nothing is recorded
+                    until then.
+                  </div>
+                </div>
+              </div>
+              <div className="row wrap" style={{ marginTop: 12 }}>
+                <button className="btn btn-sm btn-outline" onClick={startWithoutGps}>
+                  Start without GPS
+                </button>
+                <button className="btn btn-sm btn-outline" onClick={handleDiscard}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {state.gpsStatus === 'denied' && state.status !== 'acquiring' && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="bold">Location permission needed</div>
           <div className="small muted">

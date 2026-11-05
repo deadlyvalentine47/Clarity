@@ -102,15 +102,15 @@ Bump `versionCode` for every APK you install over an older one.
 
 ## Permissions
 
-Requested at first launch (Settings → Permissions shows the notification state):
+The app asks for location only when a run starts, and never for storage:
 
-| Permission | Why | If refused |
-| --- | --- | --- |
-| `POST_NOTIFICATIONS` | Pomodoro phase alarms while the app is in the background | the in-app alarm still plays |
-| `VIBRATE` | alarm vibration | silent alarm |
-| `SCHEDULE_EXACT_ALARM` | exact alarm delivery | Android may delay the notification |
+| Permission | Why |
+| --- | --- |
+| `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` | distance and route while tracking a run |
+| `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_LOCATION` | keep GPS fixes flowing with the screen locked |
 
-No storage permission is needed anywhere.
+No background-location permission is requested; the foreground service covers a
+locked screen, and swiping the app away ends the session.
 
 - *Export → Save to this device* writes the backup to `Downloads/Clarity/`
   through MediaStore on Android 10+ (no permission, no picker). Android 7–9
@@ -153,8 +153,7 @@ once — after that they live in the database and in every new backup.
   no server to fall back to `index.html` on deep links.
 - **Status/navigation bars** are handled with `env(safe-area-inset-*)` in
   `src/styles.css` (Android 15+ draws edge-to-edge).
-- **Reminders** are in-app only. The Pomodoro alarm also posts a local
-  notification so it fires while the app is backgrounded.
+- **Reminders** are in-app only; the app posts no notifications.
 - **Back button** steps back through the screens and only leaves the app from
   Home, after a second press ("Press back again to exit").
 - **Data from the old Kotlin app** cannot be read directly (Room/SQLite vs

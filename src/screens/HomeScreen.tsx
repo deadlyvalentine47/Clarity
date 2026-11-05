@@ -9,10 +9,10 @@ import {
   ChevronRight,
   Circle,
   Flag,
+  Footprints,
   Plus,
   Settings,
   StickyNote,
-  Timer,
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
@@ -41,7 +41,8 @@ import {
   startOfDay,
   toDateKey,
 } from '../lib/dates'
-import { formatDuration, formatMoney, plural } from '../lib/format'
+import { formatMoney, plural } from '../lib/format'
+import { distanceLabel, formatClock } from '../lib/geo'
 import { CollapsibleHeader, ProgressBar, ProgressRing } from '../components/ui'
 import { EventDialog } from './CalendarScreen'
 import { TransactionDialog } from './budget/shared'
@@ -89,6 +90,15 @@ export default function HomeScreen() {
   const dayEnd = endOfDay(now.getTime())
   const [monthStart, monthEnd] = monthRange(now.getFullYear(), now.getMonth() + 1)
 
+  // Monday-based week, matching the Runs screen's "This week" range.
+  const weekStart = useMemo(() => {
+    const start = new Date(now)
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7))
+    start.setHours(0, 0, 0, 0)
+    return start.getTime()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayKey])
+
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
   const habitGroups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
   const events = useLiveQuery(async () => db.events.toArray(), [], [])
@@ -98,11 +108,7 @@ export default function HomeScreen() {
   const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
   const notes = useLiveQuery(async () => db.notes.toArray(), [], [])
   const goals = useLiveQuery(async () => db.goals.toArray(), [], [])
-  const focusSessions = useLiveQuery(
-    async () => db.pomodoroSessions.where('type').equals('Focus').toArray(),
-    [],
-    [],
-  )
+  const runs = useLiveQuery(async () => db.runs.orderBy('startedAt').reverse().toArray(), [], [])
 
   // --------------------------------------------------------------- habits
   // sortOrder is only unique inside a group, so a flat sort interleaves groups.
@@ -148,12 +154,6 @@ export default function HomeScreen() {
     0,
   )
 
-  // ------------------------------------------------------------- pomodoro
-  const focusToday = (focusSessions ?? []).filter(
-    (s) => s.completedAt >= dayStart && s.completedAt <= dayEnd,
-  )
-  const focusMinutes = focusToday.reduce((sum, s) => sum + s.duration, 0)
-
   const activeGoals = (goals ?? []).filter((g) => !g.isCompleted)
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
 
@@ -193,6 +193,13 @@ export default function HomeScreen() {
     const done = event.completionHistory?.[eventCompletionKey(event, date)] === true
     await toggleEventCompletion(event.id, date, !done)
   }
+
+  // ---------------------------------------------------------------- runs
+  const unit = prefs.distanceUnit
+  const weekRuns = (runs ?? []).filter((run) => run.startedAt >= weekStart)
+  const weekMeters = weekRuns.reduce((sum, run) => sum + run.distanceMeters, 0)
+  const weekSeconds = weekRuns.reduce((sum, run) => sum + run.durationSeconds, 0)
+  const latestRun = (runs ?? [])[0]
 
   const renderSection = (section: HomeSection) => {
     const open = !collapsed.has(section)
@@ -468,30 +475,56 @@ export default function HomeScreen() {
       )
     }
 
-    return (
-      <SectionCard
-        key={section}
-        icon={<Timer size={16} />}
-        title="Focus"
-        meta={focusMinutes > 0 ? formatDuration(focusMinutes) : 'not started'}
-        open={open}
-        onToggle={onToggle}
-        action={<OpenLink onClick={() => navigate('/pomodoro')} />}
-      >
-        <div className="row-between">
-          <div>
-            <div className="focus-total">{focusMinutes > 0 ? formatDuration(focusMinutes) : '0m'}</div>
-            <div className="tiny muted">
-              focused today
-              {focusToday.length > 0 ? ` · ${plural(focusToday.length, 'session')}` : ''}
+    if (section === 'Runs') {
+      return (
+        <SectionCard
+          key={section}
+          icon={<Footprints size={16} />}
+          title="Runs"
+          meta={
+            weekRuns.length > 0 ? `${distanceLabel(weekMeters, unit)} this week` : 'none this week'
+          }
+          open={open}
+          onToggle={onToggle}
+          action={<OpenLink onClick={() => navigate('/runs')} />}
+        >
+          {!latestRun ? (
+            <EmptyLine
+              icon={<Footprints size={16} />}
+              text="No runs recorded yet"
+              action={
+                <button className="btn btn-sm btn-outline" onClick={() => navigate('/runs/live')}>
+                  Start
+                </button>
+              }
+            />
+          ) : (
+            <div className="row-between">
+              <div style={{ minWidth: 0 }}>
+                <div className="focus-total">{distanceLabel(weekMeters, unit)}</div>
+                <div className="tiny muted">
+                  this week · {formatClock(weekSeconds)}
+                  {weekRuns.length > 0 ? ` · ${plural(weekRuns.length, 'run')}` : ''}
+                </div>
+                <div className="tiny muted truncate">
+                  Last: {latestRun.name?.trim() || 'unnamed'} ·{' '}
+                  {distanceLabel(latestRun.distanceMeters, unit)} ·{' '}
+                  {formatClock(latestRun.durationSeconds)}
+                </div>
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate('/runs/live')}
+              >
+                <Footprints size={15} /> Start run
+              </button>
             </div>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/pomodoro')}>
-            <Timer size={15} /> Start focus
-          </button>
-        </div>
-      </SectionCard>
-    )
+          )}
+        </SectionCard>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -522,8 +555,8 @@ export default function HomeScreen() {
         <button className="quick-action" onClick={() => setShowAddSpend(true)}>
           <ArrowUpRight size={16} /> Spend
         </button>
-        <button className="quick-action" onClick={() => navigate('/pomodoro')}>
-          <Timer size={16} /> Focus
+        <button className="quick-action" onClick={() => navigate('/runs/live')}>
+          <Footprints size={16} /> Run
         </button>
         <button className="quick-action" onClick={() => navigate('/notes')}>
           <StickyNote size={16} /> Note

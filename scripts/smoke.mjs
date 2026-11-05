@@ -83,11 +83,6 @@ const seeded = await page.evaluate(async () => {
     { title: 'Team sync', description: 'Weekly standup', startDate: now + 3600_000, endDate: now + 7200_000, category: 'Work', color: '#4A90D9', isAllDay: false, reminderTime: null, priority: 'High', dueDate: null, frequency: 'Weekly', alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
     { title: 'Dentist', description: '', startDate: now + day + 3600_000, endDate: now + day + 7200_000, category: 'Health', color: '#7B61FF', isAllDay: false, reminderTime: null, priority: null, dueDate: now + day + 3600_000, frequency: null, alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
   ])
-  const sid = await db.pomodoroFocusSessions.add({ title: 'Deep work', focusDurationMinutes: 25, breakDurationMinutes: 5, sessionCount: 2, totalFocusMinutes: 50, distractions: 'Phone - 10:15', createdAt: now, updatedAt: now })
-  await db.pomodoroSessions.bulkAdd([
-    { duration: 25, type: 'Focus', completedAt: now, distractions: [] },
-    { duration: 25, type: 'Focus', completedAt: now - day, distractions: [] },
-  ])
   const runPoints = Array.from({ length: 11 }, (_, i) => ({
     t: now - 2 * day + i * 180_000,
     lat: 19.076 + i * 0.0045,
@@ -107,7 +102,7 @@ const seeded = await page.evaluate(async () => {
     notes: 'Morning loop',
     createdAt: now - 2 * day,
   })
-  return { sid, habitId, noteId: notes[0].id, cardId, todayKey, runId }
+  return { habitId, noteId: notes[0].id, cardId, todayKey, runId }
 })
 console.log('seeded', seeded)
 
@@ -143,8 +138,6 @@ const routes = [
   ['notes', '/notes'],
   ['note-detail', `/notes/${seeded.noteId}`],
   ['goals', '/goals'],
-  ['pomodoro-list', '/pomodoro'],
-  ['pomodoro-session', `/pomodoro/${seeded.sid}`],
   ['settings', '/settings'],
 ]
 

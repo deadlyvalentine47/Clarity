@@ -3,8 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import { usePreferences } from './context/PreferencesContext'
 import { markMissedDaysForAll } from './db/habits'
-import { clearHabitsIfDue, startHabitMonthlyCleanup } from './db/housekeeping'
-import { exitApp, registerBackButton, requestStartupPermissions } from './lib/native'
+import { exitApp, registerBackButton } from './lib/native'
 import OnboardingScreen from './screens/OnboardingScreen'
 import HomeScreen from './screens/HomeScreen'
 import CalendarScreen from './screens/CalendarScreen'
@@ -27,8 +26,6 @@ import RunDetailScreen from './screens/RunDetailScreen'
 import NotesScreen from './screens/NotesScreen'
 import NoteDetailScreen from './screens/NoteDetailScreen'
 import GoalsScreen from './screens/GoalsScreen'
-import PomodoroListScreen from './screens/PomodoroListScreen'
-import PomodoroScreen from './screens/PomodoroScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import NotFoundScreen from './screens/NotFoundScreen'
 
@@ -45,19 +42,15 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }, [])
 
-  // Delete last month's habits before doing anything else, then fill in
-  // missing past days as missed without overwriting explicit completions.
+  // Fill in missing past days as missed without overwriting explicit
+  // completions. Habits are no longer wiped at month end.
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      await clearHabitsIfDue()
       if (!cancelled) await markMissedDaysForAll()
     })()
-    void requestStartupPermissions()
-    const stopCleanup = startHabitMonthlyCleanup()
     return () => {
       cancelled = true
-      stopCleanup()
     }
   }, [])
 
@@ -113,8 +106,6 @@ export default function App() {
         <Route path="notes" element={<NotesScreen />} />
         <Route path="notes/:noteId" element={<NoteDetailScreen />} />
         <Route path="goals" element={<GoalsScreen />} />
-        <Route path="pomodoro" element={<PomodoroListScreen />} />
-        <Route path="pomodoro/:sessionId" element={<PomodoroScreen />} />
         <Route path="settings" element={<SettingsScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Route>

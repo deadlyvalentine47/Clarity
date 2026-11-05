@@ -1,6 +1,6 @@
-// Live run store. A module-level singleton (like pomodoroStore) so navigating
-// away from the live screen doesn't interrupt tracking. Every accepted fix is
-// snapshotted to localStorage, which is the safety net for a WebView kill.
+// Live run store. A module-level singleton so navigating away from the live
+// screen doesn't interrupt tracking. Every accepted fix is snapshotted to
+// localStorage, which is the safety net for a WebView kill.
 import { useSyncExternalStore } from 'react'
 import { db } from '../db/db'
 import type { RunPoint, RunSession } from '../db/types'
@@ -14,8 +14,8 @@ import {
   type LocationFix,
 } from './native'
 
-export type RunStatus = 'idle' | 'running' | 'paused' | 'finished'
-export type GpsStatus = 'off' | 'searching' | 'ok' | 'denied' | 'unavailable'
+export type RunStatus = 'idle' | 'acquiring' | 'running' | 'paused' | 'finished'
+export type GpsStatus = 'off' | 'searching' | 'ok' | 'denied' | 'unavailable' | 'timeout'
 
 export interface RunState {
   status: RunStatus
@@ -50,6 +50,8 @@ export interface RecoveredRun {
 
 const STORAGE_KEY = 'clarity.run'
 const SNAPSHOT_MAX_AGE_MS = 6 * 60 * 60 * 1000
+/** How long we wait for a first usable fix before offering the manual fallback. */
+const GPS_ACQUIRE_TIMEOUT_MS = 25_000
 /** Formatting distance to 2 dp must not look like a manual correction. */
 const MANUAL_DISTANCE_TOLERANCE_M = 10
 
@@ -74,6 +76,7 @@ let ticker: number | null = null
 let tickCount = 0
 let stopWatcher: (() => void) | null = null
 let watcherToken = 0
+let acquireTimer: number | null = null
 
 // Barometric altitude, relative to the start of the run. Polled rather than
 // pushed: the native layer buffers while the WebView is suspended.
@@ -168,6 +171,31 @@ function stopGps() {
   watcherToken += 1
   stopWatcher?.()
   stopWatcher = null
+  clearAcquireTimer()
+}
+
+function clearAcquireTimer() {
+  if (acquireTimer != null) {
+    window.clearTimeout(acquireTimer)
+    acquireTimer = null
+  }
+}
+
+/**
+ * Starting with GPS waits for a real fix before the clock starts, so a cold
+ * start or a bad sky doesn't burn the first minute of the run. If nothing
+ * usable arrives the caller can retry or fall back to manual distance.
+ */
+function startAcquireTimer() {
+  clearAcquireTimer()
+  acquireTimer = window.setTimeout(() => {
+    acquireTimer = null
+    if (state.status !== 'acquiring') return
+    stopWatcher?.()
+    stopWatcher = null
+    state = { ...state, gpsStatus: 'timeout' }
+    notify()
+  }, GPS_ACQUIRE_TIMEOUT_MS)
 }
 
 // ---------------------------------------------------------------- barometer
@@ -248,7 +276,11 @@ async function startGps() {
 
 function handleGpsError(error: LocationError) {
   if (!state.gpsEnabled) return
-  state = { ...state, gpsStatus: gpsErrorStatus(error) }
+  const status = gpsErrorStatus(error)
+  // A permission error is final for this attempt; let the panel report it
+  // instead of the acquisition timeout overwriting the message.
+  if (status === 'denied') clearAcquireTimer()
+  state = { ...state, gpsStatus: status }
   persistSnapshot()
   notify()
 }
@@ -266,7 +298,7 @@ function pushPoint(points: RunPoint[], point: RunPoint) {
 }
 
 function handleFix(fix: LocationFix, force = false) {
-  if (state.status !== 'running') return
+  if (state.status !== 'running' && state.status !== 'acquiring') return
   // A watcher that is being torn down can still deliver one last fix.
   if (!force && !state.gpsEnabled) return
 
@@ -297,7 +329,8 @@ function handleFix(fix: LocationFix, force = false) {
       ...state,
       accuracy: point.acc,
       lastFixAt: point.t,
-      gpsStatus: state.gpsEnabled ? 'ok' : 'off',
+      gpsStatus:
+        state.status === 'acquiring' ? 'searching' : state.gpsEnabled ? 'ok' : 'off',
     }
     notify()
     return
@@ -313,6 +346,14 @@ function handleFix(fix: LocationFix, force = false) {
     lastStored = point
   }
   lastAccepted = point
+
+  // The first usable fix ends the wait: the clock starts here, not when the
+  // user pressed Start.
+  if (state.status === 'acquiring') {
+    clearAcquireTimer()
+    state = { ...state, status: 'running', startedAt: Date.now(), elapsedSeconds: 0 }
+    startTicker()
+  }
 
   state = {
     ...state,
@@ -335,18 +376,53 @@ export function startRun({ gps }: { gps: boolean }) {
   pauseStartedAt = null
   lastAccepted = null
   lastStored = null
+  // With GPS the clock waits for a usable fix; without it the run starts now.
   state = {
     ...DEFAULT_STATE,
-    status: 'running',
-    startedAt: Date.now(),
+    status: gps ? 'acquiring' : 'running',
+    startedAt: gps ? null : Date.now(),
     gpsEnabled: gps,
     gpsStatus: gps ? 'searching' : 'off',
   }
   persistSnapshot()
   notify()
-  startTicker()
-  if (gps) void startGps()
+  if (gps) {
+    void startGps()
+    startAcquireTimer()
+  } else {
+    startTicker()
+  }
   void startBarometerTracking()
+}
+
+/** Try again after the acquisition timed out or permission was fixed. */
+export function retryGps() {
+  if (state.status !== 'acquiring') return
+  state = { ...state, gpsStatus: 'searching', accuracy: null, lastFixAt: null }
+  notify()
+  void startGps()
+  startAcquireTimer()
+}
+
+/**
+ * Give up on the fix and track time only; the distance is entered when the run
+ * is saved (the save dialog already supports a manual correction).
+ */
+export function startWithoutGps() {
+  if (state.status !== 'acquiring') return
+  stopGps()
+  state = {
+    ...state,
+    status: 'running',
+    startedAt: Date.now(),
+    elapsedSeconds: 0,
+    gpsEnabled: false,
+    gpsStatus: 'off',
+    accuracy: null,
+  }
+  persistSnapshot()
+  notify()
+  startTicker()
 }
 
 export function pauseRun() {
@@ -423,6 +499,10 @@ export function discardRun() {
 }
 
 export function setGpsEnabled(enabled: boolean) {
+  if (state.status === 'acquiring') {
+    if (!enabled) startWithoutGps()
+    return
+  }
   state = {
     ...state,
     gpsEnabled: enabled,
