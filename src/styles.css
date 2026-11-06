@@ -2038,6 +2038,35 @@ p {
   flex-direction: column;
 }
 
+.agenda-group + .agenda-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--outline);
+}
+
+.agenda-group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.agenda-group-title.overdue {
+  color: var(--error);
+}
+
+.agenda-group-date {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .agenda-row {
   display: flex;
   align-items: center;

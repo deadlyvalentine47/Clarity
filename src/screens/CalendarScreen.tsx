@@ -27,7 +27,6 @@ import { MONTHS, formatTime, fromDateKey, toDateKey } from '../lib/dates'
 import {
   ConfirmDialog,
   Dialog,
-  EmptyState,
   Field,
   Select,
   TextArea,
@@ -42,7 +41,6 @@ export default function CalendarScreen() {
   const [year, setYear] = useState(today.getFullYear())
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<Event | null>(null)
-  const [showAll, setShowAll] = useState(false)
 
   const events = useLiveQuery(() => db.events.orderBy('startDate').toArray(), [], [])
 
@@ -92,35 +90,6 @@ export default function CalendarScreen() {
     setMonth(now.getMonth() + 1)
     setYear(now.getFullYear())
     setSelected(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
-    setShowAll(false)
-  }
-
-  if (showAll) {
-    return (
-      <>
-        <div className="row" style={{ marginBottom: 16 }}>
-          <button className="icon-btn" aria-label="Back" onClick={() => setShowAll(false)}>
-            <ChevronLeft size={22} />
-          </button>
-          <div>
-            <h1 className="page-title" style={{ fontSize: 20 }}>
-              {selected.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-            </h1>
-            <p className="page-sub">{dayEvents.length} events</p>
-          </div>
-        </div>
-        {dayEvents.length === 0 ? (
-          <EmptyState icon={<CalendarDays size={40} />} title="No events for this day" />
-        ) : (
-          <div className="stack">
-            {dayEvents.map((e) => (
-              <EventItem key={e.id} event={e} date={selected} onEdit={() => setEditing(e)} />
-            ))}
-          </div>
-        )}
-        {editing && <EventDialog key={editing.id} event={editing} date={selected} onClose={() => setEditing(null)} />}
-      </>
-    )
   }
 
   return (
@@ -215,11 +184,6 @@ export default function CalendarScreen() {
         <span className="section-label">
           Scheduled for {selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </span>
-        {dayEvents.length > 3 && (
-          <button className="btn btn-sm btn-outline" onClick={() => setShowAll(true)}>
-            View all {dayEvents.length} events
-          </button>
-        )}
       </div>
 
       {dayEvents.length === 0 ? (
@@ -228,7 +192,7 @@ export default function CalendarScreen() {
         </div>
       ) : (
         <div className="stack">
-          {dayEvents.slice(0, 3).map((e) => (
+          {dayEvents.map((e) => (
             <EventItem key={e.id} event={e} date={selected} onEdit={() => setEditing(e)} />
           ))}
         </div>

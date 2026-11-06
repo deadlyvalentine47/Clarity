@@ -146,14 +146,20 @@ export async function toggleEventCompletion(
   await db.events.update(eventId, { completionHistory: history })
 }
 
-/** Has any scheduled occurrence before today gone uncompleted? */
-export function hasOverdueOccurrence(event: Event, now: Date = new Date()): boolean {
+/**
+ * Uncompleted occurrences that fell before today, oldest first. A recurring
+ * event can have many missed days; the home card shows the head of the backlog
+ * plus the count.
+ */
+export function overdueOccurrences(event: Event, now: Date = new Date()): Date[] {
   if (!event.frequency) {
-    return eventStatus(event, new Date(event.startDate), now) === 'overdue'
+    const occurrence = new Date(event.startDate)
+    return eventStatus(event, occurrence, now) === 'overdue' ? [occurrence] : []
   }
   const anchor = eventAnchorDate(event)
   const yesterdayKey = toDateKey(addDays(now, -1))
-  if (toDateKey(anchor) > yesterdayKey) return false
+  if (toDateKey(anchor) > yesterdayKey) return []
+  const missed: Date[] = []
   let day = anchor
   for (let i = 0; i < 732; i += 1) {
     if (toDateKey(day) > yesterdayKey) break
@@ -162,11 +168,16 @@ export function hasOverdueOccurrence(event: Event, now: Date = new Date()): bool
       !isEventSkipped(event, day) &&
       event.completionHistory?.[toDateKey(day)] !== true
     ) {
-      return true
+      missed.push(new Date(timeOnDay(event.startDate, day)))
     }
     day = addDays(day, 1)
   }
-  return false
+  return missed
+}
+
+/** Has any scheduled occurrence before today gone uncompleted? */
+export function hasOverdueOccurrence(event: Event, now: Date = new Date()): boolean {
+  return overdueOccurrences(event, now).length > 0
 }
 
 /** First uncompleted occurrence on/after `from`, or null when there is none. */

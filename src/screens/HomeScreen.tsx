@@ -22,11 +22,12 @@ import { isScheduledOn, toggleHabitForDate } from '../db/habits'
 import { buildTopLevelRows } from '../db/habitGroups'
 import {
   eventCompletionKey,
+  eventDueKey,
   eventFrequencyLabel,
   eventOccursOn,
+  eventOccurrence,
   eventStatus,
-  hasOverdueOccurrence,
-  nextEventOccurrence,
+  overdueOccurrences,
   toggleEventCompletion,
 } from '../db/events'
 import { noteSnippet } from '../db/notes'
@@ -124,15 +125,42 @@ export default function HomeScreen() {
   const habitsPending = habitsToday.filter((h) => h.completionHistory[todayKey] !== true)
 
   // --------------------------------------------------------------- events
-  const todayEvents = (events ?? []).filter((e) => eventOccursOn(e, now))
+  const todayEvents = sortEventsByTime((events ?? []).filter((e) => eventOccursOn(e, now)))
   const eventsDone = todayEvents.filter(
     (e) => e.completionHistory?.[eventCompletionKey(e, now)] === true,
   ).length
-  const overdueEvents = (events ?? []).filter((e) => hasOverdueOccurrence(e, now))
-  const upcomingEvents = (events ?? [])
-    .map((event) => ({ event, occurrence: nextEventOccurrence(event, now) }))
-    .filter((x): x is { event: ClarityEvent; occurrence: Date } => x.occurrence != null)
+  const allTodayDone = todayEvents.length > 0 && eventsDone === todayEvents.length
+
+  // One row per overdue event, listing every missed due date oldest-first.
+  // Checking the row completes the oldest miss and the list re-renders.
+  const overdueItems = (events ?? [])
+    .flatMap((event) => {
+      const missed = overdueOccurrences(event, now)
+      return missed.length === 0
+        ? []
+        : [{ event, occurrence: missed[0], missedDates: missed }]
+    })
     .sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime())
+
+  // Once today is cleared (or empty), the card rolls over to the next two days.
+  const showUpcoming = allTodayDone || todayEvents.length === 0
+  const tomorrow = addDays(now, 1)
+  const dayAfterTomorrow = addDays(now, 2)
+  const tomorrowEvents = sortEventsByTime(
+    (events ?? []).filter(
+      (e) =>
+        eventOccursOn(e, tomorrow) &&
+        e.completionHistory?.[eventCompletionKey(e, tomorrow)] !== true,
+    ),
+  )
+  const dayAfterEvents = sortEventsByTime(
+    (events ?? []).filter(
+      (e) =>
+        eventOccursOn(e, dayAfterTomorrow) &&
+        e.completionHistory?.[eventCompletionKey(e, dayAfterTomorrow)] !== true,
+    ),
+  )
+  const upcomingTotal = tomorrowEvents.length + dayAfterEvents.length
 
   // --------------------------------------------------------------- money
   // Bank spending is calendar-month; card spending follows each card's billing
@@ -165,7 +193,7 @@ export default function HomeScreen() {
   const todoLeft = habitsToday.length - habitsDone + (todayEvents.length - eventsDone)
   const statusLine = (() => {
     const parts: string[] = []
-    if (overdueEvents.length > 0) parts.push(`${overdueEvents.length} overdue`)
+    if (overdueItems.length > 0) parts.push(`${overdueItems.length} overdue`)
     if (todoLeft > 0) parts.push(`${todoLeft} to do today`)
     if (parts.length === 0) {
       if (totalToday > 0) parts.push('All done for today. Nice.')
@@ -206,26 +234,84 @@ export default function HomeScreen() {
     const onToggle = () => toggleSection(section)
 
     if (section === 'Events') {
+      const agendaGroups: Array<{
+        key: string
+        label?: string
+        dateLabel?: string
+        tone?: 'overdue'
+        items: AgendaItem[]
+      }> = []
+
+      if (overdueItems.length > 0) {
+        agendaGroups.push({
+          key: 'overdue',
+          label: 'Overdue',
+          tone: 'overdue',
+          items: overdueItems,
+        })
+      }
+
+      if (showUpcoming) {
+        if (tomorrowEvents.length > 0) {
+          agendaGroups.push({
+            key: 'tomorrow',
+            label: 'Tomorrow',
+            dateLabel: formatGroupDate(tomorrow),
+            items: tomorrowEvents.map((event) => ({
+              event,
+              occurrence: new Date(eventOccurrence(event, tomorrow).start),
+            })),
+          })
+        }
+        if (dayAfterEvents.length > 0) {
+          agendaGroups.push({
+            key: 'day-after',
+            label: 'Day after tomorrow',
+            dateLabel: formatGroupDate(dayAfterTomorrow),
+            items: dayAfterEvents.map((event) => ({
+              event,
+              occurrence: new Date(eventOccurrence(event, dayAfterTomorrow).start),
+            })),
+          })
+        }
+      } else {
+        agendaGroups.push({
+          key: 'today',
+          label: overdueItems.length > 0 ? 'Today' : undefined,
+          dateLabel: overdueItems.length > 0 ? formatGroupDate(now) : undefined,
+          items: todayEvents.map((event) => ({
+            event,
+            occurrence: new Date(eventOccurrence(event, now).start),
+          })),
+        })
+      }
+
+      const metaParts: string[] = []
+      if (overdueItems.length > 0) metaParts.push(`${overdueItems.length} overdue`)
+      if (showUpcoming) {
+        if (upcomingTotal > 0) metaParts.push(`${plural(upcomingTotal, 'event')} next up`)
+      } else {
+        metaParts.push(
+          overdueItems.length > 0
+            ? `${eventsDone}/${todayEvents.length} today`
+            : `Due today ${eventsDone}/${todayEvents.length} events`,
+        )
+      }
+
       return (
         <SectionCard
           key={section}
           icon={<CalendarDays size={16} />}
           title="Up next"
-          meta={
-            todayEvents.length > 0
-              ? `${eventsDone}/${todayEvents.length} today`
-              : overdueEvents.length > 0
-                ? `${plural(overdueEvents.length, 'overdue item')}`
-                : undefined
-          }
+          meta={metaParts.join(' · ') || undefined}
           open={open}
           onToggle={onToggle}
           action={<OpenLink onClick={() => navigate('/calendar')} />}
         >
-          {upcomingEvents.length === 0 ? (
+          {agendaGroups.length === 0 ? (
             <EmptyLine
               icon={<CalendarDays size={16} />}
-              text="No upcoming events"
+              text="Nothing scheduled for tomorrow"
               action={
                 <button className="btn btn-sm btn-outline" onClick={() => navigate('/calendar')}>
                   Add
@@ -234,54 +320,31 @@ export default function HomeScreen() {
             />
           ) : (
             <div className="agenda">
-              {upcomingEvents.slice(0, 3).map(({ event, occurrence }) => {
-                const done =
-                  event.completionHistory?.[eventCompletionKey(event, occurrence)] === true
-                const status = eventStatus(event, occurrence, now)
-                return (
-                  <div
-                    key={event.id}
-                    className="agenda-row"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => navigate('/calendar')}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') navigate('/calendar')
-                    }}
-                  >
-                    <button
-                      className={`event-check ${done ? 'done' : ''}`}
-                      aria-label={`${done ? 'Uncheck' : 'Check'} ${event.title}`}
-                      aria-pressed={done}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void toggleEvent(event, occurrence)
-                      }}
+              {agendaGroups.map((group) => (
+                <div key={group.key} className="agenda-group">
+                  {group.label && (
+                    <div
+                      className={`agenda-group-title${group.tone === 'overdue' ? ' overdue' : ''}`}
                     >
-                      {done ? <Check size={13} /> : <Circle size={13} />}
-                    </button>
-                    <span className="agenda-time">
-                      {event.isAllDay ? 'All day' : formatTime(occurrence.getTime())}
-                    </span>
-                    <span className="agenda-rail" style={{ background: event.color || 'var(--primary)' }} />
-                    <span className="agenda-body">
-                      <span
-                        className="agenda-title truncate"
-                        style={{ textDecoration: done ? 'line-through' : undefined }}
-                      >
-                        {event.title}
-                      </span>
-                      <span className="tiny muted truncate">
-                        {dayLabel(occurrence, todayKey)}
-                        {event.priority ? ` · ${event.priority}` : ''}
-                        {event.frequency ? ` · ${eventFrequencyLabel(event)}` : ''}
-                        {status === 'overdue' ? ' · Overdue' : status === 'due' ? ' · Due today' : ''}
-                      </span>
-                    </span>
-                    <ChevronRight size={16} className="muted" />
-                  </div>
-                )
-              })}
+                      <span>{group.label}</span>
+                      {group.dateLabel && (
+                        <span className="agenda-group-date">{group.dateLabel}</span>
+                      )}
+                    </div>
+                  )}
+                  {group.items.map((item) => (
+                    <AgendaRow
+                      key={`${group.key}-${item.event.id}`}
+                      event={item.event}
+                      occurrence={item.occurrence}
+                      missedDates={item.missedDates}
+                      now={now}
+                      onToggle={() => void toggleEvent(item.event, item.occurrence)}
+                      onOpen={() => navigate('/calendar')}
+                    />
+                  ))}
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>
@@ -649,14 +712,140 @@ function EmptyLine({
   )
 }
 
-/** "Today" / "Tomorrow" / "Mon, Nov 3" for an occurrence. */
-function dayLabel(occurrence: Date, todayKey: string): string {
-  const key = toDateKey(occurrence)
-  if (key === todayKey) return 'Today'
-  if (key === toDateKey(addDays(fromDateKey(todayKey), 1))) return 'Tomorrow'
-  return occurrence.toLocaleDateString('en-US', {
+type AgendaItem = { event: ClarityEvent; occurrence: Date; missedDates?: Date[] }
+
+function AgendaRow({
+  event,
+  occurrence,
+  missedDates,
+  now,
+  onToggle,
+  onOpen,
+}: {
+  event: ClarityEvent
+  occurrence: Date
+  missedDates?: Date[]
+  now: Date
+  onToggle: () => void
+  onOpen: () => void
+}) {
+  const done = event.completionHistory?.[eventCompletionKey(event, occurrence)] === true
+  const status = eventStatus(event, occurrence, now)
+  const dueDates = event.frequency
+    ? (missedDates ?? [occurrence])
+    : [fromDateKey(eventDueKey(event, occurrence))]
+  const details = [
+    event.priority,
+    event.frequency ? eventFrequencyLabel(event) : null,
+    status === 'overdue'
+      ? `Missed ${formatMissedDates(dueDates, now)}`
+      : status === 'done'
+        ? 'Done'
+        : status === 'due'
+          ? 'Due today'
+          : null,
+  ].filter(Boolean)
+
+  return (
+    <div
+      className="agenda-row"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onOpen()
+      }}
+    >
+      <button
+        className={`event-check ${done ? 'done' : ''}`}
+        aria-label={`${done ? 'Uncheck' : 'Check'} ${event.title}`}
+        aria-pressed={done}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+      >
+        {done ? <Check size={13} /> : <Circle size={13} />}
+      </button>
+      <span className="agenda-time">
+        {event.isAllDay ? 'All day' : formatTime(occurrence.getTime())}
+      </span>
+      <span className="agenda-rail" style={{ background: event.color || 'var(--primary)' }} />
+      <span className="agenda-body">
+        <span
+          className="agenda-title truncate"
+          style={{ textDecoration: done ? 'line-through' : undefined }}
+        >
+          {event.title}
+        </span>
+        {details.length > 0 && (
+          <span
+            className={`tiny muted ${status === 'overdue' ? 'wrap-anywhere' : 'truncate'}`}
+          >
+            {details.join(' · ')}
+          </span>
+        )}
+      </span>
+      <ChevronRight size={16} className="muted" />
+    </div>
+  )
+}
+
+function eventStartMinutes(event: ClarityEvent): number {
+  if (event.isAllDay) return -1
+  const d = new Date(event.startDate)
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+function sortEventsByTime(events: ClarityEvent[]): ClarityEvent[] {
+  return [...events].sort((a, b) => eventStartMinutes(a) - eventStartMinutes(b))
+}
+
+function formatGroupDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   })
+}
+
+/** "Nov 4–6, Dec 6–7" — missed due dates grouped by month, oldest first. */
+function formatMissedDates(dates: Date[], now: Date): string {
+  const groups: Array<{ key: string; label: string; days: number[] }> = []
+  for (const date of dates) {
+    const key = `${date.getFullYear()}-${date.getMonth()}`
+    let group = groups[groups.length - 1]
+    if (!group || group.key !== key) {
+      group = {
+        key,
+        label: date.toLocaleDateString('en-US', {
+          month: 'short',
+          ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+        }),
+        days: [],
+      }
+      groups.push(group)
+    }
+    group.days.push(date.getDate())
+  }
+  return groups.map((group) => `${group.label} ${formatDayRuns(group.days)}`).join(', ')
+}
+
+/** Collapse consecutive days into ranges: [4, 5, 6, 9] -> "4–6, 9". */
+function formatDayRuns(days: number[]): string {
+  const sorted = [...days].sort((a, b) => a - b)
+  const parts: string[] = []
+  let runStart = sorted[0]
+  let runEnd = sorted[0]
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (sorted[i] === runEnd + 1) {
+      runEnd = sorted[i]
+      continue
+    }
+    parts.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`)
+    runStart = sorted[i]
+    runEnd = sorted[i]
+  }
+  parts.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`)
+  return parts.join(', ')
 }
