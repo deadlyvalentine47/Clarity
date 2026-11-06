@@ -25,6 +25,8 @@ export interface Habit {
   completionHistory: Record<string, boolean>
   /** dates completed after the deadline */
   lateCompletions: string[]
+  /** date (YYYY-MM-DD) -> skipped; the reason lives in dailyNotes */
+  skippedDates: Record<string, boolean>
   reminderTime: number | null
   isArchived: boolean
   archivedAt?: number | null

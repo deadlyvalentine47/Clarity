@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Activity, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
@@ -10,6 +10,7 @@ import {
   isScheduledOn,
   setHabitMissed,
   setHabitPending,
+  setHabitSkipped,
   toggleHabitForDate,
   updateHabitDailyNote,
 } from '../db/habits'
@@ -17,10 +18,11 @@ import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
 import { AutoGrowTextArea, EmptyState, PageHeader } from '../components/ui'
 
-type Status = 'done' | 'late' | 'missed' | 'warning' | 'pending' | 'off'
+type Status = 'done' | 'late' | 'missed' | 'skipped' | 'warning' | 'pending' | 'off'
 
 function statusOf(habit: Habit, key: string): Status {
   if (habit.completionHistory[key] === true) return habit.lateCompletions.includes(key) ? 'late' : 'done'
+  if (habit.skippedDates?.[key]) return 'skipped'
   if (habit.completionHistory[key] === false) return 'missed'
   if (habit.isArchived || habit.isDeleted) return 'warning'
   return 'pending'
@@ -30,6 +32,7 @@ const STATUS_LABEL: Record<Status, string> = {
   done: 'done',
   late: 'done late',
   missed: 'missed',
+  skipped: 'skipped',
   warning: 'unfinished',
   pending: 'pending',
   off: 'n/a',
@@ -47,11 +50,23 @@ export default function HabitDayScreen() {
   const [journalText, setJournalText] = useState('')
   const [journalOpen, setJournalOpen] = useState(true)
   const [journalSaved, setJournalSaved] = useState(false)
-  const [expanded, setExpanded] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const seededKey = useRef<string | null>(null)
 
   useEffect(() => {
     if (journal?.content) setJournalText(journal.content)
   }, [journal])
+
+  // Rows with a saved note for this day start expanded. The live query starts
+  // as an empty array, so wait for the first real load before seeding.
+  useEffect(() => {
+    if (habits.length === 0 || seededKey.current === key) return
+    seededKey.current = key
+    const withNotes = habits
+      .filter((h) => (h.dailyNotes[key] ?? '').trim() !== '')
+      .map((h) => h.id!)
+    setExpanded(new Set(withNotes))
+  }, [habits, key])
 
   const rows = useMemo(
     () => (habits ?? []).filter((h) => isScheduledOn(h, day)),
@@ -64,16 +79,24 @@ export default function HabitDayScreen() {
     return buildTopLevelRows(active, relevant)
   }, [groups, active])
   const done = rows.filter((h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late').length
-  const scheduled = rows.length
+  const scheduled = rows.filter((h) => statusOf(h, key) !== 'skipped').length
   const rate = scheduled === 0 ? 0 : done / scheduled
+
+  const toggleRow = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   const dayRow = (habit: Habit) => (
     <HabitDayRow
       key={habit.id}
       habit={habit}
       dateKey={key}
-      expanded={expanded === habit.id}
-      onToggle={() => setExpanded((prev) => (prev === habit.id ? null : habit.id!))}
+      expanded={expanded.has(habit.id!)}
+      onToggle={() => toggleRow(habit.id!)}
     />
   )
 
@@ -82,6 +105,7 @@ export default function HabitDayScreen() {
     const doneCount = list.filter(
       (h) => statusOf(h, key) === 'done' || statusOf(h, key) === 'late',
     ).length
+    const scheduledCount = list.filter((h) => statusOf(h, key) !== 'skipped').length
     return (
       <div key={`group-${group.id}`} className="stack" style={{ gap: 8 }}>
         <button
@@ -97,7 +121,7 @@ export default function HabitDayScreen() {
             </span>
             <span className="wrap-anywhere">{group.name}</span>
           </span>
-          <span className="tiny muted nowrap">{doneCount}/{list.length} done</span>
+          <span className="tiny muted nowrap">{doneCount}/{scheduledCount} done</span>
         </button>
         {!collapsed && (
           <div className="metric-group-items">{list.map((habit) => dayRow(habit))}</div>
@@ -146,7 +170,7 @@ export default function HabitDayScreen() {
         )}
       </div>
 
-      {scheduled === 0 ? (
+      {rows.length === 0 ? (
         <div className="card">
           <EmptyState icon={<Activity size={40} />} title="No habits scheduled" subtitle="Nothing was scheduled for this day." />
         </div>
@@ -172,8 +196,8 @@ export default function HabitDayScreen() {
                     key={habit.id}
                     habit={habit}
                     dateKey={key}
-                    expanded={expanded === habit.id}
-                    onToggle={() => setExpanded((prev) => (prev === habit.id ? null : habit.id!))}
+                    expanded={expanded.has(habit.id!)}
+                    onToggle={() => toggleRow(habit.id!)}
                   />
                 ))}
               </div>
@@ -199,8 +223,12 @@ function HabitDayRow({
   const [note, setNote] = useState(habit.dailyNotes[dateKey] ?? '')
   const [status, setStatus] = useState<Status>(statusOf(habit, dateKey))
   const [saved, setSaved] = useState(false)
+  const [needsReason, setNeedsReason] = useState(false)
+
+  const focusNote = () => document.getElementById(`habit-note-${habit.id}`)?.focus()
 
   const apply = async (next: Status) => {
+    setNeedsReason(false)
     if (next === 'done') await toggleHabitForDate(habit.id!, dateKey, true)
     else if (next === 'late') await completeHabitLate(habit.id!, dateKey)
     else if (next === 'missed') await setHabitMissed(habit.id!, dateKey)
@@ -208,11 +236,39 @@ function HabitDayRow({
     setStatus(next)
   }
 
+  const skip = async () => {
+    if (!note.trim()) {
+      setNeedsReason(true)
+      focusNote()
+      return
+    }
+    await updateHabitDailyNote(habit.id!, dateKey, note)
+    await setHabitSkipped(habit.id!, dateKey)
+    setNeedsReason(false)
+    setStatus('skipped')
+  }
+
+  const saveNote = async () => {
+    if ((needsReason || status === 'skipped') && !note.trim()) {
+      setNeedsReason(true)
+      focusNote()
+      return
+    }
+    await updateHabitDailyNote(habit.id!, dateKey, note)
+    if (needsReason) {
+      await setHabitSkipped(habit.id!, dateKey)
+      setStatus('skipped')
+      setNeedsReason(false)
+    }
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1800)
+  }
+
   return (
     <div className="card" style={{ padding: 14 }}>
       <div className="row">
         <span className={`status-dot ${status}`}>
-          {status === 'done' ? '✓' : status === 'late' ? '✓' : status === 'missed' ? '✗' : status === 'warning' ? '!' : '·'}
+          {status === 'done' ? '✓' : status === 'late' ? '✓' : status === 'missed' ? '✗' : status === 'skipped' ? '↷' : status === 'warning' ? '!' : '·'}
         </span>
         <button
           className="grow"
@@ -240,20 +296,21 @@ function HabitDayRow({
             <button className={`chip ${status === 'done' ? 'active' : ''}`} onClick={() => void apply('done')}>Done</button>
             <button className={`chip ${status === 'late' ? 'active' : ''}`} onClick={() => void apply('late')}>Done late</button>
             <button className={`chip ${status === 'missed' ? 'active' : ''}`} onClick={() => void apply('missed')}>Missed</button>
+            <button className={`chip ${status === 'skipped' ? 'active' : ''}`} onClick={() => void skip()}>Skip</button>
             <button className={`chip ${status === 'pending' ? 'active' : ''}`} onClick={() => void apply('pending')}>Clear</button>
           </div>
-          <AutoGrowTextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notes for this day" />
+          <AutoGrowTextArea
+            id={`habit-note-${habit.id}`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
+          />
           <div className="row-between" style={{ marginTop: 6 }}>
-            <span className="tiny muted">{saved ? 'Saved' : ''}</span>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={async () => {
-                await updateHabitDailyNote(habit.id!, dateKey, note)
-                setSaved(true)
-                setTimeout(() => setSaved(false), 1800)
-              }}
-            >
-              Save note
+            <span className="tiny muted" style={{ color: needsReason ? 'var(--warning)' : undefined }}>
+              {needsReason ? 'Add a reason to skip' : saved ? 'Saved' : ''}
+            </span>
+            <button className="btn btn-sm btn-primary" onClick={() => void saveNote()}>
+              {needsReason ? 'Save & skip' : 'Save note'}
             </button>
           </div>
         </div>

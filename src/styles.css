@@ -1222,6 +1222,11 @@ p {
   color: #2a1d00;
 }
 
+.habit-cell.skipped {
+  background: var(--warning);
+  color: #2a1d00;
+}
+
 .habit-cell.missed {
   background: var(--error);
   color: #fff;
@@ -1287,6 +1292,11 @@ p {
 }
 
 .status-dot.late {
+  background: var(--warning);
+  color: #2a1d00;
+}
+
+.status-dot.skipped {
   background: var(--warning);
   color: #2a1d00;
 }

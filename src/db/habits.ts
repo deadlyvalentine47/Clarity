@@ -88,7 +88,13 @@ export function computeStreak(habit: Habit, today: Date = new Date()): number {
       cursor = addDays(cursor, -1)
       continue
     }
-    if (habit.completionHistory[toDateKey(cursor)] === true) {
+    const cursorKey = toDateKey(cursor)
+    // A skipped day is neutral: it neither extends nor breaks the streak.
+    if (habit.skippedDates?.[cursorKey]) {
+      cursor = addDays(cursor, -1)
+      continue
+    }
+    if (habit.completionHistory[cursorKey] === true) {
       streak++
       cursor = addDays(cursor, -1)
     } else {
@@ -109,7 +115,10 @@ export function computeBestStreak(habit: Habit, today: Date = new Date()): numbe
   while (cursor <= end && guard < 3660) {
     guard++
     if (isScheduledOn(habit, cursor)) {
-      if (habit.completionHistory[toDateKey(cursor)] === true) {
+      const cursorKey = toDateKey(cursor)
+      if (habit.skippedDates?.[cursorKey]) {
+        // Skipped days are neutral and do not reset the run.
+      } else if (habit.completionHistory[cursorKey] === true) {
         run++
         best = Math.max(best, run)
       } else {
@@ -152,6 +161,8 @@ export async function toggleHabitForDate(
   const todayKey = toDateKey(new Date())
   const history = { ...habit.completionHistory }
   const late = new Set(habit.lateCompletions)
+  const skippedDates = { ...(habit.skippedDates ?? {}) }
+  delete skippedDates[dateKey]
 
   if (!completed && dateKey === todayKey) {
     // Un-checking today means "pending", not "missed".
@@ -168,12 +179,18 @@ export async function toggleHabitForDate(
     }
   }
 
-  const next: Habit = { ...habit, completionHistory: history, lateCompletions: [...late] }
+  const next: Habit = {
+    ...habit,
+    completionHistory: history,
+    lateCompletions: [...late],
+    skippedDates,
+  }
   const streak = computeStreak(next)
   const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: [...late],
+    skippedDates,
     currentStreak: streak,
     bestStreak: best,
   })
@@ -184,12 +201,20 @@ export async function completeHabitLate(habitId: number, dateKey: string): Promi
   if (!habit) return
   const history = { ...habit.completionHistory, [dateKey]: true }
   const late = new Set(habit.lateCompletions).add(dateKey)
-  const next: Habit = { ...habit, completionHistory: history, lateCompletions: [...late] }
+  const skippedDates = { ...(habit.skippedDates ?? {}) }
+  delete skippedDates[dateKey]
+  const next: Habit = {
+    ...habit,
+    completionHistory: history,
+    lateCompletions: [...late],
+    skippedDates,
+  }
   const streak = computeStreak(next)
   const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: [...late],
+    skippedDates,
     currentStreak: streak,
     bestStreak: best,
   })
@@ -200,30 +225,71 @@ export async function setHabitMissed(habitId: number, dateKey: string): Promise<
   if (!habit) return
   const history = { ...habit.completionHistory, [dateKey]: false }
   const late = habit.lateCompletions.filter((d) => d !== dateKey)
-  const next: Habit = { ...habit, completionHistory: history, lateCompletions: late }
+  const skippedDates = { ...(habit.skippedDates ?? {}) }
+  delete skippedDates[dateKey]
+  const next: Habit = {
+    ...habit,
+    completionHistory: history,
+    lateCompletions: late,
+    skippedDates,
+  }
   const streak = computeStreak(next)
   const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: late,
+    skippedDates,
     currentStreak: streak,
     bestStreak: best,
   })
 }
 
-/** Remove any completion/miss entry so the day is pending again. */
+/** Skip a scheduled day. The caller is responsible for storing the reason. */
+export async function setHabitSkipped(habitId: number, dateKey: string): Promise<void> {
+  const habit = await db.habits.get(habitId)
+  if (!habit) return
+  const history = { ...habit.completionHistory }
+  delete history[dateKey]
+  const late = habit.lateCompletions.filter((d) => d !== dateKey)
+  const skippedDates = { ...(habit.skippedDates ?? {}), [dateKey]: true }
+  const next: Habit = {
+    ...habit,
+    completionHistory: history,
+    lateCompletions: late,
+    skippedDates,
+  }
+  const streak = computeStreak(next)
+  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  await db.habits.update(habitId, {
+    completionHistory: history,
+    lateCompletions: late,
+    skippedDates,
+    currentStreak: streak,
+    bestStreak: best,
+  })
+}
+
+/** Remove any completion/miss/skip entry so the day is pending again. */
 export async function setHabitPending(habitId: number, dateKey: string): Promise<void> {
   const habit = await db.habits.get(habitId)
   if (!habit) return
   const history = { ...habit.completionHistory }
   delete history[dateKey]
   const late = habit.lateCompletions.filter((d) => d !== dateKey)
-  const next: Habit = { ...habit, completionHistory: history, lateCompletions: late }
+  const skippedDates = { ...(habit.skippedDates ?? {}) }
+  delete skippedDates[dateKey]
+  const next: Habit = {
+    ...habit,
+    completionHistory: history,
+    lateCompletions: late,
+    skippedDates,
+  }
   const streak = computeStreak(next)
   const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: late,
+    skippedDates,
     currentStreak: streak,
     bestStreak: best,
   })
@@ -246,7 +312,7 @@ export async function markMissedDays(habitId: number): Promise<void> {
   while (cursor < today && guard < 732) {
     guard++
     const key = toDateKey(cursor)
-    if (isScheduledOn(habit, cursor) && !(key in history)) {
+    if (isScheduledOn(habit, cursor) && !(key in history) && !habit.skippedDates?.[key]) {
       history[key] = false
       changed = true
     }
@@ -323,6 +389,7 @@ export function isDeadlinePassedToday(habit: Habit, now: Date = new Date()): boo
   if (habit.deadlineHour == null || habit.deadlineMinute == null) return false
   const todayKey = toDateKey(now)
   if (habit.completionHistory[todayKey] === true) return false
+  if (habit.skippedDates?.[todayKey]) return false
   if (!isScheduledOn(habit, fromDateKey(todayKey))) return false
   return deadlinePassedFor(habit, fromDateKey(todayKey), now)
 }

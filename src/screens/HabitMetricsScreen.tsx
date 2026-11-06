@@ -15,6 +15,7 @@ interface Stats {
   scheduled: number
   completed: number
   missed: number
+  skipped: number
 }
 
 function monthStats(habit: Habit, year: number, month: number): Stats {
@@ -29,19 +30,25 @@ function monthStats(habit: Habit, year: number, month: number): Stats {
   let scheduled = 0
   let completed = 0
   let missed = 0
+  let skipped = 0
   let cursor = new Date(cursorStart)
   let guard = 0
   while (cursor <= cursorEnd && guard < 40) {
     guard++
     if (isScheduledOn(habit, cursor)) {
-      scheduled++
       const key = toDateKey(cursor)
-      if (habit.completionHistory[key] === true) completed++
-      else if (habit.completionHistory[key] === false) missed++
+      // A skipped day is not applicable, so it leaves the denominator alone.
+      if (habit.skippedDates?.[key]) {
+        skipped++
+      } else {
+        scheduled++
+        if (habit.completionHistory[key] === true) completed++
+        else if (habit.completionHistory[key] === false) missed++
+      }
     }
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1, 12)
   }
-  return { habit, scheduled, completed, missed }
+  return { habit, scheduled, completed, missed, skipped }
 }
 
 function aliveInMonth(habit: Habit, year: number, month: number): boolean {
@@ -91,7 +98,7 @@ export default function HabitMetricsScreen() {
     const first = new Date(year, month - 1, 1, 12)
     const days = new Date(year, month, 0).getDate()
     const offset = first.getDay()
-    const out: ({ day: number; date: Date; scheduled: number; done: number; missed: number; late: number; warning: number } | null)[] = []
+    const out: ({ day: number; date: Date; scheduled: number; done: number; missed: number; late: number; warning: number; skipped: number } | null)[] = []
     for (let i = 0; i < offset; i++) out.push(null)
     for (let d = 1; d <= days; d++) {
       const date = new Date(year, month - 1, d, 12)
@@ -100,10 +107,15 @@ export default function HabitMetricsScreen() {
       let missed = 0
       let late = 0
       let warning = 0
+      let skipped = 0
       for (const habit of monthHabits) {
         if (!isScheduledOn(habit, date)) continue
-        scheduled++
         const key = toDateKey(date)
+        if (habit.skippedDates?.[key]) {
+          skipped++
+          continue
+        }
+        scheduled++
         if (habit.completionHistory[key] === true) {
           done++
           if (habit.lateCompletions.includes(key)) late++
@@ -113,7 +125,7 @@ export default function HabitMetricsScreen() {
           warning++
         }
       }
-      out.push({ day: d, date, scheduled, done, missed, late, warning })
+      out.push({ day: d, date, scheduled, done, missed, late, warning, skipped })
     }
     while (out.length % 7 !== 0) out.push(null)
     return out
@@ -146,7 +158,10 @@ export default function HabitMetricsScreen() {
               {habit.isArchived ? ' (A)' : ''}
               {habit.isDeleted ? ' (D)' : ''}
             </div>
-            <div className="tiny muted">{habitFrequencyLabel(habit)} · Streak {habit.currentStreak}</div>
+            <div className="tiny muted">
+              {habitFrequencyLabel(habit)} · Streak {habit.currentStreak}
+              {s.skipped > 0 ? ` · ${s.skipped} skipped` : ''}
+            </div>
             {habit.isArchived && habit.archivedAt != null && (
               <div className="tiny muted">Archived {formatDateKey(toDateKey(habit.archivedAt), true)}</div>
             )}
@@ -288,10 +303,11 @@ export default function HabitMetricsScreen() {
             <div className="habit-grid">
               {cells.map((cell, i) => {
                 if (!cell) return <span key={`x${i}`} />
+                const yellow = cell.late > 0 || cell.warning > 0 || cell.skipped > 0
                 const state =
                   cell.missed > 0
                     ? 'missed'
-                    : cell.late > 0 || cell.warning > 0
+                    : yellow
                       ? 'late'
                       : cell.scheduled > 0 && cell.done === cell.scheduled
                         ? 'done'
@@ -303,8 +319,10 @@ export default function HabitMetricsScreen() {
                 const label =
                   cell.missed > 0
                     ? `✗${cell.missed}`
-                    : cell.late > 0 || cell.warning > 0
-                      ? '!'
+                    : yellow
+                      ? cell.skipped > 0
+                        ? `↷${cell.skipped}`
+                        : '!'
                       : cell.scheduled > 0 && cell.done === cell.scheduled
                         ? '✓'
                         : cell.done > 0
@@ -315,7 +333,7 @@ export default function HabitMetricsScreen() {
                     key={toDateKey(cell.date)}
                     className={`habit-cell ${state}`}
                     onClick={() => navigate(`/habits/metrics/${toDateKey(cell.date)}`)}
-                    title={`${formatDateKey(toDateKey(cell.date), true)} · ${cell.done}/${cell.scheduled} done`}
+                    title={`${formatDateKey(toDateKey(cell.date), true)} · ${cell.done}/${cell.scheduled} done${cell.skipped > 0 ? ` · ${cell.skipped} skipped` : ''}`}
                   >
                     {label}
                   </button>
@@ -325,7 +343,7 @@ export default function HabitMetricsScreen() {
             <div className="legend">
               <span><i style={{ background: 'var(--primary)' }} /> all done</span>
               <span><i style={{ background: 'var(--primary-container)' }} /> some done</span>
-              <span><i style={{ background: 'var(--warning)' }} /> late / warning</span>
+              <span><i style={{ background: 'var(--warning)' }} /> late / skipped / warning</span>
               <span><i style={{ background: 'var(--error)' }} /> some missed</span>
               <span><i style={{ background: 'var(--surface-2)' }} /> none</span>
             </div>
@@ -382,6 +400,7 @@ function HabitMonthGrid({ habit, year, month }: { habit: Habit; year: number; mo
       const scheduled = isScheduledOn(habit, date)
       const done = habit.completionHistory[key] === true
       const late = habit.lateCompletions.includes(key)
+      const skipped = habit.skippedDates?.[key] === true
       const missed = habit.completionHistory[key] === false
       let state = 'off'
       let label = String(d)
@@ -391,6 +410,9 @@ function HabitMonthGrid({ habit, year, month }: { habit: Habit; year: number; mo
       } else if (done) {
         state = late ? 'late' : 'done'
         label = late ? '✓*' : '✓'
+      } else if (skipped) {
+        state = 'skipped'
+        label = '↷'
       } else if (missed) {
         state = 'missed'
         label = '✗'

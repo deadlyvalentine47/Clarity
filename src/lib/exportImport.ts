@@ -190,6 +190,7 @@ function habitDefaults(h: Partial<Habit>): Habit {
     completionHistory:
       h.completionHistory && typeof h.completionHistory === 'object' ? h.completionHistory : {},
     lateCompletions: Array.isArray(h.lateCompletions) ? h.lateCompletions : [],
+    skippedDates: h.skippedDates && typeof h.skippedDates === 'object' ? h.skippedDates : {},
     reminderTime: h.reminderTime ?? null,
     isArchived: Boolean(h.isArchived),
     archivedAt: h.archivedAt ?? null,

@@ -497,6 +497,7 @@ function HabitCard({
   const [busy, setBusy] = useState(false)
   const isCompleted = habit.completionHistory[todayKey] === true
   const isLate = habit.lateCompletions.includes(todayKey)
+  const isSkipped = habit.skippedDates?.[todayKey] === true
   const deadlinePassed = isDeadlinePassedToday(habit)
   const missed = latestMissed(habit)
   const scheduled = isScheduledOn(habit, new Date())
@@ -557,6 +558,7 @@ function HabitCard({
           </div>
           <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
             {isLate && <span className="badge medium">Late ✓</span>}
+            {isSkipped && <span className="badge medium">Skipped ↷</span>}
             {!isLate && missed && <span className="badge high">✗ {missed === todayKey ? 'Today' : formatDateKey(missed)}</span>}
             {deadlinePassed && !isCompleted && <span className="badge medium">Deadline passed</span>}
             {!scheduled && <span className="badge">Not scheduled today</span>}
@@ -582,7 +584,7 @@ function HabitCard({
           </button>
           {!habit.isArchived && (
             <button
-              className={`status-dot ${isCompleted ? (isLate ? 'late' : 'done') : 'warning'}`}
+              className={`status-dot ${isCompleted ? (isLate ? 'late' : 'done') : isSkipped ? 'skipped' : 'warning'}`}
               style={{ width: 36, height: 36 }}
               aria-label={isCompleted ? 'Mark not done' : 'Mark done'}
               aria-pressed={isCompleted}
@@ -703,6 +705,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
         bestStreak: 0,
         completionHistory: {},
         lateCompletions: [],
+        skippedDates: {},
         reminderTime: null,
         isArchived: false,
         archivedAt: null,

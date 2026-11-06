@@ -118,7 +118,11 @@ export default function HomeScreen() {
     (habits ?? []).filter((h) => !h.isArchived && !h.isDeleted),
     habitGroups ?? [],
   ).flatMap((row) => (row.kind === 'group' ? row.habits : [row.habit]))
-  const habitsToday = activeHabits.filter((h) => isScheduledOn(h, now))
+  // Skipped days are not tracked: they leave the list and the progress
+  // denominator alone.
+  const habitsToday = activeHabits.filter(
+    (h) => isScheduledOn(h, now) && !h.skippedDates?.[todayKey],
+  )
   const habitsDone = habitsToday.filter((h) => h.completionHistory[todayKey] === true).length
   // Completed (including late) habits leave the home list; the underlying
   // habit stays untouched in the Habits screen.

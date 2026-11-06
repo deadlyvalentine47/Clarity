@@ -63,10 +63,11 @@ npm run typecheck  # tsc --noEmit
     month/day/year filters and previous/next navigation. Bank and card rows are
     grouped by day, with year view grouped by month.
 - **Habits** — Today/All/Archived filters, search, frequency (Daily, Weekly,
-  Monthly, Alternate, Custom), optional deadline, check-in, streak/best streak,
-  archive/restore, soft delete. Detail shows weekly/monthly calendars and per-day
-  status/notes; metrics show monthly completion, a day calendar and per-habit
-  grids; the day screen has a journal.
+  Monthly, Alternate, Custom), optional deadline, check-in, skip a day with a
+  mandatory reason, streak/best streak, archive/restore, soft delete. Detail
+  shows weekly/monthly calendars and per-day status/notes; metrics show monthly
+  completion, a day calendar and per-habit grids; the day screen has a journal
+  and expands any habit that has a note saved for that day.
 - **Runs** — GPS distance and pace tracking with a live screen, pause/resume,
   km/miles switch, manual distance correction at save, history with Month/Day/
   Year filters, a period summary, sessions that bundle several runs (expand/

@@ -192,6 +192,21 @@ export class ClarityDB extends Dexie {
             run.sortOrder ??= null
           })
       })
+
+    // v9 adds skipped habit days. The skip reason reuses the existing
+    // dailyNotes map; booleans stay unindexed.
+    this.version(9)
+      .stores({
+        habits: '++id, createdAt, archivedAt, groupId',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('habits')
+          .toCollection()
+          .modify((h: Habit) => {
+            h.skippedDates ??= {}
+          })
+      })
   }
 }
 

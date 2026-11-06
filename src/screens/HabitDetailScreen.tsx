@@ -12,6 +12,7 @@ import {
   isScheduledOn,
   setHabitMissed,
   setHabitPending,
+  setHabitSkipped,
   toggleHabitForDate,
   updateHabitDailyNote,
 } from '../db/habits'
@@ -26,7 +27,7 @@ interface DayStatus {
   date: Date
   key: string
   scheduled: boolean
-  state: 'done' | 'late' | 'missed' | 'warning' | 'pending' | 'off' | 'future'
+  state: 'done' | 'late' | 'missed' | 'skipped' | 'warning' | 'pending' | 'off' | 'future'
 }
 
 function statusFor(habit: Habit, date: Date, today: Date): DayStatus {
@@ -38,11 +39,13 @@ function statusFor(habit: Habit, date: Date, today: Date): DayStatus {
   const isFuture = key > todayKey
   const done = habit.completionHistory[key] === true
   const late = habit.lateCompletions.includes(key)
+  const skipped = habit.skippedDates?.[key] === true
   const missed = habit.completionHistory[key] === false
 
   let state: DayStatus['state'] = 'off'
   if (date < created || (end && date > end) || !scheduled) state = 'off'
   else if (done) state = late ? 'late' : 'done'
+  else if (skipped) state = 'skipped'
   else if (missed) state = 'missed'
   else if (isFuture) state = 'future'
   else if (habit.isArchived || habit.isDeleted) state = 'warning'
@@ -233,6 +236,7 @@ export default function HabitDetailScreen() {
         <div className="legend">
           <span><i style={{ background: 'var(--primary)' }} /> Done</span>
           <span><i style={{ background: 'var(--warning)' }} /> Late</span>
+          <span><i style={{ background: 'var(--warning)' }} /> Skipped</span>
           <span><i style={{ background: 'var(--error)' }} /> Missed</span>
           <span><i style={{ background: 'var(--surface-2)' }} /> Off / future</span>
         </div>
@@ -265,18 +269,24 @@ export default function HabitDetailScreen() {
 }
 
 function DayCell({ cell, onSelect }: { cell: DayStatus; onSelect: () => void }) {
-  const label =
-    cell.state === 'done'
-      ? '✓'
-      : cell.state === 'late'
-        ? '✓*'
-        : cell.state === 'missed'
-          ? '✗'
-          : cell.state === 'warning'
-            ? '!'
-            : cell.state === 'off'
-              ? '-'
-              : cell.date.getDate()
+  const label = (() => {
+    switch (cell.state) {
+      case 'done':
+        return '✓'
+      case 'late':
+        return '✓*'
+      case 'skipped':
+        return '↷'
+      case 'missed':
+        return '✗'
+      case 'warning':
+        return '!'
+      case 'off':
+        return '-'
+      default:
+        return cell.date.getDate()
+    }
+  })()
 
   return (
     <button
@@ -295,13 +305,40 @@ function DayCell({ cell, onSelect }: { cell: DayStatus; onSelect: () => void }) 
 function HabitDayDialog({ habit, cell, onClose }: { habit: Habit; cell: DayStatus; onClose: () => void }) {
   const [note, setNote] = useState(habit.dailyNotes[cell.key] ?? '')
   const [status, setStatus] = useState(cell.state)
+  const [needsReason, setNeedsReason] = useState(false)
 
   const apply = async (next: 'done' | 'late' | 'missed' | 'pending') => {
+    setNeedsReason(false)
     if (next === 'done') await toggleHabitForDate(habit.id!, cell.key, true)
     if (next === 'late') await completeHabitLate(habit.id!, cell.key)
     if (next === 'missed') await setHabitMissed(habit.id!, cell.key)
     if (next === 'pending') await setHabitPending(habit.id!, cell.key)
     setStatus(next)
+  }
+
+  const skip = async () => {
+    if (!note.trim()) {
+      setNeedsReason(true)
+      return
+    }
+    await updateHabitDailyNote(habit.id!, cell.key, note)
+    await setHabitSkipped(habit.id!, cell.key)
+    setNeedsReason(false)
+    setStatus('skipped')
+  }
+
+  const save = async () => {
+    if ((needsReason || status === 'skipped') && !note.trim()) {
+      setNeedsReason(true)
+      return
+    }
+    await updateHabitDailyNote(habit.id!, cell.key, note)
+    if (needsReason) {
+      await setHabitSkipped(habit.id!, cell.key)
+      setStatus('skipped')
+      setNeedsReason(false)
+    }
+    onClose()
   }
 
   return (
@@ -312,14 +349,8 @@ function HabitDayDialog({ habit, cell, onClose }: { habit: Habit; cell: DayStatu
       footer={
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn btn-outline" onClick={onClose}>Close</button>
-          <button
-            className="btn btn-primary"
-            onClick={async () => {
-              await updateHabitDailyNote(habit.id!, cell.key, note)
-              onClose()
-            }}
-          >
-            Save note
+          <button className="btn btn-primary" onClick={() => void save()}>
+            {needsReason ? 'Save & skip' : 'Save note'}
           </button>
         </div>
       }
@@ -330,12 +361,18 @@ function HabitDayDialog({ habit, cell, onClose }: { habit: Habit; cell: DayStatu
           <button className={`chip ${status === 'done' ? 'active' : ''}`} onClick={() => void apply('done')}>Done</button>
           <button className={`chip ${status === 'late' ? 'active' : ''}`} onClick={() => void apply('late')}>Done late</button>
           <button className={`chip ${status === 'missed' ? 'active' : ''}`} onClick={() => void apply('missed')}>Missed</button>
+          <button className={`chip ${status === 'skipped' ? 'active' : ''}`} onClick={() => void skip()}>Skip</button>
           <button className={`chip ${status === 'pending' ? 'active' : ''}`} onClick={() => void apply('pending')}>Clear</button>
         </div>
+        {needsReason && (
+          <p className="tiny" style={{ color: 'var(--warning)', margin: 0 }}>
+            Add a reason below to skip this habit.
+          </p>
+        )}
         <TextArea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Notes for this day"
+          placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
           style={{ minHeight: 100 }}
         />
       </div>
