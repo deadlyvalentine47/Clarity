@@ -1417,6 +1417,154 @@ p {
   background: var(--surface-2);
 }
 
+/* ---------- Run sessions ---------- */
+
+.run-card {
+  position: relative;
+  cursor: pointer;
+}
+
+.run-card.dragging,
+.run-group.dragging {
+  opacity: 0.4;
+}
+
+.run-card.drop-above::before,
+.run-card.drop-below::after,
+.run-group.drop-above::before,
+.run-group.drop-below::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--secondary);
+}
+
+.run-card.drop-above::before,
+.run-group.drop-above::before {
+  top: -6px;
+}
+
+.run-card.drop-below::after,
+.run-group.drop-below::after {
+  bottom: -6px;
+}
+
+.run-card-leading {
+  display: flex;
+  align-items: flex-start;
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.run-card .drag-handle,
+.run-group-head .drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  flex: 0 0 auto;
+  touch-action: none;
+}
+
+.run-card .drag-handle:active,
+.run-group-head .drag-handle:active {
+  cursor: grabbing;
+}
+
+.run-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+  margin-top: 4px;
+  margin-right: -6px;
+}
+
+.run-card-actions .icon-btn,
+.run-group .icon-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.run-group {
+  position: relative;
+  padding: 12px;
+}
+
+.run-group.drop-inside {
+  outline: 2px solid var(--primary);
+  background: var(--primary-container);
+}
+
+.run-group-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: grab;
+}
+
+.run-group-head:active {
+  cursor: grabbing;
+}
+
+.run-group-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-group-toggle:hover .run-group-name {
+  color: var(--primary);
+}
+
+.run-group-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.run-group-chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.run-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--surface-3);
+}
+
+.run-group-body .card {
+  padding: 12px;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.run-group-empty {
+  padding: 12px;
+  border: 1.5px dashed var(--outline);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
 /* Grouped rows in habit metrics */
 
 .metric-group-head {

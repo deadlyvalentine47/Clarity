@@ -226,8 +226,27 @@ export interface RunSession {
   /** downsampled: >= 5 m apart, cap 5000 */
   points: RunPoint[]
   notes: string
+  /** run group/session id; null/undefined = shown directly in the history list */
+  groupId?: number | null
+  /**
+   * manual list position; lower comes first. null/undefined = never moved by
+   * hand, so the list falls back to start time.
+   */
+  sortOrder?: number | null
   createdAt: number
 }
+
+/** A named session that bundles several runs (walk → run → walk). */
+export interface RunGroup {
+  id?: number
+  name: string
+  /** manual position among the history list; lower comes first */
+  sortOrder?: number | null
+  /** expanded by default; only collapsed when the user hides it */
+  isCollapsed?: boolean
+  createdAt: number
+}
+
 
 export const HOME_SECTIONS = [
   'Events',

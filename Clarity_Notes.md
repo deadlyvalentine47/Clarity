@@ -204,6 +204,55 @@ larger backup format, while fixing the bugs/duplications in master.
   Puppeteer probe rendered h1…h8 in order with 0 errors; `typecheck`, `build`, `smoke:flows`,
   `smoke:interact`, `smoke:logic` green.
 
+- 2026-11-06 dialog focus fix (mobile keyboard closed on every keystroke in the
+  Run "Save run" name field):
+  - Cause: `Dialog`'s focus-trap effect depended on `[open, onClose]`, and `RunScreen`
+    passes an inline `onClose={() => setShowSave(false)}` while `saveName` lives in the
+    screen — so each keystroke re-rendered the screen, changed `onClose`, and re-ran the
+    effect. Its cleanup called `previouslyFocused.focus()` (the Stop button / body),
+    blurring the input; Android/iOS then hide the keyboard.
+  - Other dialogs were fine because their inputs own their state, so the parent never
+    re-rendered and `onClose` kept its identity.
+  - Fix: `Dialog` keeps `onClose` in a ref and the effect now depends on `[open]` only.
+    Escape/X/scrim still close, and focus restore now runs only on actual close.
+  - Verified with a Puppeteer probe: typing 17 chars into the name field yields 0 blurs
+    with focus staying on the input (was 1 blur + focus on `<body>`); Escape still closes.
+    `typecheck`, `build`, `smoke`, `smoke:flows` green with 0 console errors.
+
+- 2026-11-06 Runs history: Month/Day/Year filter + sessions.
+  - The This week / This month / All chips and the three stat cards are gone.
+    The Runs screen now uses the same period card as *All transactions*
+    (Month/Day/Year chips, prev/next, month+year pickers, date input, Today in
+    the header) with one anchor date shared by all modes. The summary card shows
+    distance/time/runs for the selected period, best pace and all-time totals.
+  - Dexie **v8**: `runGroups` (`++id, sortOrder, createdAt`) and
+    `RunSession.groupId` (indexed) / `sortOrder`. Existing runs upgrade with
+    `groupId = sortOrder = null`.
+  - `db/runGroups.ts`: `buildRunRows` (groups + ungrouped runs interleaved),
+    `compareRunOrder` (manual position wins; never-moved rows fall back to
+    `startedAt`, newest first, and sort ahead of positioned rows so a new run
+    lands on top), `compareRunTimeline` (inside a session: start time ascending,
+    matching walk 7:00 → run 7:30 → walk 8:00).
+  - Sessions are created from a multi-select picker ("Group runs" → tick 2+ →
+    "Group" → name, e.g. "Morning session"). The group is inserted where its
+    first selected run sat and everything is renumbered to 10/20/30, so the
+    visible order never jumps. Selected runs can also be appended to an existing
+    session ("Add to session") — the mobile path, since HTML5 drag is unreliable
+    on touch. Rename/delete/collapse and drag → group/reorder match habit groups;
+    ↑/↓ buttons work on touch too.
+  - Deleting a session keeps all runs (they return to the history list); adding
+    a run to a session that was never reordered inserts it chronologically,
+    otherwise it appends until dragged/arrow-moved.
+  - `saveRun`/`saveRecoveredRun` call `nextRunSortOrder()`: null while the list
+    was never reordered (date order), otherwise `min - 10` = top.
+  - Backups export `runGroups` and remap group ids on import. Also fixed an
+    older bug: run `name` was dropped by import.
+  - Verified: Puppeteer probes (filters, grouping, collapse, group/top-level
+    reorder, nested reorder, drag into session, drag out to end, persistence);
+    `smoke:logic` now asserts session timeline/order/import/delete and
+    `typecheck`, `build`, `smoke`, `smoke:interact`, `smoke:flows` are green
+    with 0 console errors.
+
 ## Next
 
 - Merge PR #2 (`feature/web-port` → `master`) once the approved APK build is green.

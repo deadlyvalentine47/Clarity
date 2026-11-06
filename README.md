@@ -68,10 +68,12 @@ npm run typecheck  # tsc --noEmit
   status/notes; metrics show monthly completion, a day calendar and per-habit
   grids; the day screen has a journal.
 - **Runs** — GPS distance and pace tracking with a live screen, pause/resume,
-  km/miles switch, manual distance correction at save, history with per-week/
-  month/all-time totals, derived splits and an inline SVG route. Background
-  tracking uses the Capacitor background-geolocation plugin; the browser falls
-  back to `navigator.geolocation`.
+  km/miles switch, manual distance correction at save, history with Month/Day/
+  Year filters, a period summary, sessions that bundle several runs (expand/
+  collapse, drag or ↑/↓ reorder; manual order beats start time), derived splits
+  and an inline SVG route. Background tracking uses the Capacitor
+  background-geolocation plugin; the browser falls back to
+  `navigator.geolocation`.
 - **Notes** — nested pages with expand/collapse, drag-and-drop reorder/nest
   (cycles rejected), search, pinning, tag filters, tag management, markdown
   preview, inline images, delete-with-descendants.
@@ -84,9 +86,10 @@ npm run typecheck  # tsc --noEmit
 
 Everything is local to the browser profile:
 
-- `clarity` IndexedDB holds habits, notes, note categories,
+- `clarity` IndexedDB holds habits, habit groups, notes, note categories,
   note images, transactions, categories, sources, budget limits, goals, events,
-  credit cards, credit-card transactions, investments, day journals and runs.
+  credit cards, credit-card transactions, investments, day journals, runs and
+  run groups (sessions).
 - No rows are seeded. Like the Android app, accounts and categories start empty
   and are created by the user, so a fresh database can never contain duplicate
   defaults.

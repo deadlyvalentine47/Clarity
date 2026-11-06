@@ -13,6 +13,7 @@ import type {
   Note,
   NoteCategory,
   NoteImage,
+  RunGroup,
   RunSession,
   Source,
   Transaction,
@@ -35,6 +36,7 @@ export class ClarityDB extends Dexie {
   investments!: Table<Investment, number>
   dayJournals!: Table<DayJournal, string>
   runs!: Table<RunSession, number>
+  runGroups!: Table<RunGroup, number>
 
   constructor() {
     super('clarity')
@@ -173,6 +175,23 @@ export class ClarityDB extends Dexie {
       pomodoroSessions: null,
       pomodoroFocusSessions: null,
     })
+
+    // v8 adds run sessions/groups and manual ordering. Runs that have never
+    // been moved keep sortOrder null and stay ordered by start time.
+    this.version(8)
+      .stores({
+        runs: '++id, startedAt, distanceMeters, createdAt, groupId',
+        runGroups: '++id, sortOrder, createdAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('runs')
+          .toCollection()
+          .modify((run: RunSession) => {
+            run.groupId ??= null
+            run.sortOrder ??= null
+          })
+      })
   }
 }
 

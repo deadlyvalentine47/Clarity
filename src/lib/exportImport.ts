@@ -18,6 +18,7 @@ import type {
   Investment,
   Note,
   NoteCategory,
+  RunGroup,
   RunSession,
   Source,
   Transaction,
@@ -61,6 +62,8 @@ export interface AppData {
   dayJournals: DayJournal[]
   /** optional: backups from before the Runs feature have none */
   runs?: RunSession[]
+  /** optional: backups from before run sessions have none */
+  runGroups?: RunGroup[]
   noteImages?: ExportedImage[]
   settings: BackupSettings
 }
@@ -113,6 +116,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     investments,
     dayJournals,
     runs,
+    runGroups,
     noteImages,
   ] = await Promise.all([
     db.habits.toArray(),
@@ -130,6 +134,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.investments.toArray(),
     db.dayJournals.toArray(),
     db.runs.toArray(),
+    db.runGroups.toArray(),
     db.noteImages.toArray(),
   ])
 
@@ -149,6 +154,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     investments,
     dayJournals,
     runs,
+    runGroups,
     noteImages: await Promise.all(
       noteImages.map(async (image) => ({
         id: image.id,
@@ -408,9 +414,23 @@ export async function importData(jsonText: string): Promise<ImportResult> {
       })
     }
 
+    const runGroupMap = new Map<number, number>()
+    for (const group of arr<RunGroup>(raw.runGroups)) {
+      const { id: oldId, ...rest } = group
+      const newId = (await db.runGroups.add({
+        name: rest.name?.trim() || 'Session',
+        sortOrder: typeof rest.sortOrder === 'number' ? rest.sortOrder : null,
+        isCollapsed: Boolean(rest.isCollapsed),
+        createdAt: Number(rest.createdAt ?? Date.now()),
+      })) as number
+      if (oldId != null) runGroupMap.set(oldId, newId)
+    }
+    counts.runGroups = runGroupMap.size
+
     for (const run of arr<RunSession>(raw.runs)) {
       const { id: _id, ...rest } = run
       await db.runs.add({
+        name: rest.name ?? '',
         startedAt: Number(rest.startedAt ?? Date.now()),
         endedAt: rest.endedAt == null ? null : Number(rest.endedAt),
         durationSeconds: Math.max(0, Number(rest.durationSeconds ?? 0)),
@@ -426,6 +446,8 @@ export async function importData(jsonText: string): Promise<ImportResult> {
             )
           : [],
         notes: rest.notes ?? '',
+        groupId: rest.groupId != null ? (runGroupMap.get(rest.groupId) ?? null) : null,
+        sortOrder: typeof rest.sortOrder === 'number' ? rest.sortOrder : null,
         createdAt: Number(rest.createdAt ?? Date.now()),
       })
     }

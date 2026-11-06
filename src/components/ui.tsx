@@ -157,6 +157,12 @@ export function Dialog({
   footer?: ReactNode
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Keep the latest onClose in a ref: callers pass inline arrows, and making the
+  // effect below depend on `onClose` re-ran it on every parent render (i.e. every
+  // keystroke) — its cleanup restored focus to the element from before the dialog
+  // opened, blurring the active input and dismissing the mobile keyboard.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -179,7 +185,7 @@ export function Dialog({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -213,7 +219,7 @@ export function Dialog({
       if (openDialogCount === 0) document.body.style.overflow = ''
       previouslyFocused?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

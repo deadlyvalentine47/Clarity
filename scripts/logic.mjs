@@ -41,6 +41,7 @@ const result = await page.evaluate(async () => {
   await Promise.all([
     db.habits.clear(), db.notes.clear(), db.transactions.clear(),
     db.goals.clear(), db.events.clear(), db.runs.clear(),
+    db.runGroups.clear(),
   ])
 
   // --- Events: recurrence, due state and completion -----------------------
@@ -245,6 +246,60 @@ const result = await page.evaluate(async () => {
     notes: 'round trip',
     createdAt: now,
   })
+
+  // --- Run sessions: order, timeline and manual override -------------------
+  // Default order is start time (newest first); a session reads as a timeline.
+  const { buildRunRows, createRunGroup, deleteRunGroup, moveRunToGroup, moveTopLevelRunByOffset, removeRunFromGroup } = await import('/src/db/runGroups.ts')
+  const runBase = {
+    endedAt: null, durationSeconds: 300, isManualDistance: false, points: [],
+    notes: '', groupId: null, sortOrder: null,
+  }
+  const stamp = (h, m) => {
+    const d = new Date()
+    d.setHours(h, m, 0, 0)
+    return d.getTime()
+  }
+  const walkA = await db.runs.add({ ...runBase, name: 'Walk A', distanceMeters: 1000, startedAt: stamp(7, 0), createdAt: stamp(7, 10) })
+  const runB = await db.runs.add({ ...runBase, name: 'Run B', distanceMeters: 5000, startedAt: stamp(7, 30), createdAt: stamp(7, 40) })
+  const walkC = await db.runs.add({ ...runBase, name: 'Walk C', distanceMeters: 1200, startedAt: stamp(8, 0), createdAt: stamp(8, 10) })
+  const earlyRun = await db.runs.add({
+    ...runBase, name: 'Early run', distanceMeters: 800, startedAt: stamp(6, 0), createdAt: stamp(6, 10),
+  })
+  const runGroupId = await createRunGroup('Morning walk-run', [walkA, runB, walkC])
+  let groupRows = buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+  const sessionRow = groupRows.find((row) => row.kind === 'group')
+  const session = {
+    name: sessionRow?.group.name ?? null,
+    timeline: sessionRow?.kind === 'group' ? sessionRow.runs.map((r) => r.startedAt) : [],
+    timelineAscending: sessionRow?.kind === 'group'
+      ? sessionRow.runs.every((r, i, arr) => i === 0 || arr[i - 1].startedAt <= r.startedAt)
+      : false,
+  }
+  // Manual position must beat the created-date default after a move.
+  const groupItem = { kind: 'group', id: runGroupId }
+  const beforeIndex = groupRows.findIndex((row) => row.kind === 'group')
+  await moveTopLevelRunByOffset(groupItem, 1)
+  groupRows = buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+  const afterIndex = groupRows.findIndex((row) => row.kind === 'group')
+  const sessionOrder = {
+    beforeIndex,
+    afterIndex,
+    movedDownOne: afterIndex === beforeIndex + 1,
+    manualWinsOverDate: afterIndex !== beforeIndex,
+  }
+  // Drop a run before a sibling, then take it out of the session again.
+  await moveRunToGroup(walkC, runGroupId, { targetRunId: walkA, position: 'before' })
+  const membersAfterDrop = (buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+    .find((row) => row.kind === 'group')?.runs ?? []).map((run) => run.name)
+  await removeRunFromGroup(walkC)
+  const afterRemove = buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+  const sessionEdit = {
+    membersAfterDrop,
+    droppedBeforeTarget: membersAfterDrop[0] === 'Walk C',
+    afterRemoveGrouped: afterRemove.find((row) => row.kind === 'group')?.runs.length ?? 0,
+    afterRemoveTopLevel: afterRemove.some((row) => row.kind === 'run' && row.run.name === 'Walk C'),
+  }
+  await moveRunToGroup(walkC, runGroupId, { position: 'after' })
   const roundTripId = await addEvent({
     title: 'Round trip event',
     priority: 'High',
@@ -259,6 +314,15 @@ const result = await page.evaluate(async () => {
   const restoredEvents = await db.events.toArray()
   const roundTripEvent = restoredEvents.find((e) => e.title === 'Round trip event')
   const restoredRuns = await db.runs.toArray()
+  const restoredGroupedRuns = restoredRuns.filter((run) => run.groupId != null).length
+  const restoredGroupCount = await db.runGroups.count()
+  const restoredGroup = (await db.runGroups.toArray())[0]
+  if (restoredGroup?.id != null) await deleteRunGroup(restoredGroup.id)
+  const afterGroupDelete = {
+    groups: await db.runGroups.count(),
+    ungroupedRuns: (await db.runs.toArray()).filter((run) => run.groupId == null).length,
+    runsKept: await db.runs.count(),
+  }
   const todayKey = key(new Date())
 
   // --- Runs: distance filtering + split math ------------------------------
@@ -309,10 +373,19 @@ const result = await page.evaluate(async () => {
     exportHasTasks: 'tasks' in parsed || 'subtasks' in parsed,
     geo,
     runsRoundTrip: {
-      exported: Array.isArray(parsed.runs) && parsed.runs.length === 1,
+      exported: Array.isArray(parsed.runs) && parsed.runs.length === 5,
       restored: restoredRuns.length,
       distance: restoredRuns.find((r) => r.notes === 'round trip')?.distanceMeters ?? null,
-      points: restoredRuns[0]?.points?.length ?? 0,
+      points: restoredRuns.find((r) => r.notes === 'round trip')?.points?.length ?? 0,
+    },
+    runsSession: session,
+    runsSessionOrder: sessionOrder,
+    runsSessionEdit: sessionEdit,
+    runsSessionRoundTrip: {
+      groupsExported: Array.isArray(parsed.runGroups) && parsed.runGroups.length === 1,
+      groupsRestored: restoredGroupCount,
+      groupedRuns: restoredGroupedRuns,
+      afterDelete: afterGroupDelete,
     },
     restoredEvent: roundTripEvent
       ? {

@@ -13,6 +13,7 @@ import {
   type LocationError,
   type LocationFix,
 } from './native'
+import { nextRunSortOrder } from '../db/runGroups'
 
 export type RunStatus = 'idle' | 'acquiring' | 'running' | 'paused' | 'finished'
 export type GpsStatus = 'off' | 'searching' | 'ok' | 'denied' | 'unavailable' | 'timeout'
@@ -543,6 +544,7 @@ export async function saveRun({
   }
 
   const endedAt = Date.now()
+  const sortOrder = await nextRunSortOrder()
   const session: RunSession = {
     name: name.trim(),
     startedAt: state.startedAt,
@@ -555,6 +557,8 @@ export async function saveRun({
     isManualDistance,
     points: state.points,
     notes: notes.trim(),
+    groupId: null,
+    sortOrder,
     createdAt: endedAt,
   }
 
@@ -644,6 +648,8 @@ export async function saveRecoveredRun(notes = ''): Promise<number | null> {
     isManualDistance: false,
     points: Array.isArray(snapshot.points) ? snapshot.points : [],
     notes: notes.trim(),
+    groupId: null,
+    sortOrder: await nextRunSortOrder(),
     createdAt: Date.now(),
   }
   const id = (await db.runs.add(session)) as number
