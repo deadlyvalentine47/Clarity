@@ -1,11 +1,11 @@
 // Demo run fixtures for eyeballing the 3D map and elevation profile.
 //
-// Dev-only: RunsScreen loads this with a dynamic import behind
-// `import.meta.env.DEV`, so it never reaches the production bundle. Seeding is
-// additive and idempotent — it only inserts fixtures whose notes it has not
-// seen, so repeated taps do not duplicate anything and real runs are untouched.
-import { db } from '../db/db'
-import type { RunPoint, RunSession } from '../db/types'
+// Test-only fixtures for scripts/scenarios.mjs. They live outside src/ so they
+// can never be pulled into the app bundle. Seeding is additive and idempotent —
+// it only inserts fixtures whose notes it has not seen, so repeated taps do not
+// duplicate anything and real runs are untouched.
+import { db } from '../src/db/db'
+import type { RunPoint, RunSession } from '../src/db/types'
 
 const ORIGIN = { lat: 19.076, lng: 72.8777 }
 const METERS_PER_DEGREE_LAT = 111_320

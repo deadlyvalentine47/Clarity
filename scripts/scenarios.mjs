@@ -1,6 +1,6 @@
 // Seeds the demo run fixtures through the app's own Dexie module and captures
 // a screenshot of each run's detail screen. Requires the Vite dev server
-// (npm run dev, port 5173) because the fixtures live in src/lib/demoRuns.ts.
+// (npm run dev, port 5173) because the fixtures live in scripts/demoRuns.ts.
 //
 //   npm run scenarios
 //   SCENARIO_SHOTS=/some/dir npm run scenarios
@@ -36,7 +36,7 @@ await page.evaluate(() => {
 })
 
 const seeded = await page.evaluate(async () => {
-  const module = await import('/src/lib/demoRuns.ts')
+  const module = await import('/scripts/demoRuns.ts')
   const result = await module.seedDemoRuns()
   const { db } = await import('/src/db/db.ts')
   const runs = await db.runs.orderBy('startedAt').reverse().toArray()
