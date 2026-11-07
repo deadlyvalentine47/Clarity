@@ -1,11 +1,11 @@
 // Demo run fixtures for eyeballing the 3D map and elevation profile.
 //
-// Dev-only: RunsScreen loads this with a dynamic import behind
-// `import.meta.env.DEV`, so it never reaches the production bundle. Seeding is
-// additive and idempotent — it only inserts fixtures whose notes it has not
-// seen, so repeated taps do not duplicate anything and real runs are untouched.
-import { db } from '../db/db'
-import type { RunPoint, RunSession } from '../db/types'
+// Test-only fixtures for scripts/scenarios.mjs. They live outside src/ so they
+// can never be pulled into the app bundle. Seeding is additive and idempotent —
+// it only inserts fixtures whose notes it has not seen, so repeated taps do not
+// duplicate anything and real runs are untouched.
+import { db } from '../src/db/db'
+import type { RunPoint, RunSession } from '../src/db/types'
 
 const ORIGIN = { lat: 19.076, lng: 72.8777 }
 const METERS_PER_DEGREE_LAT = 111_320
@@ -239,7 +239,9 @@ export async function seedDemoRuns(): Promise<SeedResult> {
       skipped += 1
       continue
     }
-    await db.runs.add(spec)
+    const { points, ...row } = spec
+    const runId = (await db.runs.add(row)) as number
+    if (points && points.length > 0) await db.runTracks.put({ runId, points })
     added += 1
   }
 
@@ -250,6 +252,11 @@ export async function seedDemoRuns(): Promise<SeedResult> {
 export async function clearDemoRuns(): Promise<number> {
   const demo = (await db.runs.toArray()).filter((run) => run.notes.startsWith(DEMO_PREFIX))
   const ids = demo.map((run) => run.id).filter((id): id is number => id != null)
-  if (ids.length > 0) await db.runs.bulkDelete(ids)
+  if (ids.length > 0) {
+    await db.transaction('rw', db.runs, db.runTracks, async () => {
+      await db.runs.bulkDelete(ids)
+      await db.runTracks.bulkDelete(ids)
+    })
+  }
   return ids.length
 }

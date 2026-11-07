@@ -81,8 +81,9 @@ jobs:
     name: publish
     needs: build
     runs-on: ubuntu-latest
-    # Fork PRs only get a read-only token; don't run the publish job for them.
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    # Fork PRs only get a read-only token, and a manual run should only publish
+    # from master so a feature branch cannot overwrite the rolling release.
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/master') }}
     permissions:
       contents: write
     steps:
@@ -96,7 +97,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          IPA=$(basename "$(ls out/*.ipa | head -1)")
+          count=$(ls out/*.ipa | wc -l)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected exactly one IPA, found $count"
+            ls -l out
+            exit 1
+          fi
+          IPA=$(basename "$(ls out/*.ipa)")
           URL="https://github.com/$GITHUB_REPOSITORY/releases/download/ipa-latest/$IPA"
 
           gh release view ipa-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
@@ -105,6 +112,15 @@ jobs:
               --notes "Unsigned iOS build. Install with AltStore, Sideloadly or Xcode using your own Apple ID; iOS will not install it by tapping the file." \
               --prerelease
           gh release upload ipa-latest out/*.ipa --repo "$GITHUB_REPOSITORY" --clobber
+
+          # Remove IPAs from earlier runs so the release holds only this build.
+          for name in $(gh release view ipa-latest --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name'); do
+            if [ "$name" != "$IPA" ]; then
+              gh release delete-asset ipa-latest "$name" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
           gh release edit ipa-latest --repo "$GITHUB_REPOSITORY" \
             --notes "Unsigned iOS build from commit $GITHUB_SHA on $(date -u +%Y-%m-%d\ %H:%M) UTC by workflow run $GITHUB_RUN_ID.
 

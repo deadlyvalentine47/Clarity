@@ -18,7 +18,7 @@ import {
 } from '../db/habits'
 import { addDays, formatDateKey, isoWeekday, toDateKey } from '../lib/dates'
 import { plural } from '../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, PageHeader, TextArea } from '../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, PageHeader, Segmented, TextArea } from '../components/ui'
 import { HabitDialog } from './HabitsScreen'
 
 type Period = 'Weekly' | 'Monthly'
@@ -187,13 +187,16 @@ export default function HabitDetailScreen() {
         </div>
       </div>
 
-      <div className="segmented" style={{ marginBottom: 12 }}>
-        {(['Weekly', 'Monthly'] as Period[]).map((p) => (
-          <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>
-            {p}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={period}
+        onChange={setPeriod}
+        label="Calendar period"
+        style={{ marginBottom: 12 }}
+        options={[
+          { value: 'Weekly', label: 'Weekly' },
+          { value: 'Monthly', label: 'Monthly' },
+        ]}
+      />
 
       <div className="card" style={{ marginBottom: 12 }}>
         {period === 'Weekly' ? (

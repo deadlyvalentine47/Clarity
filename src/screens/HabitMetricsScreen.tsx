@@ -334,6 +334,7 @@ export default function HabitMetricsScreen() {
                     className={`habit-cell ${state}`}
                     onClick={() => navigate(`/habits/metrics/${toDateKey(cell.date)}`)}
                     title={`${formatDateKey(toDateKey(cell.date), true)} · ${cell.done}/${cell.scheduled} done${cell.skipped > 0 ? ` · ${cell.skipped} skipped` : ''}`}
+                    aria-label={`${formatDateKey(toDateKey(cell.date), true)} · ${cell.done}/${cell.scheduled} done${cell.skipped > 0 ? `, ${cell.skipped} skipped` : ''}`}
                   >
                     {label}
                   </button>
@@ -436,7 +437,13 @@ function HabitMonthGrid({ habit, year, month }: { habit: Habit; year: number; mo
       <div className="habit-grid">
         {cells.map((cell, i) =>
           cell ? (
-            <span key={toDateKey(cell.date)} className={`habit-cell ${cell.state}`} title={formatDateKey(toDateKey(cell.date), true)}>
+            <span
+              key={toDateKey(cell.date)}
+              className={`habit-cell ${cell.state}`}
+              role="img"
+              aria-label={`${formatDateKey(toDateKey(cell.date), true)} · ${cell.state}`}
+              title={formatDateKey(toDateKey(cell.date), true)}
+            >
               {cell.label}
             </span>
           ) : (

@@ -233,25 +233,31 @@ const result = await page.evaluate(async () => {
   const drift = await db.transactions.where('source').equals('Logic Bank').count()
 
   // --- Export -> clear -> import round trip -------------------------------
+  // `now` is a Date and `day` is the recurrence helper above, so a naive
+  // `now - day` is NaN. Use explicit epoch milliseconds for the fixture.
+  const runStart = now.getTime() - 86_400_000
   const logicRunId = await db.runs.add({
-    startedAt: now - day,
-    endedAt: now - day + 600_000,
+    startedAt: runStart,
+    endedAt: runStart + 600_000,
     durationSeconds: 600,
     distanceMeters: 1234.5,
     isManualDistance: false,
-    points: [
-      { t: now - day, lat: 1, lng: 1, acc: 5, alt: null, spd: 2.8 },
-      { t: now - day + 600_000, lat: 1.009, lng: 1, acc: 5, alt: null, spd: 2.8 },
-    ],
     notes: 'round trip',
-    createdAt: now,
+    createdAt: now.getTime(),
+  })
+  await db.runTracks.put({
+    runId: logicRunId,
+    points: [
+      { t: runStart, lat: 1, lng: 1, acc: 5, alt: null, spd: 2.8 },
+      { t: runStart + 600_000, lat: 1.009, lng: 1, acc: 5, alt: null, spd: 2.8 },
+    ],
   })
 
   // --- Run sessions: order, timeline and manual override -------------------
   // Default order is start time (newest first); a session reads as a timeline.
   const { buildRunRows, createRunGroup, deleteRunGroup, moveRunToGroup, moveTopLevelRunByOffset, removeRunFromGroup } = await import('/src/db/runGroups.ts')
   const runBase = {
-    endedAt: null, durationSeconds: 300, isManualDistance: false, points: [],
+    endedAt: null, durationSeconds: 300, isManualDistance: false,
     notes: '', groupId: null, sortOrder: null,
   }
   const stamp = (h, m) => {
@@ -314,6 +320,8 @@ const result = await page.evaluate(async () => {
   const restoredEvents = await db.events.toArray()
   const roundTripEvent = restoredEvents.find((e) => e.title === 'Round trip event')
   const restoredRuns = await db.runs.toArray()
+  const roundTripRun = restoredRuns.find((run) => run.notes === 'round trip')
+  const restoredTrack = roundTripRun?.id != null ? await db.runTracks.get(roundTripRun.id) : null
   const restoredGroupedRuns = restoredRuns.filter((run) => run.groupId != null).length
   const restoredGroupCount = await db.runGroups.count()
   const restoredGroup = (await db.runGroups.toArray())[0]
@@ -360,6 +368,128 @@ const result = await page.evaluate(async () => {
     mileLabel: distanceLabel(1609.344, 'mi'),
   }
 
+  // --- Regression checks for the v2 fixes --------------------------------
+  const { completeHabitLate, markMissedDays } = await import('/src/db/habits.ts')
+  const { summarizeBudget } = await import('/src/db/budget.ts')
+  const { deleteRun } = await import('/src/db/runGroups.ts')
+
+  // L9: a weekly 22:00 -> 02:00 series keeps its 4 h span and overlaps the
+  // following day while completion/skip stay on the anchor (start) day.
+  const overnightId = await addEvent({
+    title: 'Overnight weekly',
+    frequency: 'Weekly',
+    startDate: day(-1, 22).getTime(),
+    endDate: day(0, 2).getTime(),
+  })
+  let overnight = await db.events.get(overnightId)
+  const overnightOccurrence = eventOccurrence(overnight, day(0, 12))
+  const overnightSpansNextDay = eventOccursOn(overnight, day(0, 12))
+  const overnightKeyIsAnchor = overnightOccurrence.key === key(day(-1))
+  const overnightDurationHours = (overnightOccurrence.end - overnightOccurrence.start) / 3_600_000
+  await skipEventOccurrence(overnightId, day(0, 12))
+  overnight = await db.events.get(overnightId)
+  const overnightSkipHidesBothDays =
+    !eventOccursOn(overnight, day(0, 12)) && !eventOccursOn(overnight, day(-1, 12))
+  const overnightCheck = {
+    spansNextDay: overnightSpansNextDay,
+    keyIsAnchor: overnightKeyIsAnchor,
+    durationHours: overnightDurationHours,
+    skipHidesBothDays: overnightSkipHidesBothDays,
+  }
+
+  // L2: a past "Done" is on time; only an explicit Done late gets the flag.
+  const habitBase = {
+    description: '', frequency: 'Daily', alternateDays: null, selectedDays: null,
+    targetCount: 1, currentStreak: 0, bestStreak: 0, completionHistory: {},
+    lateCompletions: [], reminderTime: null, isArchived: false, archivedAt: null,
+    isDeleted: false, deletedAt: null, dailyNotes: {},
+  }
+  const lateHabitId = await db.habits.add({
+    ...habitBase,
+    name: 'Deadline habit',
+    deadlineHour: 9,
+    deadlineMinute: 0,
+    createdAt: day(-10).getTime(),
+  })
+  await toggleHabitForDate(lateHabitId, key(day(-2)), true)
+  await completeHabitLate(lateHabitId, key(day(-3)))
+  const lateHabit = await db.habits.get(lateHabitId)
+  const doneVsLate = {
+    pastDoneIsOnTime: !lateHabit.lateCompletions.includes(key(day(-2))),
+    explicitLateIsLate: lateHabit.lateCompletions.includes(key(day(-3))),
+  }
+
+  // L1: backfill fills the recent window, not the first two years.
+  const oldHabitId = await db.habits.add({
+    ...habitBase,
+    name: 'Old habit',
+    createdAt: day(-1000).getTime(),
+  })
+  await markMissedDays(oldHabitId)
+  const oldHabit = await db.habits.get(oldHabitId)
+  const oldHistory = oldHabit.completionHistory
+  const backfill = {
+    yesterdayFilled: oldHistory[key(day(-1))] === false,
+    insideWindowFilled: oldHistory[key(day(-700))] === false,
+    outsideWindowUntouched: !(key(day(-800)) in oldHistory),
+    creationDayUntouched: !(key(day(-1000)) in oldHistory),
+  }
+
+  // L5: card credit offsets debt across cards, and net worth keeps the credit.
+  const budgetNet = summarizeBudget({
+    sources: [{ id: 1, name: 'Bank', balance: 1000, isDefault: false, createdAt: 0 }],
+    cardTxns: [
+      { id: 1, cardId: 1, type: 'Purchase', amount: 500, description: '', date: 0, createdAt: 0 },
+      { id: 2, cardId: 2, type: 'Payment', amount: 300, description: '', date: 0, createdAt: 0 },
+    ],
+  })
+  const budgetCredit = summarizeBudget({
+    sources: [],
+    cardTxns: [
+      { id: 3, cardId: 1, type: 'Purchase', amount: 100, description: '', date: 0, createdAt: 0 },
+      { id: 4, cardId: 2, type: 'Payment', amount: 400, description: '', date: 0, createdAt: 0 },
+    ],
+  })
+  const budgetTotals = {
+    nettedDebt: budgetNet.cardDebt,
+    nettedWorth: budgetNet.netWorth,
+    creditShown: budgetCredit.cardCredit,
+    noNegativeDebt: budgetCredit.cardDebt === 0,
+    creditInWorth: budgetCredit.netWorth === 300,
+  }
+
+  // L10: deleting a run removes its track and prunes an emptied session.
+  const delA = await db.runs.add({ ...runBase, name: 'Delete A', distanceMeters: 10, startedAt: stamp(4, 0), createdAt: stamp(4, 1) })
+  const delB = await db.runs.add({ ...runBase, name: 'Delete B', distanceMeters: 10, startedAt: stamp(4, 30), createdAt: stamp(4, 31) })
+  const delGroup = await createRunGroup('Delete session', [delA, delB])
+  await db.runTracks.put({ runId: delA, points: [{ t: 1, lat: 1, lng: 1, acc: 5 }] })
+  await deleteRun(delA)
+  const groupAfterFirstDelete = await db.runGroups.get(delGroup)
+  const trackAfterDelete = await db.runTracks.get(delA)
+  await deleteRun(delB)
+  const groupAfterLastDelete = await db.runGroups.get(delGroup)
+  const deleteRunCheck = {
+    groupKeptWhileNotEmpty: groupAfterFirstDelete != null,
+    trackRemoved: trackAfterDelete == null,
+    emptyGroupPruned: groupAfterLastDelete == null,
+  }
+
+  // L11: grouping runs that are all nested keeps the container's position.
+  const nestA = await db.runs.add({ ...runBase, name: 'Nest A', distanceMeters: 10, startedAt: stamp(5, 0), createdAt: stamp(5, 1) })
+  const nestB = await db.runs.add({ ...runBase, name: 'Nest B', distanceMeters: 10, startedAt: stamp(5, 30), createdAt: stamp(5, 31) })
+  const outerGroup = await createRunGroup('Outer session', [nestA, nestB])
+  await db.runs.add({ ...runBase, name: 'Solo top', distanceMeters: 10, startedAt: stamp(9, 0), createdAt: stamp(9, 1) })
+  const rowsBeforeNest = buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+  const outerIndexBefore = rowsBeforeNest.findIndex((row) => row.kind === 'group' && row.group.id === outerGroup)
+  const innerGroup = await createRunGroup('Inner session', [nestA, nestB])
+  const rowsAfterNest = buildRunRows(await db.runs.toArray(), await db.runGroups.toArray())
+  const innerIndexAfter = rowsAfterNest.findIndex((row) => row.kind === 'group' && row.group.id === innerGroup)
+  const nestedGrouping = {
+    outerIndexBefore,
+    innerIndexAfter,
+    insertedAtContainer: innerIndexAfter === outerIndexBefore && outerIndexBefore > 0,
+  }
+
   return {
     recurrence,
     status,
@@ -375,12 +505,20 @@ const result = await page.evaluate(async () => {
     runsRoundTrip: {
       exported: Array.isArray(parsed.runs) && parsed.runs.length === 5,
       restored: restoredRuns.length,
-      distance: restoredRuns.find((r) => r.notes === 'round trip')?.distanceMeters ?? null,
-      points: restoredRuns.find((r) => r.notes === 'round trip')?.points?.length ?? 0,
+      distance: roundTripRun?.distanceMeters ?? null,
+      points: restoredTrack?.points.length ?? 0,
+      rowsCarryPoints: restoredRuns.some((run) => Array.isArray(run.points)),
+      exportedPoints: parsed.runs.find((r) => r.notes === 'round trip')?.points?.length ?? 0,
     },
     runsSession: session,
     runsSessionOrder: sessionOrder,
     runsSessionEdit: sessionEdit,
+    overnightCheck,
+    doneVsLate,
+    backfill,
+    budgetTotals,
+    deleteRunCheck,
+    nestedGrouping,
     runsSessionRoundTrip: {
       groupsExported: Array.isArray(parsed.runGroups) && parsed.runGroups.length === 1,
       groupsRestored: restoredGroupCount,

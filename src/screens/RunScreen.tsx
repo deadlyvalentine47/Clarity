@@ -23,7 +23,7 @@ import {
   stopRun,
   useRunState,
 } from '../lib/runStore'
-import { Dialog, Field, PageHeader, TextArea, TextInput } from '../components/ui'
+import { Dialog, Field, PageHeader, Segmented, TextArea, TextInput } from '../components/ui'
 
 type WakeLockSentinelLike = { release: () => Promise<void> }
 
@@ -180,17 +180,15 @@ export default function RunScreen() {
         subtitle={statusText}
         onBack={() => navigate('/runs')}
         actions={
-          <div className="segmented" aria-label="Distance unit">
-            {(['km', 'mi'] as DistanceUnit[]).map((option) => (
-              <button
-                key={option}
-                className={unit === option ? 'active' : ''}
-                onClick={() => setDistanceUnit(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            value={unit}
+            onChange={setDistanceUnit}
+            label="Distance unit"
+            options={[
+              { value: 'km', label: 'km' },
+              { value: 'mi', label: 'mi' },
+            ]}
+          />
         }
       />
 
@@ -400,17 +398,15 @@ export default function RunScreen() {
           </Field>
           <div className="row-between">
             <span className="label">Distance unit</span>
-            <div className="segmented">
-              {(['km', 'mi'] as DistanceUnit[]).map((option) => (
-                <button
-                  key={option}
-                  className={unit === option ? 'active' : ''}
-                  onClick={() => changeSaveUnit(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={unit}
+              onChange={changeSaveUnit}
+              label="Save distance unit"
+              options={[
+                { value: 'km', label: 'km' },
+                { value: 'mi', label: 'mi' },
+              ]}
+            />
           </div>
           <Field label={`Distance (${unit})`}>
             <TextInput

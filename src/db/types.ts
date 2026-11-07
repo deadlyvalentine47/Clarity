@@ -3,6 +3,7 @@
 export type Priority = 'High' | 'Medium' | 'Low'
 export type RecurringType = 'Daily' | 'Weekly' | 'Monthly' | 'Custom'
 export type GoalType = 'Short-term' | 'Long-term'
+export type GoalStatus = 'In Progress' | 'On Hold' | 'Completed'
 export type HabitFrequency = 'Daily' | 'Weekly' | 'Monthly' | 'Alternate' | 'Custom'
 export type TransactionType = 'Income' | 'Expense'
 export type CardTxnType = 'Purchase' | 'Payment' | 'Credit'
@@ -120,16 +121,28 @@ export interface BudgetLimit {
   createdAt: number
 }
 
+export interface GoalMilestone {
+  /** stable identity — completion and notes are keyed by this, never by text */
+  id: string
+  text: string
+  /** free-form note written from the goal detail page */
+  note: string
+  /** epoch ms when marked complete, null while pending */
+  completedAt: number | null
+}
+
 export interface Goal {
   id?: number
   title: string
   description: string
   type: GoalType
-  progress: number // 0..1
+  status: GoalStatus
+  /** 0..1 — derived from milestones, 1 only when status is Completed */
+  progress: number
   targetDate: number | null
-  milestones: string[]
-  completedMilestones: string[]
+  milestones: GoalMilestone[]
   isCompleted: boolean
+  completedAt?: number | null
   createdAt: number
 }
 
@@ -225,8 +238,11 @@ export interface RunSession {
   distanceMeters: number
   /** true when the user typed/corrected the distance — never indexed */
   isManualDistance: boolean
-  /** downsampled: >= 5 m apart, cap 5000 */
-  points: RunPoint[]
+  /**
+   * Track is stored in `runTracks`, not on the row, so history queries stay
+   * small. Backups still embed it here; `points` is absent on DB rows.
+   */
+  points?: RunPoint[]
   notes: string
   /** run group/session id; null/undefined = shown directly in the history list */
   groupId?: number | null
@@ -236,6 +252,17 @@ export interface RunSession {
    */
   sortOrder?: number | null
   createdAt: number
+}
+
+/**
+ * The GPS/barometer track for one run. Kept apart from `RunSession` because a
+ * track can hold 5 000 points and the history list only needs the summary.
+ */
+export interface RunTrack {
+  /** primary key = the owning run's id */
+  runId: number
+  /** downsampled: >= 5 m apart, cap 5000 */
+  points: RunPoint[]
 }
 
 /** A named session that bundles several runs (walk → run → walk). */

@@ -7,7 +7,7 @@ import type { CreditCardTransaction, Transaction } from '../../db/types'
 import { dailySummary, transferPair } from '../../db/budget'
 import { endOfDay, fromDateKey, MONTHS, monthRange, startOfDay, toDateKey } from '../../lib/dates'
 import { formatMoney, plural } from '../../lib/format'
-import { EmptyState, PageHeader } from '../../components/ui'
+import { EmptyState, ListSkeleton, PageHeader } from '../../components/ui'
 import { ActivityRows, buildDailyActivity, type ActivityItem } from './ActivityList'
 import { CardTransactionDialog, MonthYearPicker, TransactionDialog } from './shared'
 
@@ -35,7 +35,7 @@ export default function AllTransactionsScreen() {
   const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
   const [editingCardTxn, setEditingCardTxn] = useState<CreditCardTransaction | null>(null)
 
-  const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
+  const transactions = useLiveQuery(async () => db.transactions.toArray(), [])
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
   const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
 
@@ -60,7 +60,10 @@ export default function AllTransactionsScreen() {
     () => dailySummary(transactions ?? [], cardTxns ?? [], start, end),
     [transactions, cardTxns, start, end],
   )
-  const cardNameById = new Map((cards ?? []).map((c) => [c.id!, c.name]))
+  const cardNameById = useMemo(
+    () => new Map((cards ?? []).map((c) => [c.id!, c.name])),
+    [cards],
+  )
 
   // The year picker needs every year that has data (plus the selected one).
   const years = useMemo(() => {
@@ -135,6 +138,8 @@ export default function AllTransactionsScreen() {
       />
     </div>
   )
+
+  if (transactions === undefined) return <ListSkeleton rows={5} />
 
   return (
     <>

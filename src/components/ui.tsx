@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -52,6 +53,29 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       {children}
       {hint && <span className="tiny muted">{hint}</span>}
     </label>
+  )
+}
+
+/**
+ * Same look as Field for controls that are not a single labelable element
+ * (chip pickers, account buttons, day toggles). A <label> may only wrap one
+ * control, so these use a named group instead.
+ */
+export function FieldGroup({
+  label,
+  children,
+  hint,
+}: {
+  label: string
+  children: ReactNode
+  hint?: string
+}) {
+  return (
+    <div className="field" role="group" aria-label={label}>
+      <span className="label">{label}</span>
+      {children}
+      {hint && <span className="tiny muted">{hint}</span>}
+    </div>
   )
 }
 
@@ -308,6 +332,56 @@ export function EmptyState({
       </div>
       {subtitle && <div className="small">{subtitle}</div>}
       {action}
+    </div>
+  )
+}
+
+/** Shared placeholder while a list's first Dexie query resolves. */
+/** Shared segmented control (unit switches, filters, view switches). */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+  style,
+  itemStyle,
+}: {
+  value: T
+  options: readonly { value: T; label: ReactNode }[]
+  onChange: (value: T) => void
+  label?: string
+  style?: CSSProperties
+  itemStyle?: CSSProperties
+}) {
+  return (
+    <div className="segmented" role="group" aria-label={label} style={style}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={value === option.value ? 'active' : ''}
+          aria-pressed={value === option.value}
+          style={itemStyle}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function ListSkeleton({ rows = 4, label = 'Loading…' }: { rows?: number; label?: string }) {
+  return (
+    <div className="stack" role="status" aria-label={label}>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="card skeleton-card">
+          <span className="skeleton-line w40" />
+          <span className="skeleton-line w70" />
+          <span className="skeleton-line w55" />
+        </div>
+      ))}
+      <span className="sr-only">{label}</span>
     </div>
   )
 }

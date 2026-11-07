@@ -13,6 +13,7 @@ import type {
   DayJournal,
   Event,
   Goal,
+  GoalStatus,
   Habit,
   HabitGroup,
   Investment,
@@ -25,6 +26,8 @@ import type {
 } from '../db/types'
 import { HOME_SECTIONS, type DistanceUnit, type HomeSection, type ThemeMode } from '../db/types'
 import { eventDefaults } from '../db/events'
+import { normalizeMilestones } from '../db/goalMilestones'
+import { clearNoteImageCache } from '../db/notes'
 import { saveFileToDevice } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
 
@@ -116,6 +119,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     investments,
     dayJournals,
     runs,
+    runTracks,
     runGroups,
     noteImages,
   ] = await Promise.all([
@@ -134,9 +138,13 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.investments.toArray(),
     db.dayJournals.toArray(),
     db.runs.toArray(),
+    db.runTracks.toArray(),
     db.runGroups.toArray(),
     db.noteImages.toArray(),
   ])
+  // Tracks live in their own table now, but backups keep the original
+  // `runs[].points` shape so older app versions can still restore them.
+  const trackByRun = new Map(runTracks.map((track) => [track.runId, track.points]))
 
   const data: AppData = {
     habits,
@@ -153,7 +161,10 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCardTransactions,
     investments,
     dayJournals,
-    runs,
+    runs: runs.map((run) => ({
+      ...run,
+      points: run.id != null ? (trackByRun.get(run.id) ?? []) : [],
+    })),
     runGroups,
     noteImages: await Promise.all(
       noteImages.map(async (image) => ({
@@ -384,15 +395,48 @@ export async function importData(jsonText: string): Promise<ImportResult> {
 
     for (const limit of arr<BudgetLimit>(raw.budgetLimits)) {
       const { id: _id, ...rest } = limit
-      await db.budgetLimits.add(rest)
+      await db.budgetLimits.add({
+        category: String(rest.category ?? ''),
+        limitAmount: Number(rest.limitAmount ?? 0),
+        month: Math.min(12, Math.max(1, Number(rest.month ?? 1))),
+        year: Number(rest.year ?? new Date().getFullYear()),
+        createdAt: Number(rest.createdAt ?? Date.now()),
+      })
     }
 
-    for (const goal of arr<Goal>(raw.goals)) {
-      const { id: _id, ...rest } = goal
+    for (const goal of arr<Record<string, unknown>>(raw.goals)) {
+      const milestones = normalizeMilestones(
+        goal.milestones,
+        goal.completedMilestones,
+        goal.milestoneNotes,
+        goal.milestoneCompletedAt,
+      )
+      const status: GoalStatus =
+        goal.status === 'Completed' || goal.status === 'On Hold' || goal.status === 'In Progress'
+          ? goal.status
+          : goal.isCompleted
+            ? 'Completed'
+            : 'In Progress'
+      const done = milestones.filter((m) => m.completedAt != null).length
       await db.goals.add({
-        ...rest,
-        milestones: Array.isArray(rest.milestones) ? rest.milestones : [],
-        completedMilestones: Array.isArray(rest.completedMilestones) ? rest.completedMilestones : [],
+        title: String(goal.title ?? 'Goal'),
+        description: String(goal.description ?? ''),
+        type: goal.type === 'Long-term' ? 'Long-term' : 'Short-term',
+        status,
+        progress:
+          status === 'Completed'
+            ? 1
+            : milestones.length > 0
+              ? Math.min(0.99, done / milestones.length)
+              : 0,
+        targetDate: goal.targetDate == null ? null : Number(goal.targetDate),
+        milestones,
+        isCompleted: status === 'Completed',
+        completedAt:
+          status === 'Completed'
+            ? (typeof goal.completedAt === 'number' ? goal.completedAt : Date.now())
+            : null,
+        createdAt: Number(goal.createdAt ?? Date.now()),
       })
     }
 
@@ -403,7 +447,16 @@ export async function importData(jsonText: string): Promise<ImportResult> {
 
     for (const investment of arr<Investment>(raw.investments)) {
       const { id: _id, ...rest } = investment
-      await db.investments.add(rest)
+      await db.investments.add({
+        name: String(rest.name ?? 'Investment'),
+        type: String(rest.type ?? ''),
+        units: Number(rest.units ?? 0),
+        purchasePrice: Number(rest.purchasePrice ?? 0),
+        currentPrice: Number(rest.currentPrice ?? 0),
+        purchaseDate: Number(rest.purchaseDate ?? Date.now()),
+        notes: String(rest.notes ?? ''),
+        createdAt: Number(rest.createdAt ?? Date.now()),
+      })
     }
 
     for (const journal of arr<DayJournal>(raw.dayJournals)) {
@@ -429,31 +482,35 @@ export async function importData(jsonText: string): Promise<ImportResult> {
     counts.runGroups = runGroupMap.size
 
     for (const run of arr<RunSession>(raw.runs)) {
-      const { id: _id, ...rest } = run
-      await db.runs.add({
+      const { id: _id, points: rawPoints, ...rest } = run
+      const runId = (await db.runs.add({
         name: rest.name ?? '',
         startedAt: Number(rest.startedAt ?? Date.now()),
         endedAt: rest.endedAt == null ? null : Number(rest.endedAt),
         durationSeconds: Math.max(0, Number(rest.durationSeconds ?? 0)),
         distanceMeters: Math.max(0, Number(rest.distanceMeters ?? 0)),
         isManualDistance: Boolean(rest.isManualDistance),
-        points: Array.isArray(rest.points)
-          ? rest.points.filter(
-              (point) =>
-                point != null &&
-                Number.isFinite(point.lat) &&
-                Number.isFinite(point.lng) &&
-                Number.isFinite(point.t),
-            )
-          : [],
         notes: rest.notes ?? '',
         groupId: rest.groupId != null ? (runGroupMap.get(rest.groupId) ?? null) : null,
         sortOrder: typeof rest.sortOrder === 'number' ? rest.sortOrder : null,
         createdAt: Number(rest.createdAt ?? Date.now()),
-      })
+      })) as number
+      const points = Array.isArray(rawPoints)
+        ? rawPoints.filter(
+            (point) =>
+              point != null &&
+              Number.isFinite(point.lat) &&
+              Number.isFinite(point.lng) &&
+              Number.isFinite(point.t),
+          )
+        : []
+      if (points.length > 0) await db.runTracks.put({ runId, points })
     }
     counts.runs = arr<RunSession>(raw.runs).length
   })
+
+  // The note rows were replaced; a cached blob URL for a reused uuid is stale.
+  clearNoteImageCache()
 
   const settings = (raw.settings ?? {}) as Partial<BackupSettings>
   const preferences = normalizePreferences({

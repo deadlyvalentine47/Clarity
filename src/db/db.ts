@@ -15,9 +15,11 @@ import type {
   NoteImage,
   RunGroup,
   RunSession,
+  RunTrack,
   Source,
   Transaction,
 } from './types'
+import { normalizeMilestones } from './goalMilestones'
 
 export class ClarityDB extends Dexie {
   habits!: Table<Habit, number>
@@ -36,6 +38,7 @@ export class ClarityDB extends Dexie {
   investments!: Table<Investment, number>
   dayJournals!: Table<DayJournal, string>
   runs!: Table<RunSession, number>
+  runTracks!: Table<RunTrack, number>
   runGroups!: Table<RunGroup, number>
 
   constructor() {
@@ -206,6 +209,59 @@ export class ClarityDB extends Dexie {
           .modify((h: Habit) => {
             h.skippedDates ??= {}
           })
+      })
+
+    // v10 moves the (large) GPS point arrays into their own table. A history
+    // query then decodes the summary only; route maps fetch one track at a
+    // time. Old rows keep their points until this upgrade copies them across.
+    this.version(10)
+      .stores({
+        runs: '++id, startedAt, distanceMeters, createdAt, groupId',
+        runTracks: 'runId',
+      })
+      .upgrade(async (tx) => {
+        const runs = (await tx.table('runs').toArray()) as RunSession[]
+        for (const run of runs) {
+          const { points, ...rest } = run
+          if (Array.isArray(points) && points.length > 0 && run.id != null) {
+            await tx.table('runTracks').put({ runId: run.id, points })
+          }
+          await tx.table('runs').put(rest)
+        }
+      })
+
+    // v11 gives every goal milestone a stable id and moves its note and
+    // completion timestamp onto the milestone itself. Completion was keyed by
+    // text before, so two milestones sharing a name were tracked as one.
+    this.version(11)
+      .stores({})
+      .upgrade(async (tx) => {
+        const goals = (await tx.table('goals').toArray()) as Array<Record<string, unknown>>
+        for (const goal of goals) {
+          const {
+            completedMilestones: _completed,
+            milestoneNotes: _notes,
+            milestoneCompletedAt: _dates,
+            ...rest
+          } = goal
+          await tx.table('goals').put({
+            ...rest,
+            status:
+              goal.status === 'Completed' ||
+              goal.status === 'On Hold' ||
+              goal.status === 'In Progress'
+                ? goal.status
+                : goal.isCompleted
+                  ? 'Completed'
+                  : 'In Progress',
+            milestones: normalizeMilestones(
+              goal.milestones,
+              goal.completedMilestones,
+              goal.milestoneNotes,
+              goal.milestoneCompletedAt,
+            ),
+          })
+        }
       })
   }
 }

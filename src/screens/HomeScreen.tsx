@@ -16,6 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
+import { goalProgress, goalStatus } from '../db/goals'
 import type { Event as ClarityEvent, Habit, HomeSection } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
 import { isScheduledOn, toggleHabitForDate } from '../db/habits'
@@ -31,7 +32,7 @@ import {
   toggleEventCompletion,
 } from '../db/events'
 import { noteSnippet } from '../db/notes'
-import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
+import { cardPurchasesInCycle, isSelfTransfer, spendSummary, summarizeBudget } from '../db/budget'
 import {
   addDays,
   endOfDay,
@@ -179,14 +180,11 @@ export default function HomeScreen() {
   const income = (transactions ?? [])
     .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
     .reduce((sum, t) => sum + t.amount, 0)
-  const bankBalance = totalBankBalance(sources ?? [])
-  const cardDebt = (cards ?? []).reduce(
-    (sum, card) =>
-      sum + Math.max(0, cardOutstanding((cardTxns ?? []).filter((t) => t.cardId === card.id))),
-    0,
-  )
+  const totals = summarizeBudget({ sources: sources ?? [], cardTxns: cardTxns ?? [] })
+  const bankBalance = totals.bankBalance
+  const cardDebt = totals.cardDebt
 
-  const activeGoals = (goals ?? []).filter((g) => !g.isCompleted)
+  const activeGoals = (goals ?? []).filter((g) => goalStatus(g) !== 'Completed')
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
 
   // ---------------------------------------------------------------- today
@@ -523,9 +521,13 @@ export default function HomeScreen() {
           ) : (
             <div className="goal-mini-list">
               {activeGoals.slice(0, 2).map((goal) => {
-                const pct = Math.max(0, Math.min(1, goal.progress))
+                const pct = goalProgress(goal)
                 return (
-                  <div key={goal.id} className="goal-mini">
+                  <button
+                    key={goal.id}
+                    className="goal-mini"
+                    onClick={() => navigate(`/goals/${goal.id}`)}
+                  >
                     <div className="row-between" style={{ marginBottom: 4 }}>
                       <span className="truncate">{goal.title}</span>
                       <span className="tiny bold" style={{ color: 'var(--primary)' }}>
@@ -533,7 +535,7 @@ export default function HomeScreen() {
                       </span>
                     </div>
                     <ProgressBar value={pct} />
-                  </div>
+                  </button>
                 )
               })}
             </div>

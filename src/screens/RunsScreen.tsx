@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { db } from '../db/db'
-import type { DistanceUnit, RunGroup, RunSession } from '../db/types'
+import type { DistanceUnit, RunGroup, RunPoint, RunSession, RunTrack } from '../db/types'
 import {
   addRunsToGroup,
   buildRunRows,
@@ -52,7 +52,7 @@ import {
   type RunStatus,
 } from '../lib/runStore'
 import { usePreferences } from '../context/PreferencesContext'
-import { Checkbox, ConfirmDialog, Dialog, EmptyState, Field, PageHeader, TextInput } from '../components/ui'
+import { Checkbox, ConfirmDialog, Dialog, EmptyState, Field, ListSkeleton, PageHeader, Segmented, TextInput } from '../components/ui'
 import { MonthYearPicker } from './budget/shared'
 import RouteMap from '../components/RouteMap'
 
@@ -124,9 +124,8 @@ export default function RunsScreen() {
   const runs = useLiveQuery(
     async () => db.runs.orderBy('startedAt').reverse().toArray(),
     [],
-    [],
   )
-  const groups = useLiveQuery(async () => db.runGroups.toArray(), [], [])
+  const groups = useLiveQuery(async () => db.runGroups.toArray(), [])
 
   useEffect(() => {
     const live = getState()
@@ -156,6 +155,28 @@ export default function RunsScreen() {
   const visibleRuns = useMemo(
     () => all.filter((run) => run.startedAt >= start && run.startedAt <= end),
     [all, start, end],
+  )
+
+  // Tracks live in their own table so the history query above stays light.
+  // Only the runs in the selected period are fetched for the mini maps.
+  const visibleIds = useMemo(
+    () => visibleRuns.map((run) => run.id).filter((runId): runId is number => runId != null),
+    [visibleRuns],
+  )
+  const trackKey = visibleIds.join(',')
+  const tracks = useLiveQuery(
+    async () =>
+      visibleIds.length
+        ? (await db.runTracks.bulkGet(visibleIds)).filter(
+            (track): track is RunTrack => track != null,
+          )
+        : [],
+    [trackKey],
+    [],
+  )
+  const pointsById = useMemo(
+    () => new Map((tracks ?? []).map((track) => [track.runId, track.points])),
+    [tracks],
   )
 
   // Only sessions with a run in the period are listed; a session that spans
@@ -370,6 +391,8 @@ export default function RunsScreen() {
   const recoveredIsStale =
     recovered != null && (recovered.stale || recovered.snapshot.status === 'finished')
 
+  if (runs === undefined || groups === undefined) return <ListSkeleton rows={4} />
+
   return (
     <>
       <PageHeader
@@ -380,17 +403,15 @@ export default function RunsScreen() {
             <button className="btn btn-sm btn-outline" onClick={goToday}>
               <CalendarDays size={16} /> Today
             </button>
-            <div className="segmented" aria-label="Distance unit">
-              {(['km', 'mi'] as DistanceUnit[]).map((option) => (
-                <button
-                  key={option}
-                  className={unit === option ? 'active' : ''}
-                  onClick={() => setDistanceUnit(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={unit}
+              onChange={setDistanceUnit}
+              label="Distance unit"
+              options={[
+                { value: 'km', label: 'km' },
+                { value: 'mi', label: 'mi' },
+              ]}
+            />
           </>
         }
       />
@@ -642,6 +663,7 @@ export default function RunsScreen() {
                   <RunCard
                     key={run.id}
                     run={run}
+                    points={run.id != null ? (pointsById.get(run.id) ?? []) : []}
                     unit={unit}
                     containerGroupId={row.group.id!}
                     selecting={selecting}
@@ -670,6 +692,7 @@ export default function RunsScreen() {
               <RunCard
                 key={row.run.id}
                 run={row.run}
+                points={row.run.id != null ? (pointsById.get(row.run.id) ?? []) : []}
                 unit={unit}
                 containerGroupId={null}
                 selecting={selecting}
@@ -976,6 +999,7 @@ function RunGroupCard({
 
 function RunCard({
   run,
+  points,
   unit,
   containerGroupId,
   selecting,
@@ -995,6 +1019,7 @@ function RunCard({
   onRemoveFromGroup,
 }: {
   run: RunSession
+  points: RunPoint[]
   unit: DistanceUnit
   containerGroupId: number | null
   selecting: boolean
@@ -1043,6 +1068,19 @@ function RunCard({
         onDrop(posFromEvent(e))
       }}
       onClick={selecting ? onToggle : onOpen}
+      role="button"
+      tabIndex={0}
+      aria-label={selecting ? `${selected ? 'Deselect' : 'Select'} ${title}` : `Open run ${title}`}
+      onKeyDown={(e) => {
+        // Nested action buttons handle their own keys; only the card itself
+        // opens/toggles, matching the Notes and Accounts rows.
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          if (selecting) onToggle()
+          else onOpen()
+        }
+      }}
     >
       <div className="row-between" style={{ alignItems: 'flex-start', gap: 8 }}>
         <span className="run-card-leading">
@@ -1072,7 +1110,7 @@ function RunCard({
             {run.isManualDistance ? ' · manual distance' : ''}
           </div>
         </div>
-        <RouteMap points={run.isManualDistance ? [] : run.points} compact />
+        <RouteMap points={run.isManualDistance ? [] : points} compact />
       </div>
       {!selecting && (
         <div className="run-card-actions" onClick={(e) => e.stopPropagation()}>

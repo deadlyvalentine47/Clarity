@@ -420,6 +420,26 @@ p {
   box-shadow: none;
 }
 
+/* Full-width button that expands a goal milestone on the detail page. */
+.milestone-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.milestone-title .chevron {
+  color: var(--muted);
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -531,12 +551,23 @@ p {
   justify-content: center;
   width: 40px;
   height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border-radius: 50%;
   border: none;
   background: transparent;
   color: inherit;
   cursor: pointer;
   flex: 0 0 auto;
+}
+
+/* Touch devices get the full 44 px target even where a screen shrinks the
+   visual icon button inline. */
+@media (pointer: coarse) {
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 .icon-btn:hover {
@@ -701,6 +732,11 @@ p {
   cursor: default;
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -755,6 +791,7 @@ p {
 }
 
 .checkbox {
+  position: relative;
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -768,6 +805,14 @@ p {
   color: transparent;
   padding: 0;
   transition: background 0.15s, border-color 0.15s;
+}
+
+/* Expand the hit area to 44 px without visually enlarging the circle. */
+.checkbox::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
 }
 
 .checkbox:hover {
@@ -908,6 +953,54 @@ p {
   height: 10px;
   border-radius: 50%;
   flex: 0 0 auto;
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.skeleton-line {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-line.w40 {
+  width: 40%;
+}
+
+.skeleton-line.w55 {
+  width: 55%;
+}
+
+.skeleton-line.w70 {
+  width: 70%;
+  height: 16px;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+  }
 }
 
 .sr-only {
@@ -1664,6 +1757,7 @@ p {
 }
 
 .tree-toggle {
+  position: relative;
   width: 26px;
   height: 26px;
   border: none;
@@ -1675,6 +1769,13 @@ p {
   justify-content: center;
   border-radius: 50%;
   flex: 0 0 auto;
+}
+
+.tree-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
 }
 
 .tree-toggle:hover {

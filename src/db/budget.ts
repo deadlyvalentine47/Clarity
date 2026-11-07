@@ -2,6 +2,8 @@ import { db } from './db'
 import type {
   CardTxnType,
   CreditCardTransaction,
+  Investment,
+  Source,
   Transaction,
   TransactionType,
 } from './types'
@@ -14,6 +16,44 @@ export const SELF_TRANSFER_CATEGORY = 'Self_Transfer'
 
 export function totalBankBalance(sources: { balance: number }[]): number {
   return sources.reduce((sum, s) => sum + (s.balance || 0), 0)
+}
+
+export interface BudgetTotals {
+  bankBalance: number
+  /** net across all cards: negative means the cards are in credit */
+  cardOutstanding: number
+  cardDebt: number
+  cardCredit: number
+  investmentValue: number
+  netWorth: number
+}
+
+/**
+ * One convention for the hub, home and metrics. Card balances are netted
+ * across cards (a credit card overpayment offsets another card's debt) instead
+ * of clamping each card at zero.
+ */
+export function summarizeBudget(input: {
+  sources: Source[]
+  cardTxns: CreditCardTransaction[]
+  investments?: Investment[]
+}): BudgetTotals {
+  const bankBalance = totalBankBalance(input.sources)
+  const outstanding = cardOutstanding(input.cardTxns)
+  const cardDebt = Math.max(0, outstanding)
+  const cardCredit = Math.max(0, -outstanding)
+  const investmentValue = (input.investments ?? []).reduce(
+    (sum, item) => sum + item.units * item.currentPrice,
+    0,
+  )
+  return {
+    bankBalance,
+    cardOutstanding: outstanding,
+    cardDebt,
+    cardCredit,
+    investmentValue,
+    netWorth: bankBalance + investmentValue + cardCredit - cardDebt,
+  }
 }
 
 export async function sourceNameExists(name: string, exceptId?: number): Promise<boolean> {

@@ -10,6 +10,7 @@ import type { RunPoint } from '../db/types'
 import { isClosedLoop } from '../lib/geo'
 import { altitudeStats, hasAltitude, projectPoint, toLocalMeters, type Point3 } from '../lib/route3d'
 import LoopBadge from './LoopBadge'
+import { Segmented } from './ui'
 
 const VIEW = 100
 const PADDING = 8
@@ -485,7 +486,7 @@ export default function RouteMap3D({ points }: { points: RunPoint[] }) {
       <div className="route-3d-tools">
         <span className="tiny muted">Drag to rotate · pinch or scroll to zoom · fainter = earlier</span>
         <span className="grow" />
-        <div className="segmented" aria-label="Zoom">
+        <div className="segmented" role="group" aria-label="Zoom">
           <button
             onClick={() => zoomBy(1 / 1.6, undefined)}
             aria-label="Zoom out"
@@ -499,17 +500,15 @@ export default function RouteMap3D({ points }: { points: RunPoint[] }) {
             +
           </button>
         </div>
-        <div className="segmented" aria-label="Height exaggeration">
-          {VERTICAL_SCALES.map((value) => (
-            <button
-              key={value}
-              className={verticalScale === value ? 'active' : ''}
-              onClick={() => setVerticalScale(value)}
-            >
-              {value}×
-            </button>
-          ))}
-        </div>
+        <Segmented
+          value={String(verticalScale)}
+          onChange={(value) => setVerticalScale(Number(value))}
+          label="Height exaggeration"
+          options={VERTICAL_SCALES.map((value) => ({
+            value: String(value),
+            label: `${value}×`,
+          }))}
+        />
         <button
           className="btn btn-sm btn-outline"
           onClick={() => {

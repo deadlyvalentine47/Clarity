@@ -34,9 +34,12 @@ import {
   ConfirmDialog,
   Dialog,
   EmptyState,
+  ListSkeleton,
   Field,
+  FieldGroup,
   IconButton,
   PageHeader,
+  Segmented,
   Select,
   TextArea,
   TextInput,
@@ -58,7 +61,7 @@ export default function NotesScreen() {
 
   useDragAutoScroll(dragged != null)
 
-  const notes = useLiveQuery(async () => db.notes.toArray(), [], [])
+  const notes = useLiveQuery(async () => db.notes.toArray(), [])
   const categories = useLiveQuery(async () => db.noteCategories.toArray().then((c) => c.sort((a, b) => a.name.localeCompare(b.name))), [], [])
 
   const treeMode = query.trim() === '' && selectedCategories.size === 0
@@ -122,6 +125,8 @@ export default function NotesScreen() {
     })
   }
 
+  if (notes === undefined || categories === undefined) return <ListSkeleton />
+
   return (
     <>
       <PageHeader
@@ -151,7 +156,13 @@ export default function NotesScreen() {
 
       <div className="search" style={{ marginBottom: 12 }}>
         <Search size={18} />
-        <input className="input" placeholder="Search notes..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          className="input"
+          placeholder="Search notes..."
+          aria-label="Search notes"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
       {selectedCategories.size > 0 && (
@@ -604,10 +615,16 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
           </Select>
         </Field>
 
-        <div className="segmented" style={{ alignSelf: 'flex-start' }}>
-          <button className={tab === 'Edit' ? 'active' : ''} onClick={() => setTab('Edit')} type="button">Edit</button>
-          <button className={tab === 'Preview' ? 'active' : ''} onClick={() => setTab('Preview')} type="button">Preview</button>
-        </div>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          label="Editor view"
+          style={{ alignSelf: 'flex-start' }}
+          options={[
+            { value: 'Edit', label: 'Edit' },
+            { value: 'Preview', label: 'Preview' },
+          ]}
+        />
 
         {tab === 'Edit' ? (
           <TextArea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write in markdown..." style={{ minHeight: 170 }} />
@@ -619,7 +636,7 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
           <p className="small muted">Nothing to preview</p>
         )}
 
-        <Field label="Tags">
+        <FieldGroup label="Tags">
           <div className="chip-row">
             {categories.map((cat) => (
               <button
@@ -633,7 +650,7 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
             ))}
           </div>
           {categories.length === 0 && <span className="tiny muted">Create tags from the Notes screen.</span>}
-        </Field>
+        </FieldGroup>
       </div>
     </Dialog>
   )

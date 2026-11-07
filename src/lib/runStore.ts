@@ -555,14 +555,18 @@ export async function saveRun({
     ),
     distanceMeters: distance,
     isManualDistance,
-    points: state.points,
     notes: notes.trim(),
     groupId: null,
     sortOrder,
     createdAt: endedAt,
   }
 
-  const id = (await db.runs.add(session)) as number
+  const points = state.points.slice()
+  const id = await db.transaction('rw', db.runs, db.runTracks, async () => {
+    const runId = (await db.runs.add(session)) as number
+    if (points.length > 0) await db.runTracks.put({ runId, points })
+    return runId
+  })
   discardRun()
   return id
 }
@@ -646,13 +650,17 @@ export async function saveRecoveredRun(notes = ''): Promise<number | null> {
     durationSeconds: Math.max(0, Math.round(snapshot.elapsedSeconds ?? 0)),
     distanceMeters: Math.max(0, Number(snapshot.distanceMeters ?? 0)),
     isManualDistance: false,
-    points: Array.isArray(snapshot.points) ? snapshot.points : [],
     notes: notes.trim(),
     groupId: null,
     sortOrder: await nextRunSortOrder(),
     createdAt: Date.now(),
   }
-  const id = (await db.runs.add(session)) as number
+  const points = Array.isArray(snapshot.points) ? snapshot.points : []
+  const id = await db.transaction('rw', db.runs, db.runTracks, async () => {
+    const runId = (await db.runs.add(session)) as number
+    if (points.length > 0) await db.runTracks.put({ runId, points })
+    return runId
+  })
   discardRun()
   return id
 }

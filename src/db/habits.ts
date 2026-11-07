@@ -81,9 +81,7 @@ export function computeStreak(habit: Habit, today: Date = new Date()): number {
   }
 
   let streak = 0
-  let guard = 0
-  while (cursor >= created && guard < 3660) {
-    guard++
+  while (cursor >= created) {
     if (!isScheduledOn(habit, cursor)) {
       cursor = addDays(cursor, -1)
       continue
@@ -111,9 +109,9 @@ export function computeBestStreak(habit: Habit, today: Date = new Date()): numbe
   let best = 0
   let run = 0
   let cursor = created
-  let guard = 0
-  while (cursor <= end && guard < 3660) {
-    guard++
+  // A day-by-day scan is cheap even for decade-old habits; the old 10-year
+  // guard silently under-reported the best streak for older data.
+  while (cursor <= end) {
     if (isScheduledOn(habit, cursor)) {
       const cursorKey = toDateKey(cursor)
       if (habit.skippedDates?.[cursorKey]) {
@@ -130,11 +128,21 @@ export function computeBestStreak(habit: Habit, today: Date = new Date()): numbe
   return best
 }
 
+/**
+ * Best-streak writes are monotonic: once a stored value exists, only the
+ * current streak can raise it. A full history scan is therefore needed only
+ * for legacy/imported rows whose `bestStreak` was never computed.
+ */
+export function nextBestStreak(previous: Habit, next: Habit, streak: number): number {
+  if ((previous.bestStreak ?? 0) > 0) return Math.max(previous.bestStreak, streak)
+  return Math.max(computeBestStreak(next), streak)
+}
+
 export async function refreshHabitStats(habitId: number): Promise<void> {
   const habit = await db.habits.get(habitId)
   if (!habit) return
   const streak = computeStreak(habit)
-  const best = Math.max(habit.bestStreak, computeBestStreak(habit), streak)
+  const best = nextBestStreak(habit, habit, streak)
   if (streak !== habit.currentStreak || best !== habit.bestStreak) {
     await db.habits.update(habitId, { currentStreak: streak, bestStreak: best })
   }
@@ -171,9 +179,14 @@ export async function toggleHabitForDate(
   } else {
     history[dateKey] = completed
     if (completed) {
-      // Clear the sticky late flag when it's no longer late.
-      if (deadlinePassedFor(habit, fromDateKey(dateKey), new Date())) late.add(dateKey)
-      else late.delete(dateKey)
+      // "Done" means on time. Only today's check can still be late implicitly;
+      // past days use the explicit "Done late" action so the two chips stay
+      // distinguishable in history.
+      if (dateKey === todayKey && deadlinePassedFor(habit, fromDateKey(dateKey), new Date())) {
+        late.add(dateKey)
+      } else {
+        late.delete(dateKey)
+      }
     } else {
       late.delete(dateKey)
     }
@@ -186,7 +199,7 @@ export async function toggleHabitForDate(
     skippedDates,
   }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: [...late],
@@ -210,7 +223,7 @@ export async function completeHabitLate(habitId: number, dateKey: string): Promi
     skippedDates,
   }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: [...late],
@@ -234,7 +247,7 @@ export async function setHabitMissed(habitId: number, dateKey: string): Promise<
     skippedDates,
   }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: late,
@@ -259,7 +272,7 @@ export async function setHabitSkipped(habitId: number, dateKey: string): Promise
     skippedDates,
   }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: late,
@@ -285,7 +298,7 @@ export async function setHabitPending(habitId: number, dateKey: string): Promise
     skippedDates,
   }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     lateCompletions: late,
@@ -307,16 +320,19 @@ export async function markMissedDays(habitId: number): Promise<void> {
   const history = { ...habit.completionHistory }
   let changed = false
 
-  let cursor = created
+  // Fill backwards from yesterday so an old habit gets its *recent* history
+  // marked, not the first two years after creation. The guard bounds the work
+  // for very old data.
+  let cursor = addDays(today, -1)
   let guard = 0
-  while (cursor < today && guard < 732) {
+  while (cursor >= created && guard < 732) {
     guard++
     const key = toDateKey(cursor)
     if (isScheduledOn(habit, cursor) && !(key in history) && !habit.skippedDates?.[key]) {
       history[key] = false
       changed = true
     }
-    cursor = addDays(cursor, 1)
+    cursor = addDays(cursor, -1)
   }
 
   if (!changed) {
@@ -325,7 +341,7 @@ export async function markMissedDays(habitId: number): Promise<void> {
   }
   const next: Habit = { ...habit, completionHistory: history }
   const streak = computeStreak(next)
-  const best = Math.max(habit.bestStreak, computeBestStreak(next), streak)
+  const best = nextBestStreak(habit, next, streak)
   await db.habits.update(habitId, {
     completionHistory: history,
     currentStreak: streak,

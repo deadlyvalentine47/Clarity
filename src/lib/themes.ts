@@ -176,7 +176,9 @@ export function applyTheme(themeName: string, mode: ThemeMode, systemPrefersDark
   // Darken status colours on light surfaces (text on pale containers) and give
   // primary buttons a stronger fill so white text keeps its contrast.
   const statusText = (hex: string, weight: number) => (dark ? hex : mix(hex, '#000000', weight))
-  const primaryStrong = dark ? palette.primary : mix(palette.primary, '#000000', 0.2)
+  // 0.24 keeps white label text above WCAG AA 4.5:1 on every light palette
+  // (Sunset was 4.46 at 0.20).
+  const primaryStrong = dark ? palette.primary : mix(palette.primary, '#000000', 0.24)
 
   const vars: Record<string, string> = {
     '--primary': palette.primary,
