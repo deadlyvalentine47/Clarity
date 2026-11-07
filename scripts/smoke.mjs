@@ -75,10 +75,13 @@ const seeded = await page.evaluate(async () => {
     { name: 'Bluechip Stock', type: 'Stock', units: 20, purchasePrice: 1500, currentPrice: 1420, purchaseDate: now - 2 * day, notes: '', createdAt: now },
   ])
   await db.dayJournals.put({ date: todayKey, content: 'A focused day.', updatedAt: now })
-  await db.goals.bulkAdd([
-    { title: 'Read 12 books', description: 'One per month', type: 'Long-term', progress: 0.5, targetDate: now + 30 * day, milestones: ['Q1', 'Q2', 'Q3', 'Q4'], completedMilestones: ['Q1', 'Q2'], isCompleted: false, createdAt: now },
-    { title: 'Launch side project', description: '', type: 'Short-term', progress: 1, targetDate: null, milestones: [], completedMilestones: [], isCompleted: true, createdAt: now },
-  ])
+  const goalId = await db.goals.add({ title: 'Read 12 books', description: 'One per month', type: 'Long-term', status: 'In Progress', progress: 0.5, targetDate: now + 30 * day, milestones: [
+    { id: 'q1', text: 'Q1', note: 'Started strong.', completedAt: now - 20 * day },
+    { id: 'q2', text: 'Q2', note: '', completedAt: now - 10 * day },
+    { id: 'q3', text: 'Q3', note: '', completedAt: null },
+    { id: 'q4', text: 'Q4', note: '', completedAt: null },
+  ], isCompleted: false, createdAt: now })
+  await db.goals.add({ title: 'Launch side project', description: '', type: 'Short-term', status: 'Completed', progress: 1, targetDate: null, milestones: [], isCompleted: true, completedAt: now, createdAt: now })
   await db.events.bulkAdd([
     { title: 'Team sync', description: 'Weekly standup', startDate: now + 3600_000, endDate: now + 7200_000, category: 'Work', color: '#4A90D9', isAllDay: false, reminderTime: null, priority: 'High', dueDate: null, frequency: 'Weekly', alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
     { title: 'Dentist', description: '', startDate: now + day + 3600_000, endDate: now + day + 7200_000, category: 'Health', color: '#7B61FF', isAllDay: false, reminderTime: null, priority: null, dueDate: now + day + 3600_000, frequency: null, alternateDays: null, selectedDays: null, completionHistory: {}, createdAt: now },
@@ -102,7 +105,7 @@ const seeded = await page.evaluate(async () => {
     createdAt: now - 2 * day,
   })
   await db.runTracks.put({ runId, points: runPoints })
-  return { habitId, noteId: notes[0].id, cardId, todayKey, runId }
+  return { habitId, noteId: notes[0].id, cardId, todayKey, runId, goalId }
 })
 console.log('seeded', seeded)
 
@@ -138,6 +141,7 @@ const routes = [
   ['notes', '/notes'],
   ['note-detail', `/notes/${seeded.noteId}`],
   ['goals', '/goals'],
+  ['goal-detail', `/goals/${seeded.goalId}`],
   ['settings', '/settings'],
 ]
 

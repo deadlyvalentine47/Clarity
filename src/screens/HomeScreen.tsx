@@ -16,6 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
+import { goalProgress, goalStatus } from '../db/goals'
 import type { Event as ClarityEvent, Habit, HomeSection } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
 import { isScheduledOn, toggleHabitForDate } from '../db/habits'
@@ -183,7 +184,7 @@ export default function HomeScreen() {
   const bankBalance = totals.bankBalance
   const cardDebt = totals.cardDebt
 
-  const activeGoals = (goals ?? []).filter((g) => !g.isCompleted)
+  const activeGoals = (goals ?? []).filter((g) => goalStatus(g) !== 'Completed')
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
 
   // ---------------------------------------------------------------- today
@@ -520,9 +521,13 @@ export default function HomeScreen() {
           ) : (
             <div className="goal-mini-list">
               {activeGoals.slice(0, 2).map((goal) => {
-                const pct = Math.max(0, Math.min(1, goal.progress))
+                const pct = goalProgress(goal)
                 return (
-                  <div key={goal.id} className="goal-mini">
+                  <button
+                    key={goal.id}
+                    className="goal-mini"
+                    onClick={() => navigate(`/goals/${goal.id}`)}
+                  >
                     <div className="row-between" style={{ marginBottom: 4 }}>
                       <span className="truncate">{goal.title}</span>
                       <span className="tiny bold" style={{ color: 'var(--primary)' }}>
@@ -530,7 +535,7 @@ export default function HomeScreen() {
                       </span>
                     </div>
                     <ProgressBar value={pct} />
-                  </div>
+                  </button>
                 )
               })}
             </div>

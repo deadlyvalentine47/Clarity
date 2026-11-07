@@ -26,6 +26,7 @@ import RunDetailScreen from './screens/RunDetailScreen'
 import NotesScreen from './screens/NotesScreen'
 import NoteDetailScreen from './screens/NoteDetailScreen'
 import GoalsScreen from './screens/GoalsScreen'
+import GoalDetailScreen from './screens/GoalDetailScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import NotFoundScreen from './screens/NotFoundScreen'
 
@@ -106,6 +107,7 @@ export default function App() {
         <Route path="notes" element={<NotesScreen />} />
         <Route path="notes/:noteId" element={<NoteDetailScreen />} />
         <Route path="goals" element={<GoalsScreen />} />
+        <Route path="goals/:goalId" element={<GoalDetailScreen />} />
         <Route path="settings" element={<SettingsScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Route>

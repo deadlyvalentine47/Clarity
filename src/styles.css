@@ -420,6 +420,26 @@ p {
   box-shadow: none;
 }
 
+/* Full-width button that expands a goal milestone on the detail page. */
+.milestone-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.milestone-title .chevron {
+  color: var(--muted);
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -710,6 +730,11 @@ p {
   background: var(--surface-2);
   border-color: transparent;
   cursor: default;
+}
+
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .badge {

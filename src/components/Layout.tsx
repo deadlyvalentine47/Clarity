@@ -53,7 +53,8 @@ export default function Layout() {
     location.pathname.startsWith('/notes/') ||
     location.pathname.startsWith('/budget/') ||
     location.pathname.startsWith('/habits/') ||
-    location.pathname.startsWith('/runs/')
+    location.pathname.startsWith('/runs/') ||
+    location.pathname.startsWith('/goals/')
 
   useEffect(() => {
     if (!drawerOpen) return

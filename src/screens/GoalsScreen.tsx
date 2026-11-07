@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Flag, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronRight, Flag, Plus, X } from 'lucide-react'
 import { db } from '../db/db'
-import type { Goal, GoalType } from '../db/types'
+import type { Goal, GoalMilestone, GoalStatus } from '../db/types'
 import {
-  Checkbox,
+  GOAL_STATUSES,
+  goalProgress,
+  goalStatus,
+  milestonesDone,
+  withDerived,
+} from '../db/goals'
+import { newMilestoneId } from '../db/goalMilestones'
+import {
   ChipRow,
-  ConfirmDialog,
   Dialog,
   EmptyState,
   ListSkeleton,
@@ -18,36 +25,21 @@ import {
 } from '../components/ui'
 
 const TABS = ['Active', 'Completed'] as const
-const TYPES: GoalType[] = ['Short-term', 'Long-term']
 
 export default function GoalsScreen() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Active')
   const [showAdd, setShowAdd] = useState(false)
-  const [editing, setEditing] = useState<Goal | null>(null)
+  const navigate = useNavigate()
 
   const goals = useLiveQuery(() => db.goals.toArray(), [])
 
   const visible = (goals ?? [])
-    .filter((g) => (tab === 'Active' ? !g.isCompleted : g.isCompleted))
+    .filter((g) => (tab === 'Active' ? goalStatus(g) !== 'Completed' : goalStatus(g) === 'Completed'))
     .sort((a, b) =>
       tab === 'Active'
         ? (a.targetDate ?? Number.MAX_SAFE_INTEGER) - (b.targetDate ?? Number.MAX_SAFE_INTEGER)
         : b.createdAt - a.createdAt,
     )
-
-  const toggleMilestone = (goal: Goal, milestone: string, done: boolean) => {
-    const completedMilestones = done
-      ? [...goal.completedMilestones, milestone]
-      : goal.completedMilestones.filter((m) => m !== milestone)
-    const progress =
-      goal.milestones.length > 0 ? completedMilestones.length / goal.milestones.length : goal.progress
-    void db.goals.put({
-      ...goal,
-      completedMilestones,
-      progress,
-      isCompleted: progress >= 1,
-    })
-  }
 
   if (goals === undefined) return <ListSkeleton rows={3} />
 
@@ -73,12 +65,7 @@ export default function GoalsScreen() {
       ) : (
         <div className="stack">
           {visible.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              onEdit={() => setEditing(goal)}
-              onToggleMilestone={(m, done) => toggleMilestone(goal, m, done)}
-            />
+            <GoalCard key={goal.id} goal={goal} onOpen={() => navigate(`/goals/${goal.id}`)} />
           ))}
         </div>
       )}
@@ -88,47 +75,54 @@ export default function GoalsScreen() {
       </button>
 
       {showAdd && <GoalDialog onClose={() => setShowAdd(false)} />}
-      {editing && <GoalDialog key={editing.id} goal={editing} onClose={() => setEditing(null)} />}
     </>
   )
 }
 
-function GoalCard({
-  goal,
-  onEdit,
-  onToggleMilestone,
-}: {
-  goal: Goal
-  onEdit: () => void
-  onToggleMilestone: (milestone: string, done: boolean) => void
-}) {
-  const [showMilestones, setShowMilestones] = useState(false)
-  const [confirm, setConfirm] = useState(false)
+function GoalCard({ goal, onOpen }: { goal: Goal; onOpen: () => void }) {
+  const status = goalStatus(goal)
+  const progress = goalProgress(goal)
+  const done = milestonesDone(goal)
 
   return (
-    <div className="card">
-      <div className="row-between">
+    <div
+      className="card clickable"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${goal.title}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+    >
+      <div className="row-between" style={{ alignItems: 'flex-start' }}>
         <div className="grow" style={{ minWidth: 0 }}>
-          <div className="bold">{goal.title}</div>
-          <div className="row" style={{ gap: 8, marginTop: 2 }}>
-            <span className="badge">{goal.type}</span>
-            {goal.isCompleted && <span className="badge low">Completed</span>}
+          <div className="bold truncate">{goal.title}</div>
+          <div className="row" style={{ gap: 8, marginTop: 4 }}>
+            <span
+              className={`badge ${
+                status === 'Completed' ? 'low' : status === 'On Hold' ? 'medium' : 'primary'
+              }`}
+            >
+              {status}
+            </span>
+            {goal.milestones.length > 0 && (
+              <span className="tiny muted">
+                {done}/{goal.milestones.length} milestones
+              </span>
+            )}
           </div>
         </div>
-        <div className="row" style={{ gap: 2 }}>
-          <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="Edit goal" onClick={onEdit}>
-            <Pencil size={16} />
-          </button>
-          <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="Delete goal" onClick={() => setConfirm(true)}>
-            <Trash2 size={16} color="var(--error)" />
-          </button>
-        </div>
+        <ChevronRight size={18} className="muted" />
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <ProgressBar value={goal.progress} color={goal.isCompleted ? 'var(--success)' : undefined} />
+        <ProgressBar value={progress} color={status === 'Completed' ? 'var(--success)' : undefined} />
         <div className="row-between" style={{ marginTop: 4 }}>
-          <span className="tiny muted">{Math.round(goal.progress * 100)}% complete</span>
+          <span className="tiny muted">{Math.round(progress * 100)}% complete</span>
           {goal.targetDate && (
             <span className="tiny muted">
               by {new Date(goal.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -142,84 +136,76 @@ function GoalCard({
           {goal.description}
         </p>
       )}
-
-      {goal.milestones.length > 0 && (
-        <>
-          <button
-            className="btn btn-sm btn-outline"
-            style={{ marginTop: 12 }}
-            onClick={() => setShowMilestones((v) => !v)}
-          >
-            {showMilestones ? 'Hide' : 'Show'} milestones ({goal.completedMilestones.length}/{goal.milestones.length})
-          </button>
-
-          {showMilestones && (
-            <div style={{ marginTop: 8 }}>
-              {goal.milestones.map((m, i) => {
-                const done = goal.completedMilestones.includes(m)
-                return (
-                  <div key={`${m}-${i}`} className="row" style={{ padding: '3px 0' }}>
-                    <Checkbox checked={done} onChange={(next) => onToggleMilestone(m, next)} label={`Toggle ${m}`} />
-                    <span className={`small grow ${done ? 'strike' : ''}`}>{m}</span>
-                    {done && <Check size={14} color="var(--success)" />}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </>
-      )}
-
-      <ConfirmDialog
-        open={confirm}
-        title="Delete Goal"
-        message={`Are you sure you want to delete "${goal.title}"?`}
-        onCancel={() => setConfirm(false)}
-        onConfirm={() => {
-          if (goal.id != null) void db.goals.delete(goal.id)
-          setConfirm(false)
-        }}
-      />
     </div>
   )
 }
 
-function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
+export function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
   const editing = goal != null
   const [title, setTitle] = useState(goal?.title ?? '')
   const [description, setDescription] = useState(goal?.description ?? '')
-  const [type, setType] = useState<GoalType>(goal?.type ?? 'Short-term')
-  const [milestonesText, setMilestonesText] = useState(goal?.milestones.join('\n') ?? '')
-  const [progress, setProgress] = useState(goal?.progress ?? 0)
+  const [status, setStatus] = useState<GoalStatus>(goal ? goalStatus(goal) : 'In Progress')
+  const [milestones, setMilestones] = useState<GoalMilestone[]>(goal?.milestones ?? [])
+
+  const nextMilestones = milestones
+    .filter((m) => m.text.trim())
+    .map((m) => ({ ...m, text: m.text.trim() }))
+  const completedLocked = !(
+    nextMilestones.length > 0 && nextMilestones.every((m) => m.completedAt != null)
+  )
+
+  const updateMilestone = (index: number, value: string) =>
+    setMilestones((prev) => prev.map((m, i) => (i === index ? { ...m, text: value } : m)))
+
+  const addMilestone = (after?: number) =>
+    setMilestones((prev) => {
+      const next = [...prev]
+      next.splice(after == null ? next.length : after + 1, 0, {
+        id: newMilestoneId(),
+        text: '',
+        note: '',
+        completedAt: null,
+      })
+      return next
+    })
+
+  const removeMilestone = (index: number) =>
+    setMilestones((prev) => prev.filter((_, i) => i !== index))
 
   const save = () => {
     if (!title.trim()) return
-    const milestones = milestonesText
-      .split('\n')
-      .map((m) => m.trim())
-      .filter(Boolean)
+
     if (editing && goal) {
-      void db.goals.put({
-        ...goal,
-        title: title.trim(),
-        description: description.trim(),
-        type,
-        progress,
-        milestones,
-        completedMilestones: goal.completedMilestones.filter((m) => milestones.includes(m)),
-      })
+      // A Completed goal must still have every milestone checked.
+      const allDone =
+        nextMilestones.length > 0 && nextMilestones.every((m) => m.completedAt != null)
+      const nextStatus: GoalStatus = status === 'Completed' && !allDone ? 'In Progress' : status
+      void db.goals.put(
+        withDerived({
+          ...goal,
+          title: title.trim(),
+          description: description.trim(),
+          status: nextStatus,
+          milestones: nextMilestones,
+          completedAt: nextStatus === 'Completed' ? goal.completedAt ?? null : null,
+        }),
+      )
     } else {
-      void db.goals.add({
-        title: title.trim(),
-        description: description.trim(),
-        type,
-        progress: 0,
-        targetDate: null,
-        milestones,
-        completedMilestones: [],
-        isCompleted: false,
-        createdAt: Date.now(),
-      })
+      void db.goals.add(
+        withDerived({
+          title: title.trim(),
+          description: description.trim(),
+          // A brand-new goal has nothing checked yet, so it can't be Completed.
+          status: status === 'Completed' ? 'In Progress' : status,
+          type: 'Short-term',
+          progress: 0,
+          targetDate: null,
+          milestones: nextMilestones,
+          isCompleted: false,
+          completedAt: null,
+          createdAt: Date.now(),
+        }),
+      )
     }
     onClose()
   }
@@ -247,40 +233,64 @@ function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
         <Field label="Description">
           <TextArea value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 80 }} />
         </Field>
-        <FieldGroup label="Type">
-          <div className="row">
-            {TYPES.map((t) => (
+        <FieldGroup
+          label="Status"
+          hint={
+            completedLocked
+              ? 'Completed unlocks once every milestone is checked off'
+              : undefined
+          }
+        >
+          <div className="row wrap">
+            {GOAL_STATUSES.map((s) => (
               <button
-                key={t}
+                key={s}
                 type="button"
-                className={`chip ${type === t ? 'active' : ''}`}
-                onClick={() => setType(t)}
+                className={`chip ${status === s ? 'active' : ''}`}
+                disabled={s === 'Completed' && completedLocked}
+                onClick={() => setStatus(s)}
               >
-                {t}
+                {s}
               </button>
             ))}
           </div>
         </FieldGroup>
-        <Field label="Milestones (one per line)">
-          <TextArea
-            value={milestonesText}
-            onChange={(e) => setMilestonesText(e.target.value)}
-            placeholder={'First milestone\nSecond milestone'}
-            style={{ minHeight: 90 }}
-          />
-        </Field>
-        {editing && (
-          <Field label={`Progress: ${Math.round(progress * 100)}%`}>
-            <input
-              className="slider"
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(progress * 100)}
-              onChange={(e) => setProgress(Number(e.target.value) / 100)}
-            />
-          </Field>
-        )}
+        <FieldGroup label="Milestones">
+          <div className="stack" style={{ gap: 8 }}>
+            {milestones.length === 0 && <span className="tiny muted">No milestones yet.</span>}
+            {milestones.map((milestone, index) => (
+              <div key={milestone.id} className="row" style={{ gap: 6 }}>
+                <div className="grow">
+                  <TextInput
+                    value={milestone.text}
+                    placeholder={`Milestone ${index + 1}`}
+                    aria-label={`Milestone ${index + 1}`}
+                    onChange={(e) => updateMilestone(index, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addMilestone(index)
+                      }
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={`Remove milestone ${index + 1}`}
+                  onClick={() => removeMilestone(index)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+            <div>
+              <button type="button" className="btn btn-sm btn-outline" onClick={() => addMilestone()}>
+                <Plus size={15} /> Add milestone
+              </button>
+            </div>
+          </div>
+        </FieldGroup>
       </div>
     </Dialog>
   )

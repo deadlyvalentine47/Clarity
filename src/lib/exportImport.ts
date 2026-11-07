@@ -13,6 +13,7 @@ import type {
   DayJournal,
   Event,
   Goal,
+  GoalStatus,
   Habit,
   HabitGroup,
   Investment,
@@ -25,6 +26,7 @@ import type {
 } from '../db/types'
 import { HOME_SECTIONS, type DistanceUnit, type HomeSection, type ThemeMode } from '../db/types'
 import { eventDefaults } from '../db/events'
+import { normalizeMilestones } from '../db/goalMilestones'
 import { clearNoteImageCache } from '../db/notes'
 import { saveFileToDevice } from './native'
 import { normalizePreferences, type Preferences } from './prefs'
@@ -402,22 +404,39 @@ export async function importData(jsonText: string): Promise<ImportResult> {
       })
     }
 
-    for (const goal of arr<Goal>(raw.goals)) {
-      const { id: _id, ...rest } = goal
+    for (const goal of arr<Record<string, unknown>>(raw.goals)) {
+      const milestones = normalizeMilestones(
+        goal.milestones,
+        goal.completedMilestones,
+        goal.milestoneNotes,
+        goal.milestoneCompletedAt,
+      )
+      const status: GoalStatus =
+        goal.status === 'Completed' || goal.status === 'On Hold' || goal.status === 'In Progress'
+          ? goal.status
+          : goal.isCompleted
+            ? 'Completed'
+            : 'In Progress'
+      const done = milestones.filter((m) => m.completedAt != null).length
       await db.goals.add({
-        title: String(rest.title ?? 'Goal'),
-        description: String(rest.description ?? ''),
-        type: rest.type === 'Long-term' ? 'Long-term' : 'Short-term',
-        progress: Math.min(1, Math.max(0, Number(rest.progress ?? 0))),
-        targetDate: rest.targetDate == null ? null : Number(rest.targetDate),
-        milestones: Array.isArray(rest.milestones)
-          ? rest.milestones.filter((item) => typeof item === 'string')
-          : [],
-        completedMilestones: Array.isArray(rest.completedMilestones)
-          ? rest.completedMilestones.filter((item) => typeof item === 'string')
-          : [],
-        isCompleted: Boolean(rest.isCompleted),
-        createdAt: Number(rest.createdAt ?? Date.now()),
+        title: String(goal.title ?? 'Goal'),
+        description: String(goal.description ?? ''),
+        type: goal.type === 'Long-term' ? 'Long-term' : 'Short-term',
+        status,
+        progress:
+          status === 'Completed'
+            ? 1
+            : milestones.length > 0
+              ? Math.min(0.99, done / milestones.length)
+              : 0,
+        targetDate: goal.targetDate == null ? null : Number(goal.targetDate),
+        milestones,
+        isCompleted: status === 'Completed',
+        completedAt:
+          status === 'Completed'
+            ? (typeof goal.completedAt === 'number' ? goal.completedAt : Date.now())
+            : null,
+        createdAt: Number(goal.createdAt ?? Date.now()),
       })
     }
 
