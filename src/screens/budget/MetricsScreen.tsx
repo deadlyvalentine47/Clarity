@@ -3,10 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ChevronDown, ChevronUp, CreditCard, Landmark, LineChart } from 'lucide-react'
 import { db } from '../../db/db'
-import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, totalBankBalance } from '../../db/budget'
+import { cardPurchasesInCycle, isSelfTransfer, summarizeBudget } from '../../db/budget'
 import { monthRange } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
-import { PageHeader } from '../../components/ui'
+import { PageHeader, ListSkeleton } from '../../components/ui'
 import { MonthYearPicker } from './shared'
 
 export default function BudgetMetricsScreen() {
@@ -18,7 +18,7 @@ export default function BudgetMetricsScreen() {
   const [cardsOpen, setCardsOpen] = useState(true)
   const [investOpen, setInvestOpen] = useState(true)
 
-  const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
+  const transactions = useLiveQuery(async () => db.transactions.toArray(), [])
   const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
   const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
@@ -72,22 +72,31 @@ export default function BudgetMetricsScreen() {
     [cards, cardTxns, year, month],
   )
 
+  const totals = summarizeBudget({
+    sources: sources ?? [],
+    cardTxns: cardTxns ?? [],
+    investments: investments ?? [],
+  })
   const totalInvested = (investments ?? []).reduce((s, i) => s + i.units * i.purchasePrice, 0)
-  const totalCurrent = (investments ?? []).reduce((s, i) => s + i.units * i.currentPrice, 0)
+  const totalCurrent = totals.investmentValue
   const profitLoss = totalCurrent - totalInvested
-  const bankBalance = totalBankBalance(sources ?? [])
-  const ccOutstanding = (cards ?? []).reduce(
-    (s, card) => s + cardOutstanding((cardTxns ?? []).filter((t) => t.cardId === card.id)),
-    0,
-  )
-  // A card can be in credit (overpaid). Show debt and credit separately so a
-  // negative "debt" never appears, but keep net worth exact.
-  const ccDebt = Math.max(0, ccOutstanding)
-  const ccCredit = Math.max(0, -ccOutstanding)
-  const netWorth = bankBalance + totalCurrent + ccCredit - ccDebt
+  const bankBalance = totals.bankBalance
+  const ccDebt = totals.cardDebt
+  const ccCredit = totals.cardCredit
+  const netWorth = totals.netWorth
   const maxCategory = Math.max(...byCategory.map(([, v]) => v), 1)
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  if (
+    transactions === undefined ||
+    cards === undefined ||
+    cardTxns === undefined ||
+    investments === undefined ||
+    sources === undefined
+  ) {
+    return <ListSkeleton rows={6} />
+  }
 
   return (
     <>

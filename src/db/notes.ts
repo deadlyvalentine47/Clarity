@@ -130,10 +130,11 @@ export async function moveNote(
 }
 
 export async function deleteNoteWithDescendants(noteId: number): Promise<void> {
-  const notes = await db.notes.toArray()
-  const ids = [noteId, ...descendantIds(notes, noteId)]
-
   await db.transaction('rw', db.notes, db.noteImages, async () => {
+    // Read inside the transaction: a child added concurrently must not be
+    // orphaned by deleting a stale snapshot of the tree.
+    const notes = await db.notes.toArray()
+    const ids = [noteId, ...descendantIds(notes, noteId)]
     for (const note of notes.filter((n) => n.id != null && ids.includes(n.id))) {
       await deleteImagesInContent(note.content)
     }
@@ -165,6 +166,15 @@ export async function addChildNote(
 // ------------------------------------------------------------------ images
 
 const urlCache = new Map<string, string>()
+
+/**
+ * Drop every cached blob URL. Import replaces the note rows, and a uuid can be
+ * reused by a backup, so the old URL must not survive the restore.
+ */
+export function clearNoteImageCache(): void {
+  for (const url of urlCache.values()) URL.revokeObjectURL(url)
+  urlCache.clear()
+}
 
 export function extractImageIds(content: string): string[] {
   const ids: string[] = []

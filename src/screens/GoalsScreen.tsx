@@ -9,7 +9,9 @@ import {
   ConfirmDialog,
   Dialog,
   EmptyState,
+  ListSkeleton,
   Field,
+  FieldGroup,
   ProgressBar,
   TextArea,
   TextInput,
@@ -23,7 +25,7 @@ export default function GoalsScreen() {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<Goal | null>(null)
 
-  const goals = useLiveQuery(() => db.goals.toArray(), [], [])
+  const goals = useLiveQuery(() => db.goals.toArray(), [])
 
   const visible = (goals ?? [])
     .filter((g) => (tab === 'Active' ? !g.isCompleted : g.isCompleted))
@@ -46,6 +48,8 @@ export default function GoalsScreen() {
       isCompleted: progress >= 1,
     })
   }
+
+  if (goals === undefined) return <ListSkeleton rows={3} />
 
   return (
     <>
@@ -243,7 +247,7 @@ function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
         <Field label="Description">
           <TextArea value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 80 }} />
         </Field>
-        <Field label="Type">
+        <FieldGroup label="Type">
           <div className="row">
             {TYPES.map((t) => (
               <button
@@ -256,7 +260,7 @@ function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
               </button>
             ))}
           </div>
-        </Field>
+        </FieldGroup>
         <Field label="Milestones (one per line)">
           <TextArea
             value={milestonesText}

@@ -16,6 +16,7 @@ import { formatMoney } from '../../lib/format'
 import {
   Dialog,
   Field,
+  FieldGroup,
   IconButton,
   MoneyInput,
   TextInput,
@@ -553,7 +554,7 @@ export function TransactionDialog({
         </Field>
 
         {!editingTransfer && type === 'Expense' && payment?.kind !== 'card' && (
-          <Field label="Category *">
+          <FieldGroup label="Category *">
             <div className="chip-row wrap">
               {categoryOptions.map((name) => (
                 <button
@@ -571,11 +572,11 @@ export function TransactionDialog({
             {categoryList.length === 0 && (
               <span className="tiny muted">Add a category from Accounts → Manage first.</span>
             )}
-          </Field>
+          </FieldGroup>
         )}
 
         {editingTransfer && (
-          <Field label="From account *">
+          <FieldGroup label="From account *">
             <div className="chip-row wrap">
               {sourceList.map((s) => (
                 <button
@@ -587,11 +588,11 @@ export function TransactionDialog({
                 </button>
               ))}
             </div>
-          </Field>
+          </FieldGroup>
         )}
 
         {transferUI && (
-          <Field label="Transfer to *">
+          <FieldGroup label="Transfer to *">
             <div className="chip-row wrap">
               {transferTargets.map((s) => (
                 <button
@@ -606,11 +607,11 @@ export function TransactionDialog({
             {transferTargets.length === 0 && (
               <span className="tiny muted">Add a second bank account to transfer between.</span>
             )}
-          </Field>
+          </FieldGroup>
         )}
 
         {!editingTransfer && (
-          <Field label={editing ? 'Bank account *' : 'Account or card *'}>
+          <FieldGroup label={editing ? 'Bank account *' : 'Account or card *'}>
             <div className="stack" style={{ gap: 8 }}>
               {sourceList.length > 0 && (
                 <div>
@@ -654,7 +655,7 @@ export function TransactionDialog({
                 </span>
               )}
             </div>
-          </Field>
+          </FieldGroup>
         )}
 
         {payment?.kind === 'card' && (

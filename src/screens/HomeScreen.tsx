@@ -31,7 +31,7 @@ import {
   toggleEventCompletion,
 } from '../db/events'
 import { noteSnippet } from '../db/notes'
-import { cardOutstanding, cardPurchasesInCycle, isSelfTransfer, spendSummary, totalBankBalance } from '../db/budget'
+import { cardPurchasesInCycle, isSelfTransfer, spendSummary, summarizeBudget } from '../db/budget'
 import {
   addDays,
   endOfDay,
@@ -179,12 +179,9 @@ export default function HomeScreen() {
   const income = (transactions ?? [])
     .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
     .reduce((sum, t) => sum + t.amount, 0)
-  const bankBalance = totalBankBalance(sources ?? [])
-  const cardDebt = (cards ?? []).reduce(
-    (sum, card) =>
-      sum + Math.max(0, cardOutstanding((cardTxns ?? []).filter((t) => t.cardId === card.id))),
-    0,
-  )
+  const totals = summarizeBudget({ sources: sources ?? [], cardTxns: cardTxns ?? [] })
+  const bankBalance = totals.bankBalance
+  const cardDebt = totals.cardDebt
 
   const activeGoals = (goals ?? []).filter((g) => !g.isCompleted)
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)

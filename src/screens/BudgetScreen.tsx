@@ -15,9 +15,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
-import { totalBankBalance, cardOutstanding, dailySummary, transferPair } from '../db/budget'
+import { dailySummary, summarizeBudget, transferPair } from '../db/budget'
 import type { CreditCardTransaction, Transaction, TransactionType } from '../db/types'
-import { PageHeader, EmptyState } from '../components/ui'
+import { PageHeader, EmptyState, ListSkeleton } from '../components/ui'
 import { formatMoney } from '../lib/format'
 import { endOfDay, startOfDay } from '../lib/dates'
 import { CardTransactionDialog, ManageSourcesCategoriesDialog, TransactionDialog } from './budget/shared'
@@ -30,14 +30,13 @@ export default function BudgetScreen() {
   const [editingTxn, setEditingTxn] = useState<{ txn: Transaction; pair?: { from: string; to: string } } | null>(null)
   const [editingCardTxn, setEditingCardTxn] = useState<CreditCardTransaction | null>(null)
 
-  const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
-  const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
-  const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
-  const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
-  const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
+  const sources = useLiveQuery(async () => db.sources.toArray(), [])
+  const categories = useLiveQuery(async () => db.categories.toArray(), [])
+  const cards = useLiveQuery(async () => db.creditCards.toArray(), [])
+  const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [])
+  const investments = useLiveQuery(async () => db.investments.toArray(), [])
   const transactions = useLiveQuery(
     async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date),
-    [],
     [],
   )
   // Recent activity is scoped to today in local time; it naturally resets at
@@ -54,14 +53,14 @@ export default function BudgetScreen() {
     setEditingTxn({ txn, pair: pair ?? undefined })
   }
 
-  const bankBalance = totalBankBalance(sources ?? [])
-  const investmentValue = (investments ?? []).reduce((sum, i) => sum + i.units * i.currentPrice, 0)
-  const ccOutstanding = (cards ?? []).reduce(
-    (sum, card) =>
-      sum +
-      Math.max(0, cardOutstanding((cardTxns ?? []).filter((t) => t.cardId === card.id))),
-    0,
-  )
+  const totals = summarizeBudget({
+    sources: sources ?? [],
+    cardTxns: cardTxns ?? [],
+    investments: investments ?? [],
+  })
+  const bankBalance = totals.bankBalance
+  const investmentValue = totals.investmentValue
+  const ccDebt = totals.cardDebt
 
   const statCards = [
     {
@@ -80,9 +79,9 @@ export default function BudgetScreen() {
     },
     {
       label: 'CC Outstanding',
-      value: formatMoney(ccOutstanding),
+      value: formatMoney(ccDebt),
       icon: CreditCard,
-      tone: ccOutstanding > 0 ? 'var(--error)' : 'var(--success)',
+      tone: ccDebt > 0 ? 'var(--error)' : 'var(--success)',
       to: '/budget/cards',
     },
   ]
@@ -113,6 +112,17 @@ export default function BudgetScreen() {
       to: '/budget/metrics',
     },
   ]
+
+  if (
+    sources === undefined ||
+    categories === undefined ||
+    cards === undefined ||
+    cardTxns === undefined ||
+    investments === undefined ||
+    transactions === undefined
+  ) {
+    return <ListSkeleton rows={5} />
+  }
 
   return (
     <>

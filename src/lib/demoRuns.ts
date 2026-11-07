@@ -239,7 +239,9 @@ export async function seedDemoRuns(): Promise<SeedResult> {
       skipped += 1
       continue
     }
-    await db.runs.add(spec)
+    const { points, ...row } = spec
+    const runId = (await db.runs.add(row)) as number
+    if (points && points.length > 0) await db.runTracks.put({ runId, points })
     added += 1
   }
 
@@ -250,6 +252,11 @@ export async function seedDemoRuns(): Promise<SeedResult> {
 export async function clearDemoRuns(): Promise<number> {
   const demo = (await db.runs.toArray()).filter((run) => run.notes.startsWith(DEMO_PREFIX))
   const ids = demo.map((run) => run.id).filter((id): id is number => id != null)
-  if (ids.length > 0) await db.runs.bulkDelete(ids)
+  if (ids.length > 0) {
+    await db.transaction('rw', db.runs, db.runTracks, async () => {
+      await db.runs.bulkDelete(ids)
+      await db.runTracks.bulkDelete(ids)
+    })
+  }
   return ids.length
 }

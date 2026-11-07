@@ -22,7 +22,7 @@ import { clearAllData } from '../db/db'
 import { isNative, nativePlatform } from '../lib/native'
 import { backupStatus, type BackupStatus } from '../lib/backupScheduler'
 import { discardRun } from '../lib/runStore'
-import { ConfirmDialog, Dialog, Field, PageHeader, TextInput } from '../components/ui'
+import { CollapsibleHeader, ConfirmDialog, Dialog, Field, PageHeader, Segmented, TextInput } from '../components/ui'
 
 type ImportState =
   | { kind: 'idle' }
@@ -147,10 +147,11 @@ export default function SettingsScreen() {
       <PageHeader title="Settings" subtitle="Profile, appearance, home page and data" />
 
       <section style={{ marginBottom: 20 }}>
-        <button className="collapse-head" aria-expanded={open.profile} onClick={() => setOpen((v) => ({ ...v, profile: !v.profile }))}>
-          <span className="section-label">Profile</span>
-          <span className={`chevron ${open.profile ? 'open' : ''}`}>⌄</span>
-        </button>
+        <CollapsibleHeader
+          title="Profile"
+          open={open.profile}
+          onToggle={() => setOpen((v) => ({ ...v, profile: !v.profile }))}
+        />
         {open.profile && (
           <div className="card flush" style={{ marginTop: 8 }}>
             <button
@@ -187,10 +188,11 @@ export default function SettingsScreen() {
       </section>
 
       <section style={{ marginBottom: 20 }}>
-        <button className="collapse-head" aria-expanded={open.appearance} onClick={() => setOpen((v) => ({ ...v, appearance: !v.appearance }))}>
-          <span className="section-label">Appearance</span>
-          <span className={`chevron ${open.appearance ? 'open' : ''}`}>⌄</span>
-        </button>
+        <CollapsibleHeader
+          title="Appearance"
+          open={open.appearance}
+          onToggle={() => setOpen((v) => ({ ...v, appearance: !v.appearance }))}
+        />
 
         {open.appearance && (
           <>
@@ -206,18 +208,18 @@ export default function SettingsScreen() {
                   </div>
                 </div>
               </div>
-              <div className="segmented" style={{ marginTop: 12, width: '100%' }}>
-                {(['system', 'light', 'dark'] as ThemeMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    className={prefs.darkMode === mode ? 'active' : ''}
-                    style={{ flex: 1, textTransform: 'capitalize' }}
-                    onClick={() => setDarkMode(mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                value={prefs.darkMode}
+                onChange={setDarkMode}
+                label="Theme mode"
+                style={{ marginTop: 12, width: '100%' }}
+                itemStyle={{ flex: 1, textTransform: 'capitalize' }}
+                options={[
+                  { value: 'system', label: 'system' },
+                  { value: 'light', label: 'light' },
+                  { value: 'dark', label: 'dark' },
+                ]}
+              />
             </div>
 
             <div className="card" style={{ marginTop: 12 }}>
@@ -238,10 +240,11 @@ export default function SettingsScreen() {
       </section>
 
       <section style={{ marginBottom: 20 }}>
-        <button className="collapse-head" aria-expanded={open.home} onClick={() => setOpen((v) => ({ ...v, home: !v.home }))}>
-          <span className="section-label">Home Page</span>
-          <span className={`chevron ${open.home ? 'open' : ''}`}>⌄</span>
-        </button>
+        <CollapsibleHeader
+          title="Home Page"
+          open={open.home}
+          onToggle={() => setOpen((v) => ({ ...v, home: !v.home }))}
+        />
         {open.home && (
           <div className="card" style={{ marginTop: 8 }}>
             <p className="small muted" style={{ marginBottom: 6 }}>
@@ -264,10 +267,11 @@ export default function SettingsScreen() {
       </section>
 
       <section style={{ marginBottom: 20 }}>
-        <button className="collapse-head" aria-expanded={open.data} onClick={() => setOpen((v) => ({ ...v, data: !v.data }))}>
-          <span className="section-label">Data</span>
-          <span className={`chevron ${open.data ? 'open' : ''}`}>⌄</span>
-        </button>
+        <CollapsibleHeader
+          title="Data"
+          open={open.data}
+          onToggle={() => setOpen((v) => ({ ...v, data: !v.data }))}
+        />
         {open.data && (
           <div className="card flush" style={{ marginTop: 8 }}>
             <button

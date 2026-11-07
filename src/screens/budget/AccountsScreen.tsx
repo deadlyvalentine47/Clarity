@@ -14,28 +14,29 @@ import type { Source, Transaction } from '../../db/types'
 import { deleteSource } from '../../db/budget'
 import { formatDate } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, Field, MoneyInput, PageHeader, TextInput } from '../../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, Field, ListSkeleton, MoneyInput, PageHeader, TextInput } from '../../components/ui'
 import { ManageSourcesCategoriesDialog, Money, MultiMonthYearFilter } from './shared'
 
 export default function AccountsScreen() {
   const navigate = useNavigate()
   const now = new Date()
+  const currentYear = now.getFullYear()
   const [months, setMonths] = useState<Set<number>>(new Set([now.getMonth() + 1]))
-  const [years, setYears] = useState<Set<number>>(new Set([now.getFullYear()]))
+  const [years, setYears] = useState<Set<number>>(new Set([currentYear]))
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [showManage, setShowManage] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [deleting, setDeleting] = useState<Source | null>(null)
 
-  const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
+  const sources = useLiveQuery(async () => db.sources.toArray(), [])
   const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
   const categories = useLiveQuery(async () => db.categories.toArray(), [], [])
 
   const allYears = useMemo(() => {
-    const set = new Set<number>([now.getFullYear()])
+    const set = new Set<number>([currentYear])
     for (const t of transactions ?? []) set.add(new Date(t.date).getFullYear())
     return [...set].sort((a, b) => b - a)
-  }, [transactions, now])
+  }, [transactions, currentYear])
 
   const filtered = useMemo(
     () =>
@@ -49,6 +50,8 @@ export default function AccountsScreen() {
   const periodLabel =
     months.size === 12 ? 'All months' : months.size === 1 ? new Date(2020, [...months][0] - 1, 1).toLocaleDateString('en-US', { month: 'short' }) : `${months.size} months`
   const yearLabel = years.size === 1 ? `${[...years][0]}` : `${years.size} years`
+
+  if (sources === undefined) return <ListSkeleton rows={4} />
 
   return (
     <>

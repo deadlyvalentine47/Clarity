@@ -95,8 +95,11 @@ export default function NoteDetailScreen() {
     setUploading(true)
     try {
       const imageId = await saveNoteImage(file)
-      const cursor = areaRef.current?.selectionStart ?? editContent.length
-      const next = insertImageMarker(editContent, cursor, imageId)
+      // Read the textarea after the await: the user may have kept typing while
+      // the image was downscaled, and those keystrokes must not be discarded.
+      const latest = areaRef.current?.value ?? editContent
+      const cursor = areaRef.current?.selectionStart ?? latest.length
+      const next = insertImageMarker(latest, cursor, imageId)
       setEditContent(next.content)
       requestAnimationFrame(() => {
         areaRef.current?.focus()

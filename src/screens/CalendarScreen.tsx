@@ -23,11 +23,14 @@ import {
   skipEventOccurrence,
   toggleEventCompletion,
 } from '../db/events'
-import { MONTHS, formatTime, fromDateKey, toDateKey } from '../lib/dates'
+import { MONTHS, addDays, formatTime, fromDateKey, toDateKey } from '../lib/dates'
 import {
   ConfirmDialog,
   Dialog,
+  EmptyState,
   Field,
+  FieldGroup,
+  ListSkeleton,
   Select,
   TextArea,
   TextInput,
@@ -42,7 +45,7 @@ export default function CalendarScreen() {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<Event | null>(null)
 
-  const events = useLiveQuery(() => db.events.orderBy('startDate').toArray(), [], [])
+  const events = useLiveQuery(() => db.events.orderBy('startDate').toArray(), [])
 
   const dayEvents = useMemo(
     () =>
@@ -91,6 +94,8 @@ export default function CalendarScreen() {
     setYear(now.getFullYear())
     setSelected(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
   }
+
+  if (events === undefined) return <ListSkeleton rows={3} />
 
   return (
     <>
@@ -187,9 +192,11 @@ export default function CalendarScreen() {
       </div>
 
       {dayEvents.length === 0 ? (
-        <div className="card">
-          <div className="small muted">No events</div>
-        </div>
+        <EmptyState
+          icon={<CalendarDays size={28} />}
+          title="No events"
+          subtitle="Nothing scheduled for this day."
+        />
       ) : (
         <div className="stack">
           {dayEvents.map((e) => (
@@ -331,7 +338,11 @@ export function EventDialog({
     if (!title.trim()) return
     const start = combineDateTime(date, startTime)
     let end = combineDateTime(date, endTime)
-    if (end <= start) end = start + 3_600_000
+    if (end <= start) {
+      // An earlier end time means the occurrence runs past midnight.
+      end = combineDateTime(addDays(date, 1), endTime)
+      if (end <= start) end = start + 3_600_000
+    }
     const freq = frequency === '' ? null : (frequency as HabitFrequency)
     const history = { ...(event?.completionHistory ?? {}) }
     const key = freq ? toDateKey(date) : toDateKey(start)
@@ -435,7 +446,7 @@ export function EventDialog({
         )}
 
         {frequency === 'Custom' && (
-          <Field label="Days">
+          <FieldGroup label="Days">
             <div className="pill-list">
               {EVENT_WEEKDAY_NAMES.map((label, i) => {
                 const day = i + 1
@@ -456,7 +467,7 @@ export function EventDialog({
                 )
               })}
             </div>
-          </Field>
+          </FieldGroup>
         )}
 
         {frequency === '' && (

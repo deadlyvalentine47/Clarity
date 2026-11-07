@@ -225,8 +225,11 @@ export interface RunSession {
   distanceMeters: number
   /** true when the user typed/corrected the distance — never indexed */
   isManualDistance: boolean
-  /** downsampled: >= 5 m apart, cap 5000 */
-  points: RunPoint[]
+  /**
+   * Track is stored in `runTracks`, not on the row, so history queries stay
+   * small. Backups still embed it here; `points` is absent on DB rows.
+   */
+  points?: RunPoint[]
   notes: string
   /** run group/session id; null/undefined = shown directly in the history list */
   groupId?: number | null
@@ -236,6 +239,17 @@ export interface RunSession {
    */
   sortOrder?: number | null
   createdAt: number
+}
+
+/**
+ * The GPS/barometer track for one run. Kept apart from `RunSession` because a
+ * track can hold 5 000 points and the history list only needs the summary.
+ */
+export interface RunTrack {
+  /** primary key = the owning run's id */
+  runId: number
+  /** downsampled: >= 5 m apart, cap 5000 */
+  points: RunPoint[]
 }
 
 /** A named session that bundles several runs (walk → run → walk). */

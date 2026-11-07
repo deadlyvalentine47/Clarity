@@ -7,15 +7,17 @@ import type { CreditCard as Card } from '../../db/types'
 import { cardOutstanding, cardUsage, deleteCardCascade } from '../../db/budget'
 import { formatMoney } from '../../lib/format'
 import { ordinal } from '../../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, Field, MoneyInput, PageHeader, ProgressBar, TextInput } from '../../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, Field, ListSkeleton, MoneyInput, PageHeader, ProgressBar, TextInput } from '../../components/ui'
 
 export default function CreditCardsScreen() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
   const [deleting, setDeleting] = useState<Card | null>(null)
 
-  const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
+  const cards = useLiveQuery(async () => db.creditCards.toArray(), [])
   const txns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
+
+  if (cards === undefined) return <ListSkeleton rows={3} />
 
   return (
     <>

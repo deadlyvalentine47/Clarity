@@ -1,5 +1,5 @@
 import { db } from './db'
-import type { Event, HabitFrequency } from './types'
+import type { Event, HabitFrequency, Priority } from './types'
 import {
   addDays,
   daysBetween,
@@ -62,19 +62,6 @@ export function isEventScheduledOn(event: Event, date: Date): boolean {
   }
 }
 
-export function isEventSkipped(event: Event, date: Date): boolean {
-  return event.skippedDates?.[toDateKey(date)] === true
-}
-
-/** Does this event have an occurrence on the given local day? */
-export function eventOccursOn(event: Event, date: Date): boolean {
-  if (!event.frequency) {
-    // One-off events can span multiple days.
-    return event.startDate <= endOfDay(date.getTime()) && event.endDate >= startOfDay(date.getTime())
-  }
-  return isEventScheduledOn(event, date) && !isEventSkipped(event, date)
-}
-
 function timeOnDay(template: number, date: Date): number {
   const t = new Date(template)
   return new Date(
@@ -88,24 +75,75 @@ function timeOnDay(template: number, date: Date): number {
   ).getTime()
 }
 
+const HOUR_MS = 3_600_000
+const DAY_MS = 86_400_000
+
+/** Length of one occurrence. Overnight and multi-day spans survive recurrence. */
+export function eventDuration(event: Event): number {
+  return Math.max(HOUR_MS, event.endDate - event.startDate)
+}
+
+/**
+ * The recurring occurrence that overlaps `date`, including one that started on
+ * an earlier day (a 22:00–02:00 series appears on both days). Returns the
+ * anchor day's key so completion/skip stay attached to the start occurrence.
+ */
+function recurringOccurrence(
+  event: Event,
+  date: Date,
+): { start: number; end: number; key: string } | null {
+  if (!event.frequency) return null
+  const duration = eventDuration(event)
+  const dayStart = startOfDay(date.getTime())
+  const dayEnd = endOfDay(date.getTime())
+  const daysBack = Math.min(7, Math.ceil(duration / DAY_MS))
+  const base = fromDateKey(toDateKey(date))
+  for (let offset = 0; offset <= daysBack; offset += 1) {
+    const anchor = addDays(base, -offset)
+    if (!isEventScheduledOn(event, anchor)) continue
+    const start = timeOnDay(event.startDate, anchor)
+    const end = start + duration
+    if (start < dayEnd && end > dayStart) {
+      return { start, end, key: toDateKey(anchor) }
+    }
+  }
+  return null
+}
+
+export function isEventSkipped(event: Event, date: Date): boolean {
+  if (!event.frequency) return false
+  const key = recurringOccurrence(event, date)?.key ?? toDateKey(date)
+  return event.skippedDates?.[key] === true
+}
+
+/** Does this event have an occurrence on the given local day? */
+export function eventOccursOn(event: Event, date: Date): boolean {
+  if (!event.frequency) {
+    // One-off events can span multiple days.
+    return event.startDate <= endOfDay(date.getTime()) && event.endDate >= startOfDay(date.getTime())
+  }
+  return recurringOccurrence(event, date) != null && !isEventSkipped(event, date)
+}
+
 /** Start/end for the occurrence on `date`, plus its completion key. */
 export function eventOccurrence(event: Event, date: Date): { start: number; end: number; key: string } {
   if (!event.frequency) {
     return { start: event.startDate, end: event.endDate, key: toDateKey(event.startDate) }
   }
+  const occurrence = recurringOccurrence(event, date)
+  if (occurrence) return occurrence
   const start = timeOnDay(event.startDate, date)
-  let end = timeOnDay(event.endDate, date)
-  if (end <= start) end = start + 3_600_000
-  return { start, end, key: toDateKey(date) }
+  return { start, end: start + eventDuration(event), key: toDateKey(date) }
 }
 
 export function eventCompletionKey(event: Event, date: Date): string {
-  return event.frequency ? toDateKey(date) : toDateKey(event.startDate)
+  if (!event.frequency) return toDateKey(event.startDate)
+  return recurringOccurrence(event, date)?.key ?? toDateKey(date)
 }
 
 /** Due day: the explicit deadline for one-off events, occurrence day otherwise. */
 export function eventDueKey(event: Event, date: Date): string {
-  if (event.frequency) return toDateKey(date)
+  if (event.frequency) return eventCompletionKey(event, date)
   return toDateKey(event.dueDate ?? event.endDate)
 }
 
@@ -125,7 +163,7 @@ export function eventStatus(event: Event, date: Date, now: Date = new Date()): E
 export async function skipEventOccurrence(eventId: number, date: Date): Promise<void> {
   const event = await db.events.get(eventId)
   if (!event || !event.frequency) return
-  const key = toDateKey(date)
+  const key = eventCompletionKey(event, date)
   const skippedDates = { ...(event.skippedDates ?? {}), [key]: true }
   const completionHistory = { ...(event.completionHistory ?? {}) }
   delete completionHistory[key]
@@ -166,7 +204,7 @@ export function overdueOccurrences(event: Event, now: Date = new Date()): Date[]
     if (
       isEventScheduledOn(event, day) &&
       !isEventSkipped(event, day) &&
-      event.completionHistory?.[toDateKey(day)] !== true
+      event.completionHistory?.[eventCompletionKey(event, day)] !== true
     ) {
       missed.push(new Date(timeOnDay(event.startDate, day)))
     }
@@ -192,7 +230,7 @@ export function nextEventOccurrence(event: Event, from: Date): Date | null {
     if (
       isEventScheduledOn(event, day) &&
       !isEventSkipped(event, day) &&
-      event.completionHistory?.[toDateKey(day)] !== true
+      event.completionHistory?.[eventCompletionKey(event, day)] !== true
     ) {
       return new Date(timeOnDay(event.startDate, day))
     }
@@ -215,22 +253,61 @@ export function eventFrequencyLabel(event: Event): string {
 }
 
 /** Normalise a backup event (old backups have none of the task fields). */
+const EVENT_PRIORITIES = new Set<Priority>(['High', 'Medium', 'Low'])
+const EVENT_FREQUENCY_VALUES = new Set<HabitFrequency>([
+  'Daily',
+  'Weekly',
+  'Monthly',
+  'Alternate',
+  'Custom',
+])
+
+const finiteOr = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback
+
+/**
+ * Normalise a row from a backup before it reaches the UI. Every field is
+ * rebuilt explicitly so an unknown/typed-wrong key in the JSON cannot leak
+ * into stored records.
+ */
 export function eventDefaults(event: Partial<Event>): Event {
-  const startDate = Number(event.startDate ?? Date.now())
+  const startDate = finiteOr(event.startDate, Date.now())
+  const priority =
+    typeof event.priority === 'string' && EVENT_PRIORITIES.has(event.priority as Priority)
+      ? (event.priority as Priority)
+      : null
+  const frequency =
+    typeof event.frequency === 'string' &&
+    EVENT_FREQUENCY_VALUES.has(event.frequency as HabitFrequency)
+      ? (event.frequency as HabitFrequency)
+      : null
   return {
     title: String(event.title ?? 'Event'),
     description: String(event.description ?? ''),
     startDate,
-    endDate: Number(event.endDate ?? startDate + 3_600_000),
+    endDate: finiteOr(event.endDate, startDate + 3_600_000),
     category: String(event.category ?? ''),
     color: String(event.color ?? '#4A90D9'),
     isAllDay: Boolean(event.isAllDay),
-    reminderTime: event.reminderTime ?? null,
-    priority: event.priority ?? null,
-    dueDate: event.dueDate ?? null,
-    frequency: event.frequency ?? null,
-    alternateDays: event.alternateDays ?? null,
-    selectedDays: Array.isArray(event.selectedDays) ? event.selectedDays : null,
+    reminderTime:
+      typeof event.reminderTime === 'number' && Number.isFinite(event.reminderTime)
+        ? event.reminderTime
+        : null,
+    priority,
+    dueDate:
+      typeof event.dueDate === 'number' && Number.isFinite(event.dueDate)
+        ? event.dueDate
+        : null,
+    frequency,
+    alternateDays:
+      typeof event.alternateDays === 'number' && event.alternateDays >= 1
+        ? Math.floor(event.alternateDays)
+        : null,
+    selectedDays: Array.isArray(event.selectedDays)
+      ? event.selectedDays.filter(
+          (day): day is number => Number.isInteger(day) && day >= 1 && day <= 7,
+        )
+      : null,
     completionHistory:
       event.completionHistory && typeof event.completionHistory === 'object'
         ? event.completionHistory
@@ -239,6 +316,6 @@ export function eventDefaults(event: Partial<Event>): Event {
       event.skippedDates && typeof event.skippedDates === 'object'
         ? event.skippedDates
         : {},
-    createdAt: Number(event.createdAt ?? Date.now()),
+    createdAt: finiteOr(event.createdAt, Date.now()),
   }
 }

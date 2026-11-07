@@ -10,9 +10,12 @@ import {
   ConfirmDialog,
   Dialog,
   EmptyState,
+  ListSkeleton,
   Field,
+  FieldGroup,
   MoneyInput,
   PageHeader,
+  Segmented,
   TextArea,
   TextInput,
 } from '../../components/ui'
@@ -28,7 +31,7 @@ export default function InvestmentsScreen() {
   const [editing, setEditing] = useState<Investment | null>(null)
   const [deleting, setDeleting] = useState<Investment | null>(null)
 
-  const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
+  const investments = useLiveQuery(async () => db.investments.toArray(), [])
 
   const totalInvested = (investments ?? []).reduce((s, i) => s + i.units * i.purchasePrice, 0)
   const totalCurrent = (investments ?? []).reduce((s, i) => s + i.units * i.currentPrice, 0)
@@ -53,6 +56,8 @@ export default function InvestmentsScreen() {
 
   const maxAllocation = Math.max(...allocation.map(([, v]) => v), 1)
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  if (investments === undefined) return <ListSkeleton rows={4} />
 
   return (
     <>
@@ -108,10 +113,15 @@ export default function InvestmentsScreen() {
       )}
 
       <div className="row-between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <div className="segmented">
-          <button className={scope === 'month' ? 'active' : ''} onClick={() => setScope('month')}>This month</button>
-          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>All</button>
-        </div>
+        <Segmented
+          value={scope}
+          onChange={setScope}
+          label="Investment period"
+          options={[
+            { value: 'month', label: 'This month' },
+            { value: 'all', label: 'All' },
+          ]}
+        />
         {scope === 'month' && <MonthYearPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m) }} />}
         {scope === 'all' && <span className="small muted">{(investments ?? []).length} holdings</span>}
       </div>
@@ -258,7 +268,7 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
         <Field label="Name *">
           <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nifty 50 Index Fund" />
         </Field>
-        <Field label="Type *">
+        <FieldGroup label="Type *">
           <div className="chip-row">
             {INVESTMENT_TYPES.map((t) => (
               <button key={t} className={`chip ${type === t ? 'active' : ''}`} onClick={() => setType(t)}>
@@ -266,7 +276,7 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
               </button>
             ))}
           </div>
-        </Field>
+        </FieldGroup>
         <div className="grid-2">
           <Field label="Units *">
             <TextInput type="number" inputMode="decimal" step="any" value={units} onChange={(e) => setUnits(e.target.value)} />

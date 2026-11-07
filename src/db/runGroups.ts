@@ -167,7 +167,15 @@ export async function createRunGroup(name: string, runIds: number[]): Promise<nu
 
     const rows = buildRunRows(runs, groups)
     let insertAt = rows.findIndex((row) => row.kind === 'run' && ids.has(row.run.id!))
-    if (insertAt < 0) insertAt = 0
+    if (insertAt < 0) {
+      // Every selected run was nested inside another session: take that
+      // session's place instead of jumping to the top of the list.
+      const nested = members.find((run) => run.groupId != null)
+      const container = nested
+        ? rows.findIndex((row) => row.kind === 'group' && row.group.id === nested.groupId)
+        : -1
+      insertAt = container >= 0 ? container : 0
+    }
     const remaining = rows.filter((row) => !(row.kind === 'run' && ids.has(row.run.id!)))
     remaining.splice(Math.min(insertAt, remaining.length), 0, { kind: 'group', group, runs: [] })
 
@@ -361,6 +369,18 @@ export async function moveTopLevelRunByOffset(item: RunItem, delta: -1 | 1): Pro
     const [moved] = rows.splice(index, 1)
     rows.splice(next, 0, moved)
     await renumberTop(rows)
+  })
+}
+
+/**
+ * Delete a run, its GPS track and any session that is left empty. Deleting a
+ * run from the detail screen must not leave an unreachable runGroup behind.
+ */
+export async function deleteRun(runId: number): Promise<void> {
+  await db.transaction('rw', db.runs, db.runTracks, db.runGroups, async () => {
+    await db.runs.delete(runId)
+    await db.runTracks.delete(runId)
+    await pruneEmptyGroups()
   })
 }
 

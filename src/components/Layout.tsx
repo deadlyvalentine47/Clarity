@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -45,6 +45,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const drawerRef = useRef<HTMLElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -56,9 +57,39 @@ export default function Layout() {
 
   useEffect(() => {
     if (!drawerOpen) return
+    const node = drawerRef.current
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const focusables = () =>
+      node
+        ? Array.from(
+            node.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : []
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDrawerOpen(false)
+      if (e.key === 'Escape') {
+        setDrawerOpen(false)
+        return
+      }
+      if (e.key !== 'Tab') return
+      const els = focusables()
+      if (els.length === 0) return
+      const first = els[0]
+      const last = els[els.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey) {
+        if (active === first || !node?.contains(active)) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else if (active === last || !node?.contains(active)) {
+        e.preventDefault()
+        first.focus()
+      }
     }
+
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -66,6 +97,7 @@ export default function Layout() {
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      previouslyFocused?.focus?.()
     }
   }, [drawerOpen])
 
@@ -99,7 +131,13 @@ export default function Layout() {
       {drawerOpen && (
         <>
           <div className="drawer-scrim" aria-hidden="true" onClick={() => setDrawerOpen(false)} />
-          <nav className="drawer" aria-label="Main navigation">
+          <nav
+            className="drawer"
+            role="dialog"
+            aria-label="Main navigation"
+            aria-modal="true"
+            ref={drawerRef}
+          >
             <div className="brand">Clarity</div>
             <NavList onNavigate={() => setDrawerOpen(false)} />
           </nav>

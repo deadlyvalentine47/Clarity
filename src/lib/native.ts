@@ -248,7 +248,8 @@ export async function stopBarometer(): Promise<void> {
  */
 export function registerBackButton(onExit: () => void): () => void {
   if (!isNative()) return () => {}
-  let remove: (() => void) | undefined
+  let disposed = false
+  let handle: { remove: () => void } | null = null
   void CapacitorApp.addListener('backButton', () => {
     const hash = window.location.hash
     const atHome = hash === '' || hash === '#/' || hash === '#'
@@ -261,10 +262,17 @@ export function registerBackButton(onExit: () => void): () => void {
     window.setTimeout(() => {
       if (window.location.hash === hash) window.location.hash = '#/'
     }, 200)
-  }).then((handle) => {
-    remove = () => void handle.remove()
+  }).then((registered) => {
+    // The component may have unmounted before the async listener resolved
+    // (React 19 StrictMode double-mount). Remove it immediately in that case.
+    if (disposed) void registered.remove()
+    else handle = registered
   })
-  return () => remove?.()
+  return () => {
+    disposed = true
+    void handle?.remove()
+    handle = null
+  }
 }
 
 export async function exitApp(): Promise<void> {

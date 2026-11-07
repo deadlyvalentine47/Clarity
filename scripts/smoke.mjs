@@ -98,10 +98,10 @@ const seeded = await page.evaluate(async () => {
     durationSeconds: 1800,
     distanceMeters: 5000,
     isManualDistance: false,
-    points: runPoints,
     notes: 'Morning loop',
     createdAt: now - 2 * day,
   })
+  await db.runTracks.put({ runId, points: runPoints })
   return { habitId, noteId: notes[0].id, cardId, todayKey, runId }
 })
 console.log('seeded', seeded)

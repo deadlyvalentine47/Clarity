@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { db } from '../db/db'
+import { deleteRun } from '../db/runGroups'
 import type { DistanceUnit } from '../db/types'
 import { usePreferences } from '../context/PreferencesContext'
 import { formatDateTime } from '../lib/dates'
@@ -15,7 +16,7 @@ import {
   splitSeconds,
 } from '../lib/geo'
 import { altitudeSource, altitudeStats, hasAltitude } from '../lib/route3d'
-import { ConfirmDialog, EmptyState, Field, PageHeader, TextArea, TextInput } from '../components/ui'
+import { ConfirmDialog, EmptyState, Field, PageHeader, Segmented, TextArea, TextInput } from '../components/ui'
 import RouteMap from '../components/RouteMap'
 import RouteMap3D from '../components/RouteMap3D'
 import ElevationProfile from '../components/ElevationProfile'
@@ -32,6 +33,12 @@ export default function RunDetailScreen() {
     [id],
     undefined,
   )
+  const track = useLiveQuery(
+    async () => (Number.isFinite(id) ? db.runTracks.get(id) : undefined),
+    [id],
+    undefined,
+  )
+  const points = track?.points ?? []
 
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
@@ -47,15 +54,14 @@ export default function RunDetailScreen() {
   }, [run?.id, run?.name, run?.notes, detailsFor])
 
   const splits = useMemo(
-    () =>
-      run && !run.isManualDistance ? splitSeconds(run.points ?? [], unit) : [],
-    [run, unit],
+    () => (run && !run.isManualDistance ? splitSeconds(points, unit) : []),
+    [run, points, unit],
   )
 
   const [routeView, setRouteView] = useState<'2d' | '3d' | null>(null)
   const routePoints = useMemo(
-    () => (run && !run.isManualDistance ? run.points ?? [] : []),
-    [run],
+    () => (run && !run.isManualDistance ? points : []),
+    [run, points],
   )
   const elevation = useMemo(() => altitudeStats(routePoints), [routePoints])
   const elevationSource = useMemo(() => altitudeSource(routePoints), [routePoints])
@@ -91,17 +97,15 @@ export default function RunDetailScreen() {
         wrapTitle
         actions={
           <>
-            <div className="segmented" aria-label="Distance unit">
-              {(['km', 'mi'] as DistanceUnit[]).map((option) => (
-                <button
-                  key={option}
-                  className={unit === option ? 'active' : ''}
-                  onClick={() => setDistanceUnit(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={unit}
+              onChange={setDistanceUnit}
+              label="Distance unit"
+              options={[
+                { value: 'km', label: 'km' },
+                { value: 'mi', label: 'mi' },
+              ]}
+            />
             <button
               className="btn btn-sm btn-outline"
               onClick={() => setConfirmDelete(true)}
@@ -144,17 +148,15 @@ export default function RunDetailScreen() {
           <span className="section-label">Route</span>
           <div className="row" style={{ gap: 8 }}>
             {canShow3d && (
-              <div className="segmented" aria-label="Route view">
-                {(['2d', '3d'] as const).map((option) => (
-                  <button
-                    key={option}
-                    className={view === option ? 'active' : ''}
-                    onClick={() => setRouteView(option)}
-                  >
-                    {option.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                value={view}
+                onChange={setRouteView}
+                label="Route view"
+                options={[
+                  { value: '2d', label: '2D' },
+                  { value: '3d', label: '3D' },
+                ]}
+              />
             )}
             {run.isManualDistance && <span className="badge">Manual distance</span>}
           </div>
@@ -162,7 +164,7 @@ export default function RunDetailScreen() {
         {view === '3d' && canShow3d ? (
           <RouteMap3D points={routePoints} />
         ) : (
-          <RouteMap points={run.isManualDistance ? [] : run.points} />
+          <RouteMap points={run.isManualDistance ? [] : points} />
         )}
         {run.isManualDistance && (
           <p className="tiny muted" style={{ marginTop: 8 }}>
@@ -268,7 +270,7 @@ export default function RunDetailScreen() {
         message="This removes the run, its distance and its route from history."
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => {
-          if (run.id != null) void db.runs.delete(run.id)
+          if (run.id != null) void deleteRun(run.id)
           setConfirmDelete(false)
           navigate('/runs')
         }}

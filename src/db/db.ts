@@ -15,6 +15,7 @@ import type {
   NoteImage,
   RunGroup,
   RunSession,
+  RunTrack,
   Source,
   Transaction,
 } from './types'
@@ -36,6 +37,7 @@ export class ClarityDB extends Dexie {
   investments!: Table<Investment, number>
   dayJournals!: Table<DayJournal, string>
   runs!: Table<RunSession, number>
+  runTracks!: Table<RunTrack, number>
   runGroups!: Table<RunGroup, number>
 
   constructor() {
@@ -206,6 +208,25 @@ export class ClarityDB extends Dexie {
           .modify((h: Habit) => {
             h.skippedDates ??= {}
           })
+      })
+
+    // v10 moves the (large) GPS point arrays into their own table. A history
+    // query then decodes the summary only; route maps fetch one track at a
+    // time. Old rows keep their points until this upgrade copies them across.
+    this.version(10)
+      .stores({
+        runs: '++id, startedAt, distanceMeters, createdAt, groupId',
+        runTracks: 'runId',
+      })
+      .upgrade(async (tx) => {
+        const runs = (await tx.table('runs').toArray()) as RunSession[]
+        for (const run of runs) {
+          const { points, ...rest } = run
+          if (Array.isArray(points) && points.length > 0 && run.id != null) {
+            await tx.table('runTracks').put({ runId: run.id, points })
+          }
+          await tx.table('runs').put(rest)
+        }
       })
   }
 }

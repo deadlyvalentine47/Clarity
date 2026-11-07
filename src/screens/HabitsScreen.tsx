@@ -43,9 +43,9 @@ import {
   type TopItem,
   type TopLevelRow,
 } from '../db/habitGroups'
-import { formatDateKey, toDateKey } from '../lib/dates'
+import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
 import { useDragAutoScroll } from '../lib/dragAutoScroll'
-import { ConfirmDialog, Dialog, EmptyState, Field, PageHeader, Select, TextArea, TextInput } from '../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, Field, FieldGroup, ListSkeleton, PageHeader, Select, TextArea, TextInput } from '../components/ui'
 
 type Filter = 'Today' | 'All' | 'Archived'
 const FILTERS: Filter[] = ['Today', 'All', 'Archived']
@@ -70,10 +70,12 @@ export default function HabitsScreen() {
 
   useDragAutoScroll(dragged != null)
 
-  const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
+  const habits = useLiveQuery(async () => db.habits.toArray(), [])
   const groups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
-  const today = new Date()
-  const todayKey = toDateKey(today)
+  const todayKey = toDateKey(new Date())
+  // Derived from the day key so the memo below keeps its identity between
+  // renders instead of recomputing on every keystroke.
+  const today = useMemo(() => fromDateKey(todayKey), [todayKey])
 
   const rows = useMemo<TopLevelRow[]>(() => {
     const q = query.trim().toLowerCase()
@@ -177,6 +179,8 @@ export default function HabitsScreen() {
     onDrop: (pos: DropPos) => dropOnHabit(habit, containerGroupId, pos),
   })
 
+  if (habits === undefined || groups === undefined) return <ListSkeleton />
+
   return (
     <>
       <PageHeader
@@ -199,7 +203,13 @@ export default function HabitsScreen() {
 
       <div className="search" style={{ marginBottom: 10 }}>
         <Search size={18} />
-        <input className="input" placeholder="Search habits..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          className="input"
+          placeholder="Search habits..."
+          aria-label="Search habits"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
       <div className="chip-row" style={{ marginBottom: 14 }}>
@@ -771,7 +781,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
         )}
 
         {frequency === 'Custom' && (
-          <Field label="Days *">
+          <FieldGroup label="Days *">
             <div className="pill-list">
               {WEEKDAY_NAMES.map((label, i) => {
                 const day = i + 1
@@ -787,7 +797,7 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
                 )
               })}
             </div>
-          </Field>
+          </FieldGroup>
         )}
 
         <div className="row-between">
