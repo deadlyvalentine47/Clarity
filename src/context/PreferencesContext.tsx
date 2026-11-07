@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DistanceUnit, HomeSection, ThemeMode } from '../db/types'
 import { HOME_SECTIONS } from '../db/types'
 import {
@@ -6,8 +6,20 @@ import {
   loadPreferences,
   savePreferences,
   type Preferences,
+  type WallpaperOptions,
 } from '../lib/prefs'
-import { applyTheme } from '../lib/themes'
+import { applyTheme, isDarkNow } from '../lib/themes'
+import {
+  applyWallpaper,
+  buildWallpaperPalette,
+  deleteWallpaperBlob,
+  extractWallpaperSeed,
+  loadWallpaperBlob,
+  prepareWallpaper,
+  saveWallpaperBlob,
+  type WallpaperPalette,
+  type WallpaperSeed,
+} from '../lib/wallpaper'
 import { isNative } from '../lib/native'
 import { scheduleNightlyBackup, writeBackupSnapshot } from '../lib/backupScheduler'
 
@@ -24,6 +36,15 @@ interface PreferencesContextValue {
   moveSection: (section: HomeSection, direction: -1 | 1) => void
   setDistanceUnit: (unit: DistanceUnit) => void
   importPreferences: (prefs: Partial<Preferences>) => void
+  wallpaperUrl: string | null
+  wallpaperSeed: WallpaperSeed | null
+  wallpaperPalette: WallpaperPalette | null
+  wallpaperBusy: boolean
+  wallpaperError: string
+  setWallpaperFile: (file: File) => Promise<void>
+  removeWallpaper: () => Promise<void>
+  reloadWallpaper: () => Promise<void>
+  setWallpaperOptions: (patch: Partial<WallpaperOptions>) => void
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null)
@@ -32,6 +53,15 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<Preferences>(() => loadPreferences())
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
+
+  const [systemDark, setSystemDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
+  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null)
+  const [wallpaperSeed, setWallpaperSeed] = useState<WallpaperSeed | null>(null)
+  const [wallpaperBusy, setWallpaperBusy] = useState(false)
+  const [wallpaperError, setWallpaperError] = useState('')
+  const wallpaperUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     savePreferences(prefs)
@@ -64,13 +94,111 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer)
   }, [prefs])
 
+  // Load the stored photo once, then let the palette drive the theme.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const blob = await loadWallpaperBlob()
+        if (!blob || cancelled) return
+        const seed = await extractWallpaperSeed(blob)
+        if (cancelled) return
+        const url = URL.createObjectURL(blob)
+        wallpaperUrlRef.current = url
+        setWallpaperUrl(url)
+        setWallpaperSeed(seed)
+      } catch {
+        // A stored image that no longer decodes should not break startup.
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (wallpaperUrlRef.current) {
+        URL.revokeObjectURL(wallpaperUrlRef.current)
+        wallpaperUrlRef.current = null
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => applyTheme(prefs.theme, prefs.darkMode, media.matches)
+    const apply = () => {
+      applyTheme(prefs.theme, prefs.darkMode, media.matches)
+      applyWallpaper(wallpaperUrl, wallpaperSeed, prefs.wallpaper, isDarkNow(prefs.darkMode, media.matches))
+    }
+    const onScheme = () => {
+      setSystemDark(media.matches)
+      apply()
+    }
     apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
-  }, [prefs.theme, prefs.darkMode])
+    media.addEventListener('change', onScheme)
+    return () => media.removeEventListener('change', onScheme)
+  }, [prefs.theme, prefs.darkMode, prefs.wallpaper, wallpaperUrl, wallpaperSeed])
+
+  const wallpaperPalette = useMemo(
+    () =>
+      wallpaperSeed
+        ? buildWallpaperPalette(wallpaperSeed, isDarkNow(prefs.darkMode, systemDark))
+        : null,
+    [wallpaperSeed, prefs.darkMode, systemDark],
+  )
+
+  const setWallpaperFile = useCallback(async (file: File) => {
+    setWallpaperBusy(true)
+    setWallpaperError('')
+    try {
+      const blob = await prepareWallpaper(file)
+      const seed = await extractWallpaperSeed(blob)
+      await saveWallpaperBlob(blob, file.name)
+      const url = URL.createObjectURL(blob)
+      if (wallpaperUrlRef.current) URL.revokeObjectURL(wallpaperUrlRef.current)
+      wallpaperUrlRef.current = url
+      setWallpaperUrl(url)
+      setWallpaperSeed(seed)
+      setPrefs((current) => ({
+        ...current,
+        wallpaper: { ...current.wallpaper, enabled: true, name: file.name },
+      }))
+    } catch (error) {
+      setWallpaperError(error instanceof Error ? error.message : 'Could not set that wallpaper')
+    } finally {
+      setWallpaperBusy(false)
+    }
+  }, [])
+
+  const removeWallpaper = useCallback(async () => {
+    await deleteWallpaperBlob()
+    if (wallpaperUrlRef.current) {
+      URL.revokeObjectURL(wallpaperUrlRef.current)
+      wallpaperUrlRef.current = null
+    }
+    setWallpaperUrl(null)
+    setWallpaperSeed(null)
+    setWallpaperError('')
+    setPrefs((current) => ({
+      ...current,
+      wallpaper: { ...current.wallpaper, enabled: false, name: '' },
+    }))
+  }, [])
+
+  const reloadWallpaper = useCallback(async () => {
+    try {
+      const blob = await loadWallpaperBlob()
+      if (!blob) return
+      const seed = await extractWallpaperSeed(blob)
+      const url = URL.createObjectURL(blob)
+      if (wallpaperUrlRef.current) URL.revokeObjectURL(wallpaperUrlRef.current)
+      wallpaperUrlRef.current = url
+      setWallpaperUrl(url)
+      setWallpaperSeed(seed)
+    } catch {
+      setWallpaperError('The imported wallpaper could not be read')
+    }
+  }, [])
+
+  const setWallpaperOptions = useCallback((patch: Partial<WallpaperOptions>) => {
+    setPrefs((current) => ({ ...current, wallpaper: { ...current.wallpaper, ...patch } }))
+  }, [])
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
@@ -110,8 +238,28 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           // the user is set up — never send them back to the welcome screen.
           return { ...p, ...next, onboarded: true, sectionOrder: order, sectionEnabled: enabled }
         }),
+      wallpaperUrl,
+      wallpaperSeed,
+      wallpaperPalette,
+      wallpaperBusy,
+      wallpaperError,
+      setWallpaperFile,
+      removeWallpaper,
+      reloadWallpaper,
+      setWallpaperOptions,
     }),
-    [prefs],
+    [
+      prefs,
+      wallpaperUrl,
+      wallpaperSeed,
+      wallpaperPalette,
+      wallpaperBusy,
+      wallpaperError,
+      setWallpaperFile,
+      removeWallpaper,
+      reloadWallpaper,
+      setWallpaperOptions,
+    ],
   )
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

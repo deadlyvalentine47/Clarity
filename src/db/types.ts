@@ -80,6 +80,15 @@ export interface NoteImage {
   createdAt: number
 }
 
+/** The single user-chosen background image. Stored as a blob, never in
+ *  localStorage, so a photo does not eat the preferences quota. */
+export interface WallpaperImage {
+  id: string
+  blob: Blob
+  name: string
+  createdAt: number
+}
+
 export interface Transaction {
   id?: number
   type: TransactionType

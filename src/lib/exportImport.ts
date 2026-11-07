@@ -29,7 +29,8 @@ import { eventDefaults } from '../db/events'
 import { normalizeMilestones } from '../db/goalMilestones'
 import { clearNoteImageCache } from '../db/notes'
 import { saveFileToDevice } from './native'
-import { normalizePreferences, type Preferences } from './prefs'
+import { normalizePreferences, type Preferences, type WallpaperOptions } from './prefs'
+import { WALLPAPER_ID } from './wallpaper'
 
 export interface BackupSettings {
   username: string
@@ -38,6 +39,14 @@ export interface BackupSettings {
   sectionOrder: string[]
   sectionEnabled: string[]
   distanceUnit?: DistanceUnit
+  wallpaper?: WallpaperOptions
+}
+
+/** The wallpaper picture travels as a data URL, like note pictures. */
+export interface ExportedWallpaper {
+  data: string
+  name: string
+  createdAt: number
 }
 
 /** Note pictures travel as data URLs so a backup is self-contained. */
@@ -68,6 +77,8 @@ export interface AppData {
   /** optional: backups from before run sessions have none */
   runGroups?: RunGroup[]
   noteImages?: ExportedImage[]
+  /** optional: backups from before wallpapers have none */
+  wallpaper?: ExportedWallpaper
   settings: BackupSettings
 }
 
@@ -122,6 +133,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     runTracks,
     runGroups,
     noteImages,
+    wallpaper,
   ] = await Promise.all([
     db.habits.toArray(),
     db.habitGroups.toArray(),
@@ -141,6 +153,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.runTracks.toArray(),
     db.runGroups.toArray(),
     db.noteImages.toArray(),
+    db.wallpaper.get(WALLPAPER_ID),
   ])
   // Tracks live in their own table now, but backups keep the original
   // `runs[].points` shape so older app versions can still restore them.
@@ -173,6 +186,13 @@ export async function exportData(prefs: Preferences): Promise<string> {
         createdAt: image.createdAt,
       })),
     ),
+    wallpaper: wallpaper
+      ? {
+          data: await blobToDataUrl(wallpaper.blob),
+          name: wallpaper.name,
+          createdAt: wallpaper.createdAt,
+        }
+      : undefined,
     settings: {
       username: prefs.username,
       theme: prefs.theme,
@@ -180,6 +200,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
       sectionOrder: prefs.sectionOrder,
       sectionEnabled: prefs.sectionEnabled,
       distanceUnit: prefs.distanceUnit,
+      wallpaper: prefs.wallpaper,
     },
   }
   // Compact: a backup with note images is large enough without indentation.
@@ -244,9 +265,24 @@ export async function importData(jsonText: string): Promise<ImportResult> {
       // Images are not cleared: a backup from the old Kotlin app has none (its
       // pictures were files in clarity/pics), and wiping local ones would
       // orphan every ![img:…] marker. Images inside the backup are merged in
-      // below, keyed by uuid.
-      if (table === db.noteImages) continue
+      // below, keyed by uuid. The wallpaper follows the same rule: keep the
+      // local one unless the backup carries a replacement.
+      if (table === db.noteImages || table === db.wallpaper) continue
       await table.clear()
+    }
+
+    const wallpaper = raw.wallpaper
+    if (wallpaper && typeof wallpaper.data === 'string') {
+      const blob = dataUrlToBlob(wallpaper.data)
+      if (blob) {
+        await db.wallpaper.put({
+          id: WALLPAPER_ID,
+          blob,
+          name: typeof wallpaper.name === 'string' ? wallpaper.name : 'wallpaper',
+          createdAt: Number(wallpaper.createdAt ?? Date.now()),
+        })
+        counts.wallpaper = 1
+      }
     }
 
     const images = arr<ExportedImage>(raw.noteImages)
@@ -520,6 +556,7 @@ export async function importData(jsonText: string): Promise<ImportResult> {
     sectionOrder: (settings.sectionOrder ?? [...HOME_SECTIONS]) as HomeSection[],
     sectionEnabled: (settings.sectionEnabled ?? [...HOME_SECTIONS]) as HomeSection[],
     distanceUnit: settings.distanceUnit,
+    wallpaper: settings.wallpaper,
   })
 
   return { preferences, counts }

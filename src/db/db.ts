@@ -18,6 +18,7 @@ import type {
   RunTrack,
   Source,
   Transaction,
+  WallpaperImage,
 } from './types'
 import { normalizeMilestones } from './goalMilestones'
 
@@ -40,6 +41,7 @@ export class ClarityDB extends Dexie {
   runs!: Table<RunSession, number>
   runTracks!: Table<RunTrack, number>
   runGroups!: Table<RunGroup, number>
+  wallpaper!: Table<WallpaperImage, string>
 
   constructor() {
     super('clarity')
@@ -263,6 +265,11 @@ export class ClarityDB extends Dexie {
           })
         }
       })
+
+    // v12 stores the chosen wallpaper image as a blob (one row, id "current").
+    this.version(12).stores({
+      wallpaper: 'id',
+    })
   }
 }
 
@@ -274,6 +281,10 @@ export const db = new ClarityDB()
  */
 export async function clearAllData(): Promise<void> {
   await db.transaction('rw', db.tables, async () => {
-    for (const table of db.tables) await table.clear()
+    for (const table of db.tables) {
+      // The wallpaper is an appearance setting, like the theme: keep it.
+      if (table === db.wallpaper) continue
+      await table.clear()
+    }
   })
 }

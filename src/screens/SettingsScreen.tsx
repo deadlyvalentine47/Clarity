@@ -5,6 +5,7 @@ import {
   ChevronUp,
   Download,
   FolderDown,
+  ImagePlus,
   Moon,
   Palette,
   Ruler,
@@ -42,6 +43,14 @@ export default function SettingsScreen() {
     moveSection,
     setDistanceUnit,
     importPreferences,
+    wallpaperUrl,
+    wallpaperPalette,
+    wallpaperBusy,
+    wallpaperError,
+    setWallpaperFile,
+    removeWallpaper,
+    reloadWallpaper,
+    setWallpaperOptions,
   } = usePreferences()
 
   const [showEdit, setShowEdit] = useState(false)
@@ -62,6 +71,7 @@ export default function SettingsScreen() {
   const [clearing, setClearing] = useState(false)
   const [pendingImport, setPendingImport] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const wallpaperRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isNative()) void backupStatus().then(setBackupInfo)
@@ -88,6 +98,7 @@ export default function SettingsScreen() {
       const text = await file.text()
       const result = await importData(text)
       importPreferences(result.preferences)
+      await reloadWallpaper()
       const total = Object.values(result.counts).reduce((s, n) => s + n, 0)
       setImportState({ kind: 'success', summary: `${total} records restored across ${Object.keys(result.counts).length} tables.` })
     } catch (e) {
@@ -234,6 +245,102 @@ export default function SettingsScreen() {
                   {prefs.theme === theme.name && <Check size={18} color="var(--primary)" />}
                 </button>
               ))}
+              {wallpaperUrl && prefs.wallpaper.tint && (
+                <p className="tiny muted" style={{ marginTop: 10 }}>
+                  While a wallpaper is active its palette replaces the colour theme above.
+                </p>
+              )}
+            </div>
+
+            <div className="card" style={{ marginTop: 12 }}>
+              <div className="row-between" style={{ alignItems: 'flex-start' }}>
+                <div className="row">
+                  <div className="avatar"><ImagePlus size={20} /></div>
+                  <div>
+                    <div className="bold">Wallpaper</div>
+                    <div className="small muted">
+                      {wallpaperUrl
+                        ? prefs.wallpaper.enabled
+                          ? prefs.wallpaper.tint
+                            ? 'Colours on every screen come from this photo'
+                            : 'Shown behind the interface'
+                          : 'Saved, currently turned off'
+                        : 'Put a photo behind every screen'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  className={`btn btn-sm ${wallpaperUrl ? 'btn-outline' : 'btn-primary'}`}
+                  onClick={() => wallpaperRef.current?.click()}
+                  disabled={wallpaperBusy}
+                >
+                  {wallpaperBusy ? 'Working…' : wallpaperUrl ? 'Change' : 'Choose'}
+                </button>
+              </div>
+
+              {wallpaperUrl && (
+                <>
+                  <div
+                    className="wallpaper-preview"
+                    style={{ backgroundImage: `url("${wallpaperUrl}")` }}
+                  >
+                    {wallpaperPalette && (
+                      <div className="wallpaper-swatches" aria-hidden="true">
+                        <span className="wallpaper-swatch" style={{ background: wallpaperPalette.primary }} />
+                        <span className="wallpaper-swatch" style={{ background: wallpaperPalette.secondary }} />
+                        <span className="wallpaper-swatch" style={{ background: wallpaperPalette.surface }} />
+                        <span className="wallpaper-swatch" style={{ background: wallpaperPalette.text }} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="wallpaper-actions">
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setWallpaperOptions({ enabled: !prefs.wallpaper.enabled })}
+                    >
+                      {prefs.wallpaper.enabled ? 'Turn off' : 'Turn on'}
+                    </button>
+                    <button className="btn btn-sm btn-outline" onClick={() => void removeWallpaper()}>
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="wallpaper-row">
+                    <div className="grow">
+                      <div className="bold">Tint from wallpaper</div>
+                      <div className="small muted">Recolour the interface to match the photo</div>
+                    </div>
+                    <button
+                      className={`switch ${prefs.wallpaper.tint ? 'on' : ''}`}
+                      aria-label="Tint the interface from the wallpaper"
+                      aria-pressed={prefs.wallpaper.tint}
+                      onClick={() => setWallpaperOptions({ tint: !prefs.wallpaper.tint })}
+                    />
+                  </div>
+
+                  <div className="wallpaper-dim">
+                    <div className="row-between">
+                      <span className="small muted">Background dim</span>
+                      <span className="small muted">{Math.round(prefs.wallpaper.dim * 100)}%</span>
+                    </div>
+                    <input
+                      className="slider"
+                      type="range"
+                      min={20}
+                      max={85}
+                      step={5}
+                      value={Math.round(prefs.wallpaper.dim * 100)}
+                      onChange={(event) => setWallpaperOptions({ dim: Number(event.target.value) / 100 })}
+                      aria-label="Wallpaper dim"
+                    />
+                  </div>
+                </>
+              )}
+
+              {wallpaperError && (
+                <div className="small" style={{ color: 'var(--error)', marginTop: 8 }}>{wallpaperError}</div>
+              )}
             </div>
           </>
         )}
@@ -366,7 +473,7 @@ export default function SettingsScreen() {
         message={
           clearing
             ? 'Clearing…'
-            : 'This deletes every note, habit, transaction, goal and event. Your name, theme and home layout are kept. This cannot be undone.'
+            : 'This deletes every note, habit, transaction, goal and event. Your name, theme, wallpaper and home layout are kept. This cannot be undone.'
         }
         confirmLabel={clearing ? 'Clearing…' : 'Clear data'}
         onConfirm={() => void doClearData()}
@@ -395,6 +502,18 @@ export default function SettingsScreen() {
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) setPendingImport(file)
+          e.target.value = ''
+        }}
+      />
+
+      <input
+        ref={wallpaperRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void setWallpaperFile(file)
           e.target.value = ''
         }}
       />
