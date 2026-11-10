@@ -36,6 +36,8 @@ import { cardPurchasesInCycle, isSelfTransfer, spendSummary, summarizeBudget } f
 import {
   addDays,
   endOfDay,
+  formatDate,
+  formatLongDate,
   formatTime,
   fromDateKey,
   greetingFor,
@@ -601,7 +603,7 @@ export default function HomeScreen() {
       <header className="home-hero">
         <div className="home-hero-text">
           <div className="home-date">
-            {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {formatLongDate(now)}
           </div>
           <h1 className="home-greeting">
             {greeting}, {firstName}
@@ -744,7 +746,7 @@ function AgendaRow({
     event.priority,
     event.frequency ? eventFrequencyLabel(event) : null,
     status === 'overdue'
-      ? `Missed ${formatMissedDates(dueDates, now)}`
+      ? `Missed ${formatMissedDates(dueDates)}`
       : status === 'done'
         ? 'Done'
         : status === 'due'
@@ -808,37 +810,31 @@ function sortEventsByTime(events: ClarityEvent[]): ClarityEvent[] {
 }
 
 function formatGroupDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
+  return `${date.toLocaleDateString('en-US', { weekday: 'short' })}, ${formatDate(date)}`
 }
 
-/** "Nov 4–6, Dec 6–7" — missed due dates grouped by month, oldest first. */
-function formatMissedDates(dates: Date[], now: Date): string {
-  const groups: Array<{ key: string; label: string; days: number[] }> = []
+/** "04–06/11/2026, 06–07/12/2026" — missed due dates grouped by month, oldest first. */
+function formatMissedDates(dates: Date[]): string {
+  const groups: Array<{ key: string; suffix: string; days: number[] }> = []
   for (const date of dates) {
     const key = `${date.getFullYear()}-${date.getMonth()}`
     let group = groups[groups.length - 1]
     if (!group || group.key !== key) {
       group = {
         key,
-        label: date.toLocaleDateString('en-US', {
-          month: 'short',
-          ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
-        }),
+        suffix: `/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
         days: [],
       }
       groups.push(group)
     }
     group.days.push(date.getDate())
   }
-  return groups.map((group) => `${group.label} ${formatDayRuns(group.days)}`).join(', ')
+  return groups.map((group) => `${formatDayRuns(group.days)}${group.suffix}`).join(', ')
 }
 
-/** Collapse consecutive days into ranges: [4, 5, 6, 9] -> "4–6, 9". */
+/** Collapse consecutive days into ranges: [4, 5, 6, 9] -> "04–06, 09". */
 function formatDayRuns(days: number[]): string {
+  const pad = (day: number) => String(day).padStart(2, '0')
   const sorted = [...days].sort((a, b) => a - b)
   const parts: string[] = []
   let runStart = sorted[0]
@@ -848,10 +844,10 @@ function formatDayRuns(days: number[]): string {
       runEnd = sorted[i]
       continue
     }
-    parts.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`)
+    parts.push(runStart === runEnd ? pad(runStart) : `${pad(runStart)}–${pad(runEnd)}`)
     runStart = sorted[i]
     runEnd = sorted[i]
   }
-  parts.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`)
+  parts.push(runStart === runEnd ? pad(runStart) : `${pad(runStart)}–${pad(runEnd)}`)
   return parts.join(', ')
 }

@@ -2729,3 +2729,255 @@ p {
   gap: 6px;
   margin-top: 14px;
 }
+
+/* ---------- Note editor + markdown widgets ---------- */
+
+.ta {
+  position: relative;
+  display: block;
+}
+
+.ta > .textarea {
+  display: block;
+}
+
+.ta-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--outline);
+  font-size: 13px;
+}
+
+.slash-menu {
+  position: absolute;
+  z-index: 70;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.slash-menu-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.slash-menu-item.active,
+.slash-menu-item:hover {
+  background: var(--surface-3);
+}
+
+.slash-menu-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.slash-menu-id {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.slash-menu-hint {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.slash-menu-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.md-task,
+.md-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.md-check,
+.md-radio-dot {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  padding: 0;
+  border: 1.5px solid var(--outline);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--on-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.md-check.checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.md-check:disabled,
+.md-radio-dot:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.md-radio-dot {
+  border-radius: 50%;
+}
+
+.md-radio-dot.checked::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.md-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-task-text.done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.md-quote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--outline);
+  color: var(--muted);
+}
+
+.md-code {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre;
+}
+
+.md-code-inline {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.md-hr {
+  width: 100%;
+  margin: 8px 0;
+  border: none;
+  border-top: 1px solid var(--outline);
+}
+
+.md-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.md-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.md-table th,
+.md-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--outline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.md-link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  .slash-menu-item {
+    min-height: 44px;
+  }
+  .md-check,
+  .md-radio-dot {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ---------- Date field (always dd/mm/yyyy) ---------- */
+
+.date-field {
+  position: relative;
+  width: 100%;
+}
+
+.date-field-text {
+  padding-right: 42px;
+}
+
+.date-field-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.date-field-native {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.date-field-native::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+

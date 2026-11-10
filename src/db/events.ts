@@ -272,6 +272,36 @@ export function eventFrequencyLabel(event: Event): string {
   return event.frequency
 }
 
+/**
+ * Shift every date-keyed entry by a whole number of days. Moving a recurring
+ * series re-anchors it, so completion marks, skipped days and notes have to
+ * travel with the occurrences they belong to.
+ */
+export function shiftDateKeyMap<V>(
+  map: Record<string, V>,
+  deltaDays: number,
+): Record<string, V> {
+  if (deltaDays === 0) return { ...map }
+  const next: Record<string, V> = {}
+  for (const [key, value] of Object.entries(map)) {
+    const day = fromDateKey(key)
+    if (Number.isNaN(day.getTime())) continue
+    next[toDateKey(addDays(day, deltaDays))] = value
+  }
+  return next
+}
+
+export function shiftEventDateMaps(
+  event: Event,
+  deltaDays: number,
+): Pick<Event, 'completionHistory' | 'skippedDates' | 'eventNotes'> {
+  return {
+    completionHistory: shiftDateKeyMap(event.completionHistory ?? {}, deltaDays),
+    skippedDates: shiftDateKeyMap(event.skippedDates ?? {}, deltaDays),
+    eventNotes: shiftDateKeyMap(event.eventNotes ?? {}, deltaDays),
+  }
+}
+
 /** Normalise a backup event (old backups have none of the task fields). */
 const EVENT_PRIORITIES = new Set<Priority>(['High', 'Medium', 'Low'])
 const EVENT_FREQUENCY_VALUES = new Set<HabitFrequency>([

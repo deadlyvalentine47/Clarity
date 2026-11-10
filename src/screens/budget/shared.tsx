@@ -14,6 +14,7 @@ import type {
 import { MONTHS, MONTHS_SHORT, toDateKey } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import {
+  DateField,
   Dialog,
   Field,
   FieldGroup,
@@ -550,7 +551,7 @@ export function TransactionDialog({
           <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
         </Field>
         <Field label="Date">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateField value={date} onChange={setDate} />
         </Field>
 
         {!editingTransfer && type === 'Expense' && payment?.kind !== 'card' && (
@@ -750,7 +751,7 @@ export function CardTransactionDialog({
           <TextInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
         </Field>
         <Field label="Date">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateField value={date} onChange={setDate} />
         </Field>
         {linked && (
           <p className="tiny muted">This is the card side of a bill payment. Delete it from either side instead of editing.</p>

@@ -422,9 +422,10 @@ export default function RunScreen() {
           <Field label="Notes">
             <TextArea
               value={saveNotes}
-              onChange={(e) => setSaveNotes(e.target.value)}
+              onValueChange={setSaveNotes}
               placeholder="How did it go?"
-              style={{ minHeight: 80 }}
+              size="sm"
+              autoGrow={false}
             />
           </Field>
         </div>

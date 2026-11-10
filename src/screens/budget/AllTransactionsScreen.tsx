@@ -5,9 +5,9 @@ import { CalendarDays, ChevronLeft, ChevronRight, Wallet } from 'lucide-react'
 import { db } from '../../db/db'
 import type { CreditCardTransaction, Transaction } from '../../db/types'
 import { dailySummary, transferPair } from '../../db/budget'
-import { endOfDay, fromDateKey, MONTHS, monthRange, startOfDay, toDateKey } from '../../lib/dates'
+import { endOfDay, formatLongDate, fromDateKey, MONTHS, monthRange, startOfDay, toDateKey } from '../../lib/dates'
 import { formatMoney, plural } from '../../lib/format'
-import { EmptyState, ListSkeleton, PageHeader } from '../../components/ui'
+import { DateField, EmptyState, ListSkeleton, PageHeader } from '../../components/ui'
 import { ActivityRows, buildDailyActivity, type ActivityItem } from './ActivityList'
 import { CardTransactionDialog, MonthYearPicker, TransactionDialog } from './shared'
 
@@ -118,7 +118,7 @@ export default function AllTransactionsScreen() {
 
   const rangeLabel =
     mode === 'day'
-      ? anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      ? formatLongDate(anchor)
       : mode === 'month'
         ? `${MONTHS[month - 1]} ${year}`
         : String(year)
@@ -189,13 +189,11 @@ export default function AllTransactionsScreen() {
           )}
 
           {mode === 'day' && (
-            <input
-              className="input"
-              type="date"
-              aria-label="Date"
-              style={{ width: 'auto', minWidth: 150 }}
+            <DateField
               value={dayKey}
-              onChange={(e) => changeDay(e.target.value)}
+              onChange={changeDay}
+              ariaLabel="Date"
+              style={{ width: 150, flex: '0 0 auto' }}
             />
           )}
 
@@ -268,13 +266,7 @@ export default function AllTransactionsScreen() {
                 </div>
               )}
               <div className="row-between" style={{ margin: '0 2px 6px' }}>
-                <span className="small bold">
-                  {new Date(group.timestamp).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
+                <span className="small bold">{formatLongDate(group.timestamp)}</span>
                 <span className="tiny muted">{plural(group.items.length, 'transaction')}</span>
               </div>
               {renderRows(group.items)}

@@ -26,11 +26,13 @@ import {
   sortNotes,
 } from '../db/notes'
 import { formatDateTime } from '../lib/dates'
+import { NOTE_COMMANDS } from '../lib/slashCommands'
 import MarkdownPreview from '../components/MarkdownPreview'
 import {
   ConfirmDialog,
   Dialog,
   IconButton,
+  TextArea,
   TextInput,
 } from '../components/ui'
 
@@ -177,18 +179,22 @@ export default function NoteDetailScreen() {
               <ImagePlus size={15} /> {uploading ? 'Adding…' : 'Add image'}
             </button>
           </div>
-          <textarea
+          <TextArea
             ref={areaRef}
-            className="textarea"
             value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
+            onValueChange={setEditContent}
             placeholder="Write in markdown..."
+            size="lg"
             style={{ minHeight: '38vh' }}
+            commands={NOTE_COMMANDS}
+            onCommand={(id) => {
+              if (id === 'image') fileRef.current?.click()
+            }}
           />
           {editContent.trim() && (
             <div className="card" style={{ boxShadow: 'none', background: 'var(--surface-2)' }}>
               <div className="section-label" style={{ marginBottom: 8 }}>Preview</div>
-              <MarkdownPreview content={editContent} />
+              <MarkdownPreview content={editContent} onChange={setEditContent} />
             </div>
           )}
         </div>
@@ -204,7 +210,12 @@ export default function NoteDetailScreen() {
 
           <div className="card" style={{ marginBottom: 16 }}>
             {note.content.trim() ? (
-              <MarkdownPreview content={note.content} />
+              <MarkdownPreview
+                content={note.content}
+                onChange={(next) =>
+                  void db.notes.update(note.id!, { content: next, updatedAt: Date.now() })
+                }
+              />
             ) : (
               <p className="small muted">This note is empty. Tap the pencil to write something.</p>
             )}

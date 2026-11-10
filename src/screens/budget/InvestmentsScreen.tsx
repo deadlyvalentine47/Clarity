@@ -6,8 +6,10 @@ import { db } from '../../db/db'
 import { INVESTMENT_TYPES, type Investment } from '../../db/types'
 import { formatDate, toDateKey } from '../../lib/dates'
 import { formatMoney, formatPercent } from '../../lib/format'
+import MarkdownPreview from '../../components/MarkdownPreview'
 import {
   ConfirmDialog,
+  DateField,
   Dialog,
   EmptyState,
   ListSkeleton,
@@ -192,7 +194,11 @@ export default function InvestmentsScreen() {
                     </div>
                   </div>
 
-                  {inv.notes && <p className="small muted" style={{ marginTop: 8 }}>{inv.notes}</p>}
+                  {inv.notes && (
+                    <div className="small muted" style={{ marginTop: 8 }}>
+                      <MarkdownPreview content={inv.notes} />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -282,7 +288,7 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
             <TextInput type="number" inputMode="decimal" step="any" value={units} onChange={(e) => setUnits(e.target.value)} />
           </Field>
           <Field label="Purchase date">
-            <TextInput type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+            <DateField value={purchaseDate} onChange={setPurchaseDate} ariaLabel="Purchase date" />
           </Field>
           <Field label="Purchase price / unit *">
             <MoneyInput value={purchasePrice} onChange={setPurchasePrice} label="Purchase price" />
@@ -292,7 +298,13 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
           </Field>
         </div>
         <Field label="Notes">
-          <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" style={{ minHeight: 80 }} />
+          <TextArea
+            value={notes}
+            onValueChange={setNotes}
+            placeholder="Optional"
+            size="sm"
+            autoGrow={false}
+          />
         </Field>
       </div>
     </Dialog>

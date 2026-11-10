@@ -242,9 +242,9 @@ export default function RunDetailScreen() {
         <Field label="Notes">
           <TextArea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onValueChange={setNotes}
             placeholder="How did the run feel?"
-            style={{ minHeight: 100 }}
+            preview="below"
           />
         </Field>
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>

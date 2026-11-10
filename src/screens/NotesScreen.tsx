@@ -27,6 +27,7 @@ import {
   sortNotes,
 } from '../db/notes'
 import { formatDate } from '../lib/dates'
+import { TEXT_COMMANDS } from '../lib/slashCommands'
 import { useDragAutoScroll } from '../lib/dragAutoScroll'
 import MarkdownPreview from '../components/MarkdownPreview'
 import {
@@ -627,10 +628,17 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
         />
 
         {tab === 'Edit' ? (
-          <TextArea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write in markdown..." style={{ minHeight: 170 }} />
+          <TextArea
+            value={content}
+            onValueChange={setContent}
+            placeholder="Write in markdown..."
+            size="lg"
+            commands={TEXT_COMMANDS}
+            preview="below"
+          />
         ) : content.trim() ? (
           <div className="card" style={{ boxShadow: 'none', background: 'var(--surface-2)' }}>
-            <MarkdownPreview content={content} />
+            <MarkdownPreview content={content} onChange={setContent} />
           </div>
         ) : (
           <p className="small muted">Nothing to preview</p>

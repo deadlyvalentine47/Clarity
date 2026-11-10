@@ -32,7 +32,7 @@ import {
   type RunItem,
   type RunRow,
 } from '../db/runGroups'
-import { endOfDay, formatDateTime, MONTHS, monthRange, startOfDay, toDateKey } from '../lib/dates'
+import { endOfDay, formatDateTime, formatLongDate, MONTHS, monthRange, startOfDay, toDateKey } from '../lib/dates'
 import { plural } from '../lib/format'
 import {
   distanceLabel,
@@ -52,7 +52,7 @@ import {
   type RunStatus,
 } from '../lib/runStore'
 import { usePreferences } from '../context/PreferencesContext'
-import { Checkbox, ConfirmDialog, Dialog, EmptyState, Field, ListSkeleton, PageHeader, Segmented, TextInput } from '../components/ui'
+import { Checkbox, ConfirmDialog, DateField, Dialog, EmptyState, Field, ListSkeleton, PageHeader, Segmented, TextInput } from '../components/ui'
 import { MonthYearPicker } from './budget/shared'
 import RouteMap from '../components/RouteMap'
 
@@ -213,7 +213,7 @@ export default function RunsScreen() {
 
   const rangeLabel =
     mode === 'day'
-      ? anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      ? formatLongDate(anchor)
       : mode === 'month'
         ? `${MONTHS[month - 1]} ${year}`
         : String(year)
@@ -509,13 +509,11 @@ export default function RunsScreen() {
           )}
 
           {mode === 'day' && (
-            <input
-              className="input"
-              type="date"
-              aria-label="Date"
-              style={{ width: 'auto', minWidth: 150 }}
+            <DateField
               value={dayKey}
-              onChange={(e) => changeDay(e.target.value)}
+              onChange={changeDay}
+              ariaLabel="Date"
+              style={{ width: 150, flex: '0 0 auto' }}
             />
           )}
 

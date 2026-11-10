@@ -21,14 +21,27 @@ import {
   eventOccursOn,
   eventOccurrence,
   eventStatus,
+  shiftEventDateMaps,
   skipEventOccurrence,
   toggleEventCompletion,
   updateEventNote,
 } from '../db/events'
-import { MONTHS, addDays, formatTime, fromDateKey, toDateKey } from '../lib/dates'
 import {
-  AutoGrowTextArea,
+  MONTHS,
+  addDays,
+  combineDateTime,
+  daysBetween,
+  formatDateKey,
+  formatTime,
+  fromDateKey,
+  timeValue,
+  toDateKey,
+} from '../lib/dates'
+import { useSavedFlash } from '../hooks/useSavedFlash'
+import MarkdownPreview from '../components/MarkdownPreview'
+import {
   ConfirmDialog,
+  DateField,
   Dialog,
   EmptyState,
   Field,
@@ -190,7 +203,7 @@ export default function CalendarScreen() {
 
       <div className="row-between" style={{ marginBottom: 8 }}>
         <span className="section-label">
-          Scheduled for {selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          Scheduled for {formatDateKey(toDateKey(selected), true)}
         </span>
       </div>
 
@@ -227,18 +240,17 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
   const [confirm, setConfirm] = useState(false)
   const [expanded, setExpanded] = useState(() => eventNote(event, date).trim() !== '')
   const [note, setNote] = useState(() => eventNote(event, date))
-  const [saved, setSaved] = useState(false)
+  const [saved, flashSaved] = useSavedFlash()
   const occurrence = eventOccurrence(event, date)
   const status = eventStatus(event, date)
   const done = status === 'done'
   const storedNote = eventNote(event, date)
-  const occurrenceLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const occurrenceLabel = formatDateKey(toDateKey(date), true)
 
   const saveNote = async () => {
     if (event.id == null) return
     await updateEventNote(event.id, date, note)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1800)
+    flashSaved()
   }
 
   return (
@@ -274,7 +286,11 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
           <div className="bold" style={{ textDecoration: done ? 'line-through' : undefined }}>
             {event.title}
           </div>
-          {event.description && <div className="small muted">{event.description}</div>}
+          {event.description && (
+            <div className="small muted">
+              <MarkdownPreview content={event.description} />
+            </div>
+          )}
           <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
             {event.priority && (
               <span className={`badge ${priorityClass(event.priority)}`}>{event.priority}</span>
@@ -291,7 +307,7 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
             )}
             {!event.frequency && event.dueDate != null && (
               <span className="badge">
-                Due {new Date(event.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                Due {formatDateKey(toDateKey(event.dueDate), true)}
               </span>
             )}
           </div>
@@ -330,10 +346,11 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
       {expanded && (
         <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
           <hr className="hr" />
-          <AutoGrowTextArea
+          <TextArea
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onValueChange={setNote}
             placeholder="Notes for this day — what you're working on and what's pending"
+            preview="below"
           />
           <div className="row-between" style={{ marginTop: 6 }}>
             <span className="tiny muted">{saved ? 'Saved' : ''}</span>
@@ -374,15 +391,19 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
   )
 }
 
-function timeValue(ts: number): string {
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function combineDateTime(date: Date, time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h || 0, m || 0, 0, 0).getTime()
-}
+type EventFormFields = Pick<
+  Event,
+  | 'title'
+  | 'description'
+  | 'startDate'
+  | 'endDate'
+  | 'priority'
+  | 'dueDate'
+  | 'frequency'
+  | 'alternateDays'
+  | 'selectedDays'
+  | 'completionHistory'
+>
 
 export function EventDialog({
   event,
@@ -408,40 +429,104 @@ export function EventDialog({
   const [completed, setCompleted] = useState(
     event ? event.completionHistory?.[eventCompletionKey(event, date)] === true : false,
   )
+  // The dialog edits the occurrence the user opened, not the series anchor.
+  const initialDateKey = event
+    ? event.frequency
+      ? eventCompletionKey(event, date)
+      : toDateKey(event.startDate)
+    : toDateKey(date)
+  const [dateKey, setDateKey] = useState(initialDateKey)
+  const [moveChoice, setMoveChoice] = useState<null | {
+    fields: EventFormFields
+    delta: number
+    start: number
+    completionKey: string
+  }>(null)
 
-  const save = async () => {
-    if (!title.trim()) return
-    const start = combineDateTime(date, startTime)
-    let end = combineDateTime(date, endTime)
+  const buildFields = (): {
+    fields: EventFormFields
+    delta: number
+    completionKey: string
+  } | null => {
+    if (!title.trim() || !dateKey) return null
+    const day = fromDateKey(dateKey)
+    const freq = frequency === '' ? null : (frequency as HabitFrequency)
+    const viewedKey =
+      editing && event
+        ? event.frequency
+          ? eventCompletionKey(event, date)
+          : toDateKey(event.startDate)
+        : toDateKey(day)
+    const delta = editing && event ? daysBetween(fromDateKey(viewedKey), day) : 0
+
+    // Recurring series keep their anchor day: editing the time must not move
+    // the series. Only a changed date shifts it, by the same number of days.
+    const anchorDay = editing && event ? fromDateKey(toDateKey(event.startDate)) : day
+    const seriesDay = editing && event && freq ? addDays(anchorDay, delta) : day
+    const start = combineDateTime(seriesDay, startTime)
+    let end = combineDateTime(seriesDay, endTime)
     if (end <= start) {
       // An earlier end time means the occurrence runs past midnight.
-      end = combineDateTime(addDays(date, 1), endTime)
+      end = combineDateTime(addDays(seriesDay, 1), endTime)
       if (end <= start) end = start + 3_600_000
     }
-    const freq = frequency === '' ? null : (frequency as HabitFrequency)
-    const history = { ...(event?.completionHistory ?? {}) }
-    const key = freq ? toDateKey(date) : toDateKey(start)
-    if (editing && event && !freq) {
-      const oldKey = toDateKey(event.startDate)
-      if (oldKey !== key) delete history[oldKey]
-    }
-    if (completed) history[key] = true
-    else delete history[key]
 
-    const fields = {
-      title: title.trim(),
-      description: description.trim(),
-      startDate: start,
-      endDate: end,
-      priority: priority === '' ? null : priority,
-      dueDate: freq ? null : dueDate ? fromDateKey(dueDate).getTime() : null,
-      frequency: freq,
-      alternateDays: freq === 'Alternate' ? Math.max(1, Number(alternateDays) || 1) : null,
-      selectedDays: freq === 'Custom' ? [...selectedDays].sort((a, b) => a - b) : null,
-      completionHistory: history,
+    const key = toDateKey(start)
+    const history =
+      editing && event && freq && delta !== 0
+        ? shiftEventDateMaps(event, delta).completionHistory
+        : { ...(event?.completionHistory ?? {}) }
+
+    if (editing && event && !freq) {
+      if (viewedKey !== key) delete history[viewedKey]
     }
+
+    // A recurring event is completed per occurrence: keep the mark attached to
+    // the occurrence the dialog was opened from, shifted with the series.
+    const completionKey = freq ? toDateKey(addDays(fromDateKey(viewedKey), delta)) : key
+    if (completed) history[completionKey] = true
+    else delete history[completionKey]
+
+    // A due date the user has not edited follows the event's new day.
+    let nextDue: number | null = freq ? null : dueDate ? fromDateKey(dueDate).getTime() : null
+    if (
+      !freq &&
+      nextDue != null &&
+      delta !== 0 &&
+      event?.dueDate != null &&
+      dueDate === toDateKey(event.dueDate)
+    ) {
+      nextDue = addDays(new Date(nextDue), delta).getTime()
+    }
+
+    return {
+      delta,
+      completionKey,
+      fields: {
+        title: title.trim(),
+        description: description.trim(),
+        startDate: start,
+        endDate: end,
+        priority: priority === '' ? null : priority,
+        dueDate: nextDue,
+        frequency: freq,
+        alternateDays: freq === 'Alternate' ? Math.max(1, Number(alternateDays) || 1) : null,
+        selectedDays: freq === 'Custom' ? [...selectedDays].sort((a, b) => a - b) : null,
+        completionHistory: history,
+      },
+    }
+  }
+
+  const save = async () => {
+    const result = buildFields()
+    if (!result) return
+    const { fields, delta, completionKey } = result
 
     if (editing && event?.id != null) {
+      if (event.frequency && fields.frequency && delta !== 0) {
+        setMoveChoice({ fields, delta, start: fields.startDate, completionKey })
+        return
+      }
       await db.events.put({ ...event, ...fields })
     } else {
       await db.events.add({
@@ -458,28 +543,109 @@ export function EventDialog({
     onClose()
   }
 
+  const moveSeries = async () => {
+    if (!moveChoice || event?.id == null) return
+    const maps = shiftEventDateMaps(event, moveChoice.delta)
+    const history = { ...maps.completionHistory }
+    if (completed) history[moveChoice.completionKey] = true
+    else delete history[moveChoice.completionKey]
+    await db.events.put({
+      ...event,
+      ...moveChoice.fields,
+      completionHistory: history,
+      skippedDates: maps.skippedDates,
+      eventNotes: maps.eventNotes,
+    })
+    setMoveChoice(null)
+    onClose()
+  }
+
+  const moveOccurrence = async () => {
+    if (!moveChoice || event?.id == null) return
+    const occurrenceKey = eventCompletionKey(event, date)
+    const skippedDates = { ...(event.skippedDates ?? {}), [occurrenceKey]: true }
+    const history = { ...(event.completionHistory ?? {}) }
+    const wasDone = history[occurrenceKey] === true || completed
+    delete history[occurrenceKey]
+    await db.transaction('rw', db.events, async () => {
+      await db.events.update(event.id!, { skippedDates, completionHistory: history })
+      await db.events.add({
+        ...moveChoice.fields,
+        frequency: null,
+        alternateDays: null,
+        selectedDays: null,
+        completionHistory: wasDone ? { [toDateKey(moveChoice.start)]: true } : {},
+        category: event.category,
+        color: event.color,
+        isAllDay: event.isAllDay,
+        reminderTime: null,
+        skippedDates: {},
+        eventNotes: {},
+        createdAt: Date.now(),
+      })
+    })
+    setMoveChoice(null)
+    onClose()
+  }
+
   return (
     <Dialog
       open
       onClose={onClose}
       title={editing ? 'Edit Event' : 'Add Event'}
       footer={
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn btn-outline" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" onClick={() => void save()} disabled={!title.trim()}>
-            {editing ? 'Save' : 'Add'}
-          </button>
-        </div>
+        moveChoice ? undefined : (
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn btn-outline" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={() => void save()} disabled={!title.trim() || !dateKey}>
+              {editing ? 'Save' : 'Add'}
+            </button>
+          </div>
+        )
       }
     >
       <div className="stack">
+        {moveChoice && (
+          <div className="card" style={{ boxShadow: 'none', background: 'var(--surface-2)' }}>
+            <div className="bold">Move a repeating event</div>
+            <p className="small muted" style={{ marginTop: 4 }}>
+              “{title.trim() || event?.title}” repeats. Move the whole series to{' '}
+              {formatDateKey(dateKey, true)}, or move only this occurrence.
+            </p>
+            <div className="row wrap" style={{ marginTop: 8 }}>
+              <button className="btn btn-sm btn-primary" onClick={() => void moveSeries()}>
+                Move whole series
+              </button>
+              <button className="btn btn-sm btn-outline" onClick={() => void moveOccurrence()}>
+                Move this occurrence only
+              </button>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => {
+                  setDateKey(initialDateKey)
+                  setMoveChoice(null)
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         <Field label="Title *">
           <TextInput autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
         <Field label="Description">
-          <TextArea value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 80 }} />
+          <TextArea
+            value={description}
+            onValueChange={setDescription}
+            size="sm"
+            autoGrow={false}
+          />
+        </Field>
+        <Field label="Date">
+          <DateField value={dateKey} onChange={setDateKey} />
         </Field>
         <div className="grid-2">
           <Field label="Start time">
@@ -548,7 +714,7 @@ export function EventDialog({
 
         {frequency === '' && (
           <Field label="Due date">
-            <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <DateField value={dueDate} onChange={setDueDate} ariaLabel="Due date" />
           </Field>
         )}
 
@@ -562,9 +728,6 @@ export function EventDialog({
           />
         </div>
 
-        <div className="tiny muted">
-          {date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-        </div>
         {frequency !== '' && (
           <p className="tiny muted">
             Each occurrence is completed separately and turns overdue the day after it is missed.
