@@ -241,3 +241,7 @@ Sideloadly or Xcode using your own Apple ID, or with a developer team profile.
   location usage descriptions to `Info.plist`, provided by the same plugin
   through SPM.
 - The iOS bundle is `com.clarity.app`, version 1.4 (build 5), matching Android.
+
+## License
+
+[MIT](LICENSE) © 2026 cj
