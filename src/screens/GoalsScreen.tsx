@@ -12,6 +12,9 @@ import {
   withDerived,
 } from '../db/goals'
 import { newMilestoneId } from '../db/goalMilestones'
+import { formatDateKey, toDateKey } from '../lib/dates'
+import MarkdownPreview from '../components/MarkdownPreview'
+import { RichTextEditor } from '../components/RichTextEditor'
 import {
   ChipRow,
   Dialog,
@@ -20,7 +23,6 @@ import {
   Field,
   FieldGroup,
   ProgressBar,
-  TextArea,
   TextInput,
 } from '../components/ui'
 
@@ -125,16 +127,16 @@ function GoalCard({ goal, onOpen }: { goal: Goal; onOpen: () => void }) {
           <span className="tiny muted">{Math.round(progress * 100)}% complete</span>
           {goal.targetDate && (
             <span className="tiny muted">
-              by {new Date(goal.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              by {formatDateKey(toDateKey(goal.targetDate), true)}
             </span>
           )}
         </div>
       </div>
 
       {goal.description && (
-        <p className="small muted" style={{ marginTop: 8 }}>
-          {goal.description}
-        </p>
+        <div className="small muted" style={{ marginTop: 8 }}>
+          <MarkdownPreview content={goal.description} />
+        </div>
       )}
     </div>
   )
@@ -231,7 +233,12 @@ export function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void
           <TextInput autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Read 12 books" />
         </Field>
         <Field label="Description">
-          <TextArea value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 80 }} />
+          <RichTextEditor
+            value={description}
+            onValueChange={setDescription}
+            size="sm"
+            ariaLabel="Goal description"
+          />
         </Field>
         <FieldGroup
           label="Status"

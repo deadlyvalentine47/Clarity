@@ -20,16 +20,14 @@ import {
   IconButton,
   PageHeader,
   ProgressRing,
-  TextArea,
 } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
+import { formatDate } from '../lib/dates'
+import { stripMarkdownForSnippet } from '../lib/markdown'
 import { GoalDialog } from './GoalsScreen'
 
 function formatDay(ts: number): string {
-  return new Date(ts).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return formatDate(ts)
 }
 
 export default function GoalDetailScreen() {
@@ -62,7 +60,7 @@ export default function GoalDetailScreen() {
     <>
       <PageHeader
         title={goal.title}
-        subtitle={goal.description || undefined}
+        subtitle={goal.description ? stripMarkdownForSnippet(goal.description) : undefined}
         wrapTitle
         onBack={() => navigate('/goals')}
         actions={
@@ -206,14 +204,15 @@ function MilestoneCard({ goal, milestone }: { goal: Goal; milestone: GoalMilesto
 
           {open && (
             <div style={{ marginTop: 10 }}>
-              <TextArea
+              <RichTextEditor
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onValueChange={setDraft}
                 onBlur={() => {
                   if (draft !== note) void setMilestoneNote(goal, milestone.id, draft)
                 }}
                 placeholder="Write something about this milestone…"
-                style={{ minHeight: 80 }}
+                size="sm"
+                ariaLabel="Milestone note"
               />
             </div>
           )}

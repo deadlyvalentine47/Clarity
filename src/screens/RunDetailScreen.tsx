@@ -16,7 +16,8 @@ import {
   splitSeconds,
 } from '../lib/geo'
 import { altitudeSource, altitudeStats, hasAltitude } from '../lib/route3d'
-import { ConfirmDialog, EmptyState, Field, PageHeader, Segmented, TextArea, TextInput } from '../components/ui'
+import { ConfirmDialog, EmptyState, Field, PageHeader, Segmented, TextInput } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import RouteMap from '../components/RouteMap'
 import RouteMap3D from '../components/RouteMap3D'
 import ElevationProfile from '../components/ElevationProfile'
@@ -240,11 +241,11 @@ export default function RunDetailScreen() {
           />
         </Field>
         <Field label="Notes">
-          <TextArea
+          <RichTextEditor
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onValueChange={setNotes}
             placeholder="How did the run feel?"
-            style={{ minHeight: 100 }}
+            ariaLabel="Run notes"
           />
         </Field>
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>

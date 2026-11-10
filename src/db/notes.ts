@@ -1,5 +1,6 @@
 import { db } from './db'
 import type { Note } from './types'
+import { stripMarkdownForSnippet } from '../lib/markdown'
 
 export const NOTE_IMAGE_REGEX = /!\[img:([a-fA-F0-9-]+)\]/g
 
@@ -249,14 +250,6 @@ async function downscaleImage(file: Blob, maxSide = 1280, quality = 0.82): Promi
 
 /** Markdown/image markers stripped for compact list previews. */
 export function noteSnippet(content: string, max = 140): string {
-  const text = content
-    .replace(/!\[img:[a-fA-F0-9-]+\]/g, '[image]')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/(\*\*|__)(.*?)\1/g, '$2')
-    .replace(/(\*|_)(.*?)\1/g, '$2')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^\s*[-*+]\s+/gm, '• ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const text = stripMarkdownForSnippet(content)
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }

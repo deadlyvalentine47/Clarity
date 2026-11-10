@@ -43,9 +43,11 @@ import {
   type TopItem,
   type TopLevelRow,
 } from '../db/habitGroups'
-import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
+import { formatDateKey, formatLongDate, fromDateKey, toDateKey } from '../lib/dates'
+import { stripMarkdownForSnippet } from '../lib/markdown'
 import { useDragAutoScroll } from '../lib/dragAutoScroll'
-import { ConfirmDialog, Dialog, EmptyState, Field, FieldGroup, ListSkeleton, PageHeader, Select, TextArea, TextInput } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
+import { ConfirmDialog, Dialog, EmptyState, Field, FieldGroup, ListSkeleton, PageHeader, Select, TextInput } from '../components/ui'
 
 type Filter = 'Today' | 'All' | 'Archived'
 const FILTERS: Filter[] = ['Today', 'All', 'Archived']
@@ -185,7 +187,7 @@ export default function HabitsScreen() {
     <>
       <PageHeader
         title="Habits"
-        subtitle={today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        subtitle={formatLongDate(today)}
         actions={
           <>
             <button className="btn btn-sm btn-outline" onClick={() => setShowGroup(true)}>
@@ -559,7 +561,7 @@ function HabitCard({
           onClick={onOpen}
         >
           <div className="bold wrap-anywhere">{habit.name}</div>
-          {habit.description && <div className="small muted truncate">{habit.description}</div>}
+          {habit.description && <div className="small muted truncate">{stripMarkdownForSnippet(habit.description)}</div>}
           <div className="tiny muted" style={{ marginTop: 2 }}>
             {habitFrequencyLabel(habit)}
             {habit.deadlineHour != null && habit.deadlineMinute != null
@@ -569,7 +571,7 @@ function HabitCard({
           <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
             {isLate && <span className="badge medium">Late ✓</span>}
             {isSkipped && <span className="badge medium">Skipped ↷</span>}
-            {!isLate && missed && <span className="badge high">✗ {missed === todayKey ? 'Today' : formatDateKey(missed)}</span>}
+            {!isLate && missed && <span className="badge high">✗ {missed === todayKey ? 'Today' : formatDateKey(missed, true)}</span>}
             {deadlinePassed && !isCompleted && <span className="badge medium">Deadline passed</span>}
             {!scheduled && <span className="badge">Not scheduled today</span>}
             {habit.currentStreak > 0 && <span className="badge primary">🔥 {habit.currentStreak} day streak</span>}
@@ -750,7 +752,13 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
           <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Read 20 pages" />
         </Field>
         <Field label="Description">
-          <TextArea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" style={{ minHeight: 70 }} />
+          <RichTextEditor
+            value={description}
+            onValueChange={setDescription}
+            placeholder="Optional"
+            size="sm"
+            ariaLabel="Habit description"
+          />
         </Field>
         <Field label="Frequency">
           <Select value={frequency} onChange={(e) => setFrequency(e.target.value as HabitFrequency)}>

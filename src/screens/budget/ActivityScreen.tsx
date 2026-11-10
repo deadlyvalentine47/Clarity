@@ -5,7 +5,7 @@ import { List, Wallet } from 'lucide-react'
 import { db } from '../../db/db'
 import type { CreditCardTransaction, Transaction } from '../../db/types'
 import { dailySummary, transferPair } from '../../db/budget'
-import { endOfDay, startOfDay } from '../../lib/dates'
+import { endOfDay, formatLongDate, startOfDay } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import { EmptyState, PageHeader } from '../../components/ui'
 import { ActivityRows, buildDailyActivity } from './ActivityList'
@@ -36,12 +36,7 @@ export default function ActivityScreen() {
     <>
       <PageHeader
         title="Today's activity"
-        subtitle={now.toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
-        })}
+        subtitle={formatLongDate(now)}
         onBack={() => navigate('/budget')}
         actions={
           <button className="btn btn-sm btn-outline" onClick={() => navigate('/budget/transactions')}>

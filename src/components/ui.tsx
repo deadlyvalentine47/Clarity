@@ -6,10 +6,11 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
 } from 'react'
 import { ArrowLeft, Check, X } from 'lucide-react'
 import { formatAmountDisplay, formatMoney, formatMoneyWords, sanitizeAmountInput } from '../lib/format'
+
+export { DateField } from './DateField'
 
 export function IconButton({
   label,
@@ -120,42 +121,6 @@ export function MoneyInput({
         </div>
       )}
     </div>
-  )
-}
-
-export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className="textarea" {...props} />
-}
-
-/** Textarea that grows with its content until `maxHeight`, then scrolls. */
-export function AutoGrowTextArea({
-  value,
-  style,
-  maxHeight = '55vh',
-  ...rest
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { maxHeight?: string }) {
-  const ref = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    const resize = () => {
-      const el = ref.current
-      if (!el) return
-      el.style.height = 'auto'
-      el.style.height = `${el.scrollHeight}px`
-    }
-    resize()
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [value])
-
-  return (
-    <textarea
-      ref={ref}
-      className="textarea"
-      value={value}
-      style={{ ...style, maxHeight }}
-      {...rest}
-    />
   )
 }
 

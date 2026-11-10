@@ -17,8 +17,10 @@ import {
   updateHabitDailyNote,
 } from '../db/habits'
 import { addDays, formatDateKey, isoWeekday, toDateKey } from '../lib/dates'
+import { stripMarkdownForSnippet } from '../lib/markdown'
 import { plural } from '../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, PageHeader, Segmented, TextArea } from '../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, PageHeader, Segmented } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import { HabitDialog } from './HabitsScreen'
 
 type Period = 'Weekly' | 'Monthly'
@@ -142,7 +144,7 @@ export default function HabitDetailScreen() {
       <PageHeader
         title={habit.name}
         wrapTitle
-        subtitle={habit.description || 'Habit history and streak'}
+        subtitle={habit.description ? stripMarkdownForSnippet(habit.description) : 'Habit history and streak'}
         onBack={() => navigate('/habits')}
         actions={
           <>
@@ -372,11 +374,11 @@ function HabitDayDialog({ habit, cell, onClose }: { habit: Habit; cell: DayStatu
             Add a reason below to skip this habit.
           </p>
         )}
-        <TextArea
+        <RichTextEditor
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onValueChange={setNote}
           placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
-          style={{ minHeight: 100 }}
+          ariaLabel="Notes for this day"
         />
       </div>
     </Dialog>

@@ -16,7 +16,9 @@ import {
 } from '../db/habits'
 import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
-import { AutoGrowTextArea, EmptyState, PageHeader } from '../components/ui'
+import { EmptyState, PageHeader } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
+import { useSavedFlash } from '../hooks/useSavedFlash'
 
 type Status = 'done' | 'late' | 'missed' | 'skipped' | 'warning' | 'pending' | 'off'
 
@@ -49,7 +51,7 @@ export default function HabitDayScreen() {
   const journal = useLiveQuery(async () => (await db.dayJournals.get(key)) ?? null, [key])
   const [journalText, setJournalText] = useState('')
   const [journalOpen, setJournalOpen] = useState(true)
-  const [journalSaved, setJournalSaved] = useState(false)
+  const [journalSaved, flashJournalSaved] = useSavedFlash()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const seededKey = useRef<string | null>(null)
 
@@ -132,8 +134,7 @@ export default function HabitDayScreen() {
 
   const saveJournal = async () => {
     await db.dayJournals.put({ date: key, content: journalText.trim(), updatedAt: Date.now() })
-    setJournalSaved(true)
-    setTimeout(() => setJournalSaved(false), 1800)
+    flashJournalSaved()
   }
 
   return (
@@ -156,11 +157,12 @@ export default function HabitDayScreen() {
         </button>
         {journalOpen && (
           <div style={{ marginTop: 10 }}>
-            <AutoGrowTextArea
+            <RichTextEditor
               value={journalText}
-              onChange={(e) => setJournalText(e.target.value)}
+              onValueChange={setJournalText}
               placeholder="How was your day?"
-              style={{ minHeight: 160 }}
+              size="lg"
+              ariaLabel="Journal"
             />
             <div className="row-between" style={{ marginTop: 8 }}>
               <span className="tiny muted">{journalSaved ? 'Saved' : journal ? `Updated ${new Date(journal.updatedAt).toLocaleTimeString()}` : 'Not saved yet'}</span>
@@ -222,7 +224,7 @@ function HabitDayRow({
 }) {
   const [note, setNote] = useState(habit.dailyNotes[dateKey] ?? '')
   const [status, setStatus] = useState<Status>(statusOf(habit, dateKey))
-  const [saved, setSaved] = useState(false)
+  const [saved, flashSaved] = useSavedFlash()
   const [needsReason, setNeedsReason] = useState(false)
 
   const focusNote = () => document.getElementById(`habit-note-${habit.id}`)?.focus()
@@ -260,8 +262,7 @@ function HabitDayRow({
       setStatus('skipped')
       setNeedsReason(false)
     }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1800)
+    flashSaved()
   }
 
   return (
@@ -299,11 +300,12 @@ function HabitDayRow({
             <button className={`chip ${status === 'skipped' ? 'active' : ''}`} onClick={() => void skip()}>Skip</button>
             <button className={`chip ${status === 'pending' ? 'active' : ''}`} onClick={() => void apply('pending')}>Clear</button>
           </div>
-          <AutoGrowTextArea
+          <RichTextEditor
             id={`habit-note-${habit.id}`}
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onValueChange={setNote}
             placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
+            ariaLabel={`Notes for ${habit.name}`}
           />
           <div className="row-between" style={{ marginTop: 6 }}>
             <span className="tiny muted" style={{ color: needsReason ? 'var(--warning)' : undefined }}>

@@ -2729,3 +2729,489 @@ p {
   gap: 6px;
   margin-top: 14px;
 }
+
+/* ---------- Note editor + markdown widgets ---------- */
+
+.ta {
+  position: relative;
+  display: block;
+}
+
+.ta > .textarea {
+  display: block;
+}
+
+.ta-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--outline);
+  font-size: 13px;
+}
+
+.slash-menu {
+  position: absolute;
+  z-index: 70;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.slash-menu-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.slash-menu-item.active,
+.slash-menu-item:hover {
+  background: var(--surface-3);
+}
+
+.slash-menu-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.slash-menu-id {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.slash-menu-hint {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.slash-menu-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.md-task,
+.md-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.md-check,
+.md-radio-dot {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  padding: 0;
+  border: 1.5px solid var(--outline);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--on-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.md-check.checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.md-check:disabled,
+.md-radio-dot:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.md-radio-dot {
+  border-radius: 50%;
+}
+
+.md-radio-dot.checked::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.md-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-task-text.done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.md-quote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--outline);
+  color: var(--muted);
+}
+
+.md-code {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre;
+}
+
+.md-code-inline {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.md-hr {
+  width: 100%;
+  margin: 8px 0;
+  border: none;
+  border-top: 1px solid var(--outline);
+}
+
+.md-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.md-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.md-table th,
+.md-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--outline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.md-link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  .slash-menu-item {
+    min-height: 44px;
+  }
+  .md-check,
+  .md-radio-dot {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ---------- Date field (always dd/mm/yyyy) ---------- */
+
+.date-field {
+  position: relative;
+  width: 100%;
+}
+
+.date-field-text {
+  padding-right: 42px;
+}
+
+.date-field-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.date-field-native {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.date-field-native::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* ---------- Inline rich editor ---------- */
+
+.rte {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-y: auto;
+  line-height: 1.6;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rte:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.rte[data-disabled='true'] {
+  opacity: 0.65;
+}
+
+.rte-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.rte-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.rte-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.6;
+  outline: none;
+}
+
+.rte-input::placeholder {
+  color: var(--muted);
+}
+
+.rte-done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.rte-h1 .rte-input {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.rte-h2 .rte-input {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rte-h3 .rte-input {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rte-list .rte-marker {
+  flex: 0 0 auto;
+  min-width: 16px;
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+}
+
+.rte-quote {
+  padding-left: 10px;
+  border-left: 3px solid var(--outline);
+  color: var(--muted);
+}
+
+.rte-spacer {
+  height: 6px;
+}
+
+.rte-hr-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rte-hr-block .md-hr {
+  flex: 1;
+}
+
+.rte-inline-remove {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.rte-inline-remove:hover:not(:disabled) {
+  color: var(--error);
+}
+
+.rte-code-wrap {
+  margin: 2px 0;
+}
+
+.rte-code {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.rte-code:focus {
+  border-color: var(--primary);
+}
+
+.rte-image {
+  position: relative;
+  max-width: 100%;
+}
+
+.rte-remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.rte-table-block {
+  margin: 4px 0;
+}
+
+.rte-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.rte-table-actions button {
+  padding: 3px 8px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.rte-table-actions button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.rte-table-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.rte-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.rte-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.rte-table th,
+.rte-table td {
+  padding: 0;
+  border: 1px solid var(--outline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.rte-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.rte-cell {
+  width: 100%;
+  min-width: 90px;
+  padding: 7px 9px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.rte-cell::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.rte-cell:focus {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.rte-table th .rte-cell {
+  font-weight: 600;
+}
+
+

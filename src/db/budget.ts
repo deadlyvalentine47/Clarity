@@ -7,7 +7,7 @@ import type {
   Transaction,
   TransactionType,
 } from './types'
-import { clampDay } from '../lib/dates'
+import { clampDay, formatDate } from '../lib/dates'
 
 export const CREDIT_CARD_PAYMENT_CATEGORY = 'Credit Card Payment'
 export const SELF_TRANSFER_CATEGORY = 'Self_Transfer'
@@ -562,8 +562,7 @@ export function billingCycle(year: number, month: number, cycleDay: number): Bil
   const endDay = clampDay(year, month, cycleDay)
   const end = new Date(year, month - 1, endDay, 0, 0, 0, 0)
 
-  const fmt = (d: Date) =>
-    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const fmt = (d: Date) => formatDate(d)
   return { start: start.getTime(), end: end.getTime(), startLabel: fmt(start), endLabel: fmt(new Date(end.getTime() - 1)) }
 }
 
