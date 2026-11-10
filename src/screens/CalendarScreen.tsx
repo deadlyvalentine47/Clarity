@@ -17,14 +17,17 @@ import {
   EVENT_WEEKDAY_NAMES,
   eventCompletionKey,
   eventFrequencyLabel,
+  eventNote,
   eventOccursOn,
   eventOccurrence,
   eventStatus,
   skipEventOccurrence,
   toggleEventCompletion,
+  updateEventNote,
 } from '../db/events'
 import { MONTHS, addDays, formatTime, fromDateKey, toDateKey } from '../lib/dates'
 import {
+  AutoGrowTextArea,
   ConfirmDialog,
   Dialog,
   EmptyState,
@@ -200,7 +203,12 @@ export default function CalendarScreen() {
       ) : (
         <div className="stack">
           {dayEvents.map((e) => (
-            <EventItem key={e.id} event={e} date={selected} onEdit={() => setEditing(e)} />
+            <EventItem
+              key={`${e.id}-${toDateKey(selected)}`}
+              event={e}
+              date={selected}
+              onEdit={() => setEditing(e)}
+            />
           ))}
         </div>
       )}
@@ -217,19 +225,46 @@ export default function CalendarScreen() {
 
 function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: () => void }) {
   const [confirm, setConfirm] = useState(false)
+  const [expanded, setExpanded] = useState(() => eventNote(event, date).trim() !== '')
+  const [note, setNote] = useState(() => eventNote(event, date))
+  const [saved, setSaved] = useState(false)
   const occurrence = eventOccurrence(event, date)
   const status = eventStatus(event, date)
   const done = status === 'done'
+  const storedNote = eventNote(event, date)
   const occurrenceLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+  const saveNote = async () => {
+    if (event.id == null) return
+    await updateEventNote(event.id, date, note)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1800)
+  }
+
   return (
-    <div className="card" style={{ padding: 14, opacity: done ? 0.72 : 1 }}>
+    <div
+      className="card"
+      style={{ padding: 14, opacity: done ? 0.72 : 1, cursor: 'pointer' }}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${event.title}`}
+      onClick={() => setExpanded((v) => !v)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setExpanded((v) => !v)
+        }
+      }}
+    >
       <div className="row">
         <button
           className={`event-check ${done ? 'done' : ''}`}
           aria-label={done ? `Mark ${event.title} not completed` : `Mark ${event.title} completed`}
           aria-pressed={done}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             if (event.id != null) void toggleEventCompletion(event.id, date, !done)
           }}
         >
@@ -262,13 +297,53 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
           </div>
         </div>
         <span className="small muted">{formatTime(occurrence.start)}</span>
-        <button className="icon-btn" style={{ width: 32, height: 32 }} aria-label="Edit event" onClick={onEdit}>
+        <button
+          className="icon-btn"
+          style={{ width: 32, height: 32 }}
+          aria-label="Edit event"
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit()
+          }}
+        >
           <Pencil size={15} />
         </button>
-        <button className="icon-btn" style={{ width: 32, height: 32 }} aria-label="Delete event" onClick={() => setConfirm(true)}>
+        <button
+          className="icon-btn"
+          style={{ width: 32, height: 32 }}
+          aria-label="Delete event"
+          onClick={(e) => {
+            e.stopPropagation()
+            setConfirm(true)
+          }}
+        >
           <Trash2 size={15} color="var(--error)" />
         </button>
       </div>
+
+      {!expanded && storedNote && (
+        <div className="small muted truncate" style={{ marginTop: 8, paddingLeft: 26 }}>
+          {storedNote}
+        </div>
+      )}
+
+      {expanded && (
+        <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+          <hr className="hr" />
+          <AutoGrowTextArea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Notes for this day — what you're working on and what's pending"
+          />
+          <div className="row-between" style={{ marginTop: 6 }}>
+            <span className="tiny muted">{saved ? 'Saved' : ''}</span>
+            <button className="btn btn-sm btn-primary" onClick={() => void saveNote()}>
+              Save note
+            </button>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         open={confirm}
         title="Delete Event"
@@ -376,6 +451,7 @@ export function EventDialog({
         isAllDay: false,
         reminderTime: null,
         skippedDates: {},
+        eventNotes: {},
         createdAt: Date.now(),
       })
     }

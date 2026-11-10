@@ -179,6 +179,8 @@ export interface Event {
   completionHistory: Record<string, boolean>
   /** occurrence date key -> deleted individually (recurring events only) */
   skippedDates: Record<string, boolean>
+  /** occurrence date key (YYYY-MM-DD) -> note text */
+  eventNotes: Record<string, string>
   createdAt: number
 }
 

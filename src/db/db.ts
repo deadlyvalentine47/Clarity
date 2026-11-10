@@ -270,6 +270,18 @@ export class ClarityDB extends Dexie {
     this.version(12).stores({
       wallpaper: 'id',
     })
+
+    // v13 adds per-occurrence event notes. Existing events start with none.
+    this.version(13)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('events')
+          .toCollection()
+          .modify((e: Event) => {
+            e.eventNotes ??= {}
+          })
+      })
   }
 }
 

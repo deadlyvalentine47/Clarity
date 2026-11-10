@@ -159,6 +159,26 @@ export function eventStatus(event: Event, date: Date, now: Date = new Date()): E
   return 'upcoming'
 }
 
+/** Saved note for the occurrence on `date`, or an empty string. */
+export function eventNote(event: Event, date: Date): string {
+  return event.eventNotes?.[eventCompletionKey(event, date)] ?? ''
+}
+
+/** Save (or clear) the note for one occurrence. */
+export async function updateEventNote(
+  eventId: number,
+  date: Date,
+  note: string,
+): Promise<void> {
+  const event = await db.events.get(eventId)
+  if (!event) return
+  const key = eventCompletionKey(event, date)
+  const eventNotes = { ...(event.eventNotes ?? {}) }
+  if (note.trim()) eventNotes[key] = note.trim()
+  else delete eventNotes[key]
+  await db.events.update(eventId, { eventNotes })
+}
+
 /** Hide a single occurrence without touching the rest of the series. */
 export async function skipEventOccurrence(eventId: number, date: Date): Promise<void> {
   const event = await db.events.get(eventId)
@@ -316,6 +336,8 @@ export function eventDefaults(event: Partial<Event>): Event {
       event.skippedDates && typeof event.skippedDates === 'object'
         ? event.skippedDates
         : {},
+    eventNotes:
+      event.eventNotes && typeof event.eventNotes === 'object' ? event.eventNotes : {},
     createdAt: finiteOr(event.createdAt, Date.now()),
   }
 }
