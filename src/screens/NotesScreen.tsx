@@ -29,7 +29,7 @@ import {
 import { formatDate } from '../lib/dates'
 import { TEXT_COMMANDS } from '../lib/slashCommands'
 import { useDragAutoScroll } from '../lib/dragAutoScroll'
-import MarkdownPreview from '../components/MarkdownPreview'
+import { RichTextEditor } from '../components/RichTextEditor'
 import {
   Checkbox,
   ConfirmDialog,
@@ -40,9 +40,7 @@ import {
   FieldGroup,
   IconButton,
   PageHeader,
-  Segmented,
   Select,
-  TextArea,
   TextInput,
 } from '../components/ui'
 
@@ -567,7 +565,6 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
   const [content, setContent] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [parentId, setParentId] = useState('')
-  const [tab, setTab] = useState<'Edit' | 'Preview'>('Edit')
 
   const save = async () => {
     if (!title.trim()) return
@@ -616,33 +613,14 @@ function NoteDialog({ categories, notes, onClose }: { categories: string[]; note
           </Select>
         </Field>
 
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          label="Editor view"
-          style={{ alignSelf: 'flex-start' }}
-          options={[
-            { value: 'Edit', label: 'Edit' },
-            { value: 'Preview', label: 'Preview' },
-          ]}
+        <RichTextEditor
+          value={content}
+          onValueChange={setContent}
+          placeholder="Write in markdown..."
+          size="lg"
+          commands={TEXT_COMMANDS}
+          ariaLabel="Note content"
         />
-
-        {tab === 'Edit' ? (
-          <TextArea
-            value={content}
-            onValueChange={setContent}
-            placeholder="Write in markdown..."
-            size="lg"
-            commands={TEXT_COMMANDS}
-            preview="below"
-          />
-        ) : content.trim() ? (
-          <div className="card" style={{ boxShadow: 'none', background: 'var(--surface-2)' }}>
-            <MarkdownPreview content={content} onChange={setContent} />
-          </div>
-        ) : (
-          <p className="small muted">Nothing to preview</p>
-        )}
 
         <FieldGroup label="Tags">
           <div className="chip-row">

@@ -1,12 +1,20 @@
-// Line-based markdown used by MarkdownPreview and the note editors.
+// Line-based markdown used by the note editor and the read-only preview.
 // Blocks keep their source line index so widgets can rewrite the text in place.
 
 export type MdBlock =
   | { kind: 'heading'; level: 1 | 2 | 3; text: string; line: number }
-  | { kind: 'bullet'; text: string; line: number }
-  | { kind: 'ordered'; text: string; line: number }
-  | { kind: 'task'; checked: boolean; text: string; line: number }
-  | { kind: 'radio'; checked: boolean; text: string; line: number; group: number }
+  | { kind: 'bullet'; text: string; line: number; indent: string; marker: string }
+  | { kind: 'ordered'; text: string; line: number; indent: string; number: string }
+  | { kind: 'task'; checked: boolean; text: string; line: number; indent: string; marker: string }
+  | {
+      kind: 'radio'
+      checked: boolean
+      text: string
+      line: number
+      group: number
+      indent: string
+      marker: string
+    }
   | { kind: 'table'; header: string[]; rows: string[][]; line: number; endLine: number }
   | { kind: 'quote'; text: string; line: number }
   | { kind: 'code'; text: string; line: number; endLine: number }
@@ -17,24 +25,56 @@ export type MdBlock =
 
 const IMAGE_RE = /^!\[img:([a-fA-F0-9-]+)\]$/
 const HEADING_RE = /^(#{1,3})\s+(.*)$/
-const TASK_RE = /^([ \t]*)[-*+]\s+\[([ xX])\]\s?(.*)$/
-const RADIO_RE = /^([ \t]*)[-*+]\s+\(([ xX])\)\s?(.*)$/
-const BULLET_RE = /^([ \t]*)[-*+]\s+(.*)$/
-const ORDERED_RE = /^([ \t]*)\d+[.)]\s+.*$/
+const TASK_RE = /^([ \t]*)([-*+])\s+\[([ xX])\]\s?(.*)$/
+const RADIO_RE = /^([ \t]*)([-*+])\s+\(([ xX])\)\s?(.*)$/
+const BULLET_RE = /^([ \t]*)([-*+])\s+(.*)$/
+const ORDERED_RE = /^([ \t]*)(\d+)[.)]\s+(.*)$/
 const QUOTE_RE = /^\s*>\s?(.*)$/
 const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/
 
-function splitRow(line: string): string[] {
+export function splitTableRow(line: string): string[] {
   let value = line.trim()
   if (value.startsWith('|')) value = value.slice(1)
   if (value.endsWith('|')) value = value.slice(0, -1)
   return value.split('|').map((cell) => cell.trim())
 }
 
+export function tableLines(header: string[], rows: string[][]): string[] {
+  return [
+    `| ${header.join(' | ')} |`,
+    `| ${header.map(() => '---').join(' | ')} |`,
+    ...rows.map((row) => `| ${row.join(' | ')} |`),
+  ]
+}
+
 function isTableSeparator(line: string): boolean {
   if (!line.includes('|')) return false
-  const cells = splitRow(line)
+  const cells = splitTableRow(line)
   return cells.length > 0 && cells.every((cell) => /^:?-{1,}:?$/.test(cell))
+}
+
+export function headingLine(level: 1 | 2 | 3, text: string): string {
+  return `${'#'.repeat(level)} ${text}`
+}
+
+export function bulletLine(indent: string, marker: string, text: string): string {
+  return `${indent}${marker} ${text}`
+}
+
+export function orderedLine(indent: string, number: string, text: string): string {
+  return `${indent}${number}. ${text}`
+}
+
+export function taskLine(indent: string, marker: string, checked: boolean, text: string): string {
+  return `${indent}${marker} [${checked ? 'x' : ' '}] ${text}`
+}
+
+export function radioLine(indent: string, marker: string, checked: boolean, text: string): string {
+  return `${indent}${marker} (${checked ? 'x' : ' '}) ${text}`
+}
+
+export function quoteLine(text: string): string {
+  return `> ${text}`
 }
 
 export function parseMarkdown(content: string): MdBlock[] {
@@ -87,7 +127,14 @@ export function parseMarkdown(content: string): MdBlock[] {
 
     const task = TASK_RE.exec(line)
     if (task) {
-      blocks.push({ kind: 'task', checked: task[2].toLowerCase() === 'x', text: task[3], line: i })
+      blocks.push({
+        kind: 'task',
+        checked: task[3].toLowerCase() === 'x',
+        text: task[4],
+        line: i,
+        indent: task[1],
+        marker: task[2],
+      })
       continue
     }
 
@@ -95,20 +142,22 @@ export function parseMarkdown(content: string): MdBlock[] {
     if (radio) {
       blocks.push({
         kind: 'radio',
-        checked: radio[2].toLowerCase() === 'x',
-        text: radio[3],
+        checked: radio[3].toLowerCase() === 'x',
+        text: radio[4],
         line: i,
         group: 0,
+        indent: radio[1],
+        marker: radio[2],
       })
       continue
     }
 
     if (line.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
-      const header = splitRow(line)
+      const header = splitTableRow(line)
       const rows: string[][] = []
       let end = i + 2
       while (end < lines.length && lines[end].trim() !== '' && lines[end].includes('|')) {
-        rows.push(splitRow(lines[end]))
+        rows.push(splitTableRow(lines[end]))
         end += 1
       }
       blocks.push({ kind: 'table', header, rows, line: i, endLine: end - 1 })
@@ -122,14 +171,27 @@ export function parseMarkdown(content: string): MdBlock[] {
       continue
     }
 
-    if (ORDERED_RE.test(line)) {
-      blocks.push({ kind: 'ordered', text: trimmed, line: i })
+    const ordered = ORDERED_RE.exec(line)
+    if (ordered) {
+      blocks.push({
+        kind: 'ordered',
+        text: ordered[3],
+        line: i,
+        indent: ordered[1],
+        number: ordered[2],
+      })
       continue
     }
 
     const bullet = BULLET_RE.exec(line)
     if (bullet) {
-      blocks.push({ kind: 'bullet', text: bullet[2], line: i })
+      blocks.push({
+        kind: 'bullet',
+        text: bullet[3],
+        line: i,
+        indent: bullet[1],
+        marker: bullet[2],
+      })
       continue
     }
 
@@ -156,8 +218,7 @@ export function toggleTaskLine(content: string, line: number): string {
   if (current == null) return content
   const match = TASK_RE.exec(current)
   if (!match) return content
-  const next = match[2].toLowerCase() === 'x' ? ' ' : 'x'
-  lines[line] = `${match[1]}- [${next}] ${match[3]}`
+  lines[line] = taskLine(match[1], match[2], match[3].toLowerCase() !== 'x', match[4])
   return lines.join('\n')
 }
 
@@ -174,9 +235,44 @@ export function selectRadioLine(content: string, line: number): string {
   for (let i = start; i <= end; i += 1) {
     const match = RADIO_RE.exec(lines[i])
     if (!match) continue
-    const mark = i === line ? 'x' : ' '
-    lines[i] = `${match[1]}- (${mark}) ${match[3]}`
+    lines[i] = radioLine(match[1], match[2], i === line, match[4])
   }
+  return lines.join('\n')
+}
+
+export function replaceLine(content: string, line: number, text: string): string {
+  const lines = content.split('\n')
+  if (line < 0 || line >= lines.length) return content
+  lines[line] = text
+  return lines.join('\n')
+}
+
+export function insertLines(
+  content: string,
+  atLine: number,
+  lines: string[],
+): { value: string; line: number } {
+  const all = content.split('\n')
+  const index = Math.max(0, Math.min(atLine, all.length))
+  all.splice(index, 0, ...lines)
+  return { value: all.join('\n'), line: index }
+}
+
+export function replaceLines(
+  content: string,
+  startLine: number,
+  count: number,
+  lines: string[],
+): { value: string; line: number } {
+  const all = content.split('\n')
+  all.splice(startLine, count, ...lines)
+  return { value: all.join('\n'), line: startLine }
+}
+
+export function removeLine(content: string, line: number): string {
+  const lines = content.split('\n')
+  if (line < 0 || line >= lines.length) return content
+  lines.splice(line, 1)
   return lines.join('\n')
 }
 

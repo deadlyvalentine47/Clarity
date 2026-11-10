@@ -10,8 +10,6 @@ import {
 import { ArrowLeft, Check, X } from 'lucide-react'
 import { formatAmountDisplay, formatMoney, formatMoneyWords, sanitizeAmountInput } from '../lib/format'
 
-export { TextArea } from './TextArea'
-export type { TextAreaProps, TextAreaSize } from './TextArea'
 export { DateField } from './DateField'
 
 export function IconButton({

@@ -23,7 +23,8 @@ import {
   stopRun,
   useRunState,
 } from '../lib/runStore'
-import { Dialog, Field, PageHeader, Segmented, TextArea, TextInput } from '../components/ui'
+import { Dialog, Field, PageHeader, Segmented, TextInput } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 
 type WakeLockSentinelLike = { release: () => Promise<void> }
 
@@ -420,12 +421,12 @@ export default function RunScreen() {
             manual and hides the route and splits.
           </p>
           <Field label="Notes">
-            <TextArea
+            <RichTextEditor
               value={saveNotes}
               onValueChange={setSaveNotes}
               placeholder="How did it go?"
               size="sm"
-              autoGrow={false}
+              ariaLabel="Run notes"
             />
           </Field>
         </div>

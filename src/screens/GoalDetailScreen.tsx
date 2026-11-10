@@ -20,8 +20,8 @@ import {
   IconButton,
   PageHeader,
   ProgressRing,
-  TextArea,
 } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import { formatDate } from '../lib/dates'
 import { stripMarkdownForSnippet } from '../lib/markdown'
 import { GoalDialog } from './GoalsScreen'
@@ -204,7 +204,7 @@ function MilestoneCard({ goal, milestone }: { goal: Goal; milestone: GoalMilesto
 
           {open && (
             <div style={{ marginTop: 10 }}>
-              <TextArea
+              <RichTextEditor
                 value={draft}
                 onValueChange={setDraft}
                 onBlur={() => {
@@ -212,8 +212,7 @@ function MilestoneCard({ goal, milestone }: { goal: Goal; milestone: GoalMilesto
                 }}
                 placeholder="Write something about this milestone…"
                 size="sm"
-                autoGrow={false}
-                preview="below"
+                ariaLabel="Milestone note"
               />
             </div>
           )}

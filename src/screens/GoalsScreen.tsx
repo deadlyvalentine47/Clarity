@@ -14,6 +14,7 @@ import {
 import { newMilestoneId } from '../db/goalMilestones'
 import { formatDateKey, toDateKey } from '../lib/dates'
 import MarkdownPreview from '../components/MarkdownPreview'
+import { RichTextEditor } from '../components/RichTextEditor'
 import {
   ChipRow,
   Dialog,
@@ -22,7 +23,6 @@ import {
   Field,
   FieldGroup,
   ProgressBar,
-  TextArea,
   TextInput,
 } from '../components/ui'
 
@@ -233,11 +233,11 @@ export function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void
           <TextInput autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Read 12 books" />
         </Field>
         <Field label="Description">
-          <TextArea
+          <RichTextEditor
             value={description}
             onValueChange={setDescription}
             size="sm"
-            autoGrow={false}
+            ariaLabel="Goal description"
           />
         </Field>
         <FieldGroup

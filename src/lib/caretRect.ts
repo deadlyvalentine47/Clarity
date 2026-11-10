@@ -40,12 +40,13 @@ const MIRROR_PROPERTIES = [
 
 const FALLBACK: CaretRect = { left: 0, top: 0, height: 20 }
 
-export function caretRect(textarea: HTMLTextAreaElement): CaretRect {
+export function caretRect(textarea: HTMLInputElement | HTMLTextAreaElement): CaretRect {
   try {
     const computed = window.getComputedStyle(textarea)
     const lineHeight =
       parseFloat(computed.lineHeight) || parseFloat(computed.fontSize) * 1.4 || FALLBACK.height
     const position = textarea.selectionStart ?? 0
+    const isInput = textarea instanceof HTMLInputElement
 
     const mirror = document.createElement('div')
     mirror.setAttribute('aria-hidden', 'true')
@@ -54,14 +55,19 @@ export function caretRect(textarea: HTMLTextAreaElement): CaretRect {
     mirror.style.left = '-9999px'
     mirror.style.visibility = 'hidden'
     mirror.style.pointerEvents = 'none'
-    mirror.style.whiteSpace = 'pre-wrap'
-    mirror.style.overflowWrap = 'break-word'
+    mirror.style.whiteSpace = isInput ? 'pre' : 'pre-wrap'
+    mirror.style.overflowWrap = isInput ? 'normal' : 'break-word'
     mirror.style.overflow = 'hidden'
     mirror.style.width = `${textarea.clientWidth}px`
 
     for (const property of MIRROR_PROPERTIES) {
       mirror.style.setProperty(property, computed.getPropertyValue(property))
     }
+    // Inputs never wrap; textareas copy their own wrapping from the computed
+    // style, so restore the explicit values after the copy.
+    mirror.style.whiteSpace = isInput ? 'pre' : 'pre-wrap'
+    mirror.style.overflowWrap = isInput ? 'normal' : 'break-word'
+    mirror.style.wordBreak = isInput ? 'normal' : 'break-word'
 
     mirror.textContent = textarea.value.slice(0, position)
     const marker = document.createElement('span')

@@ -16,7 +16,8 @@ import {
 } from '../db/habits'
 import { buildTopLevelRows, setHabitGroupCollapsed } from '../db/habitGroups'
 import { formatDateKey, fromDateKey, toDateKey } from '../lib/dates'
-import { EmptyState, PageHeader, TextArea } from '../components/ui'
+import { EmptyState, PageHeader } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import { useSavedFlash } from '../hooks/useSavedFlash'
 
 type Status = 'done' | 'late' | 'missed' | 'skipped' | 'warning' | 'pending' | 'off'
@@ -156,12 +157,12 @@ export default function HabitDayScreen() {
         </button>
         {journalOpen && (
           <div style={{ marginTop: 10 }}>
-            <TextArea
+            <RichTextEditor
               value={journalText}
               onValueChange={setJournalText}
               placeholder="How was your day?"
               size="lg"
-              preview="below"
+              ariaLabel="Journal"
             />
             <div className="row-between" style={{ marginTop: 8 }}>
               <span className="tiny muted">{journalSaved ? 'Saved' : journal ? `Updated ${new Date(journal.updatedAt).toLocaleTimeString()}` : 'Not saved yet'}</span>
@@ -299,12 +300,12 @@ function HabitDayRow({
             <button className={`chip ${status === 'skipped' ? 'active' : ''}`} onClick={() => void skip()}>Skip</button>
             <button className={`chip ${status === 'pending' ? 'active' : ''}`} onClick={() => void apply('pending')}>Clear</button>
           </div>
-          <TextArea
+          <RichTextEditor
             id={`habit-note-${habit.id}`}
             value={note}
             onValueChange={setNote}
             placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
-            preview="below"
+            ariaLabel={`Notes for ${habit.name}`}
           />
           <div className="row-between" style={{ marginTop: 6 }}>
             <span className="tiny muted" style={{ color: needsReason ? 'var(--warning)' : undefined }}>

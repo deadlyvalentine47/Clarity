@@ -33,7 +33,8 @@ export const TEXT_COMMANDS: readonly SlashCommand[] = [
     label: 'Table',
     hint: 'Rows and columns',
     keywords: ['grid', 'columns'],
-    insert: '| Column 1 | Column 2 |\n| --- | --- |\n| Value 1 | Value 2 |',
+    insert:
+      '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Cell 1 | Cell 2 | Cell 3 |\n| Cell 4 | Cell 5 | Cell 6 |',
   },
   { id: 'heading', label: 'Heading', hint: 'Large section heading', insert: '## ' },
   { id: 'subheading', label: 'Subheading', hint: 'Smaller heading', insert: '### ' },

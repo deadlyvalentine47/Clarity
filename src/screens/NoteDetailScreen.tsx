@@ -18,7 +18,6 @@ import type { Note } from '../db/types'
 import {
   addChildNote,
   deleteNoteWithDescendants,
-  insertImageMarker,
   notePath,
   noteSnippet,
   noteTags,
@@ -28,11 +27,11 @@ import {
 import { formatDateTime } from '../lib/dates'
 import { NOTE_COMMANDS } from '../lib/slashCommands'
 import MarkdownPreview from '../components/MarkdownPreview'
+import { RichTextEditor, type RichTextEditorHandle } from '../components/RichTextEditor'
 import {
   ConfirmDialog,
   Dialog,
   IconButton,
-  TextArea,
   TextInput,
 } from '../components/ui'
 
@@ -41,7 +40,7 @@ export default function NoteDetailScreen() {
   const navigate = useNavigate()
   const id = Number(noteId)
   const fileRef = useRef<HTMLInputElement>(null)
-  const areaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<RichTextEditorHandle>(null)
 
   const note = useLiveQuery(async () => (id ? ((await db.notes.get(id)) ?? null) : null), [id])
   const allNotes = useLiveQuery(async () => db.notes.toArray(), [], [])
@@ -97,16 +96,7 @@ export default function NoteDetailScreen() {
     setUploading(true)
     try {
       const imageId = await saveNoteImage(file)
-      // Read the textarea after the await: the user may have kept typing while
-      // the image was downscaled, and those keystrokes must not be discarded.
-      const latest = areaRef.current?.value ?? editContent
-      const cursor = areaRef.current?.selectionStart ?? latest.length
-      const next = insertImageMarker(latest, cursor, imageId)
-      setEditContent(next.content)
-      requestAnimationFrame(() => {
-        areaRef.current?.focus()
-        areaRef.current?.setSelectionRange(next.cursor, next.cursor)
-      })
+      editorRef.current?.insertBlock(`![img:${imageId}]`)
     } finally {
       setUploading(false)
     }
@@ -179,24 +169,18 @@ export default function NoteDetailScreen() {
               <ImagePlus size={15} /> {uploading ? 'Adding…' : 'Add image'}
             </button>
           </div>
-          <TextArea
-            ref={areaRef}
+          <RichTextEditor
+            ref={editorRef}
             value={editContent}
             onValueChange={setEditContent}
             placeholder="Write in markdown..."
             size="lg"
-            style={{ minHeight: '38vh' }}
             commands={NOTE_COMMANDS}
+            ariaLabel="Note content"
             onCommand={(id) => {
               if (id === 'image') fileRef.current?.click()
             }}
           />
-          {editContent.trim() && (
-            <div className="card" style={{ boxShadow: 'none', background: 'var(--surface-2)' }}>
-              <div className="section-label" style={{ marginBottom: 8 }}>Preview</div>
-              <MarkdownPreview content={editContent} onChange={setEditContent} />
-            </div>
-          )}
         </div>
       ) : (
         <>

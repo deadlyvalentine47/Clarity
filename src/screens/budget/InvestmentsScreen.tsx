@@ -7,6 +7,7 @@ import { INVESTMENT_TYPES, type Investment } from '../../db/types'
 import { formatDate, toDateKey } from '../../lib/dates'
 import { formatMoney, formatPercent } from '../../lib/format'
 import MarkdownPreview from '../../components/MarkdownPreview'
+import { RichTextEditor } from '../../components/RichTextEditor'
 import {
   ConfirmDialog,
   DateField,
@@ -18,7 +19,6 @@ import {
   MoneyInput,
   PageHeader,
   Segmented,
-  TextArea,
   TextInput,
 } from '../../components/ui'
 import { MonthYearPicker } from './shared'
@@ -298,12 +298,12 @@ function InvestmentDialog({ investment, onClose }: { investment?: Investment; on
           </Field>
         </div>
         <Field label="Notes">
-          <TextArea
+          <RichTextEditor
             value={notes}
             onValueChange={setNotes}
             placeholder="Optional"
             size="sm"
-            autoGrow={false}
+            ariaLabel="Investment notes"
           />
         </Field>
       </div>

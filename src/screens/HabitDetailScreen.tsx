@@ -19,7 +19,8 @@ import {
 import { addDays, formatDateKey, isoWeekday, toDateKey } from '../lib/dates'
 import { stripMarkdownForSnippet } from '../lib/markdown'
 import { plural } from '../lib/format'
-import { ConfirmDialog, Dialog, EmptyState, PageHeader, Segmented, TextArea } from '../components/ui'
+import { ConfirmDialog, Dialog, EmptyState, PageHeader, Segmented } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import { HabitDialog } from './HabitsScreen'
 
 type Period = 'Weekly' | 'Monthly'
@@ -373,11 +374,11 @@ function HabitDayDialog({ habit, cell, onClose }: { habit: Habit; cell: DayStatu
             Add a reason below to skip this habit.
           </p>
         )}
-        <TextArea
+        <RichTextEditor
           value={note}
           onValueChange={setNote}
           placeholder={needsReason ? 'Why are you skipping this habit?' : 'Notes for this day'}
-          preview="below"
+          ariaLabel="Notes for this day"
         />
       </div>
     </Dialog>

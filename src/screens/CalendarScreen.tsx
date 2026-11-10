@@ -38,7 +38,9 @@ import {
   toDateKey,
 } from '../lib/dates'
 import { useSavedFlash } from '../hooks/useSavedFlash'
+import { stripMarkdownForSnippet } from '../lib/markdown'
 import MarkdownPreview from '../components/MarkdownPreview'
+import { RichTextEditor } from '../components/RichTextEditor'
 import {
   ConfirmDialog,
   DateField,
@@ -48,7 +50,6 @@ import {
   FieldGroup,
   ListSkeleton,
   Select,
-  TextArea,
   TextInput,
   priorityClass,
 } from '../components/ui'
@@ -339,18 +340,18 @@ function EventItem({ event, date, onEdit }: { event: Event; date: Date; onEdit: 
 
       {!expanded && storedNote && (
         <div className="small muted truncate" style={{ marginTop: 8, paddingLeft: 26 }}>
-          {storedNote}
+          {stripMarkdownForSnippet(storedNote)}
         </div>
       )}
 
       {expanded && (
         <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
           <hr className="hr" />
-          <TextArea
+          <RichTextEditor
             value={note}
             onValueChange={setNote}
             placeholder="Notes for this day — what you're working on and what's pending"
-            preview="below"
+            ariaLabel="Event notes"
           />
           <div className="row-between" style={{ marginTop: 6 }}>
             <span className="tiny muted">{saved ? 'Saved' : ''}</span>
@@ -637,11 +638,11 @@ export function EventDialog({
           <TextInput autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
         <Field label="Description">
-          <TextArea
+          <RichTextEditor
             value={description}
             onValueChange={setDescription}
             size="sm"
-            autoGrow={false}
+            ariaLabel="Event description"
           />
         </Field>
         <Field label="Date">

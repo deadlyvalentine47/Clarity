@@ -46,7 +46,8 @@ import {
 import { formatDateKey, formatLongDate, fromDateKey, toDateKey } from '../lib/dates'
 import { stripMarkdownForSnippet } from '../lib/markdown'
 import { useDragAutoScroll } from '../lib/dragAutoScroll'
-import { ConfirmDialog, Dialog, EmptyState, Field, FieldGroup, ListSkeleton, PageHeader, Select, TextArea, TextInput } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
+import { ConfirmDialog, Dialog, EmptyState, Field, FieldGroup, ListSkeleton, PageHeader, Select, TextInput } from '../components/ui'
 
 type Filter = 'Today' | 'All' | 'Archived'
 const FILTERS: Filter[] = ['Today', 'All', 'Archived']
@@ -751,12 +752,12 @@ export function HabitDialog({ habit, onClose }: { habit?: Habit; onClose: () => 
           <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Read 20 pages" />
         </Field>
         <Field label="Description">
-          <TextArea
+          <RichTextEditor
             value={description}
             onValueChange={setDescription}
             placeholder="Optional"
             size="sm"
-            autoGrow={false}
+            ariaLabel="Habit description"
           />
         </Field>
         <Field label="Frequency">
