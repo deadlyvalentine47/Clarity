@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Clarity — Audit Report v2</title>
+<style>
+  :root{
+    --bg:#0f1115; --surface:#171a21; --surface2:#1e222b; --border:#2a2f3a;
+    --text:#e7eaf0; --muted:#98a2b3; --primary:#6ea8fe; --primary-dim:#1e3a5f;
+    --high:#ff6b6b; --med:#ffb454; --low:#7bd88f; --ok:#7bd88f; --code-bg:#0b0d11;
+    --chip:#242a35;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 22px 90px}
+  header.top{border-bottom:1px solid var(--border);padding-bottom:22px;margin-bottom:32px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:22px;margin:44px 0 14px;letter-spacing:-.01em;padding-top:8px}
+  h2 .num{color:var(--primary);font-variant-numeric:tabular-nums;margin-right:8px}
+  h3{font-size:16px;margin:26px 0 10px}
+  p{margin:8px 0}
+  .sub{color:var(--muted);font-size:14px}
+  a{color:var(--primary)}
+  code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  code{background:var(--code-bg);border:1px solid var(--border);border-radius:5px;padding:1px 6px;color:#cdd6e4}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;line-height:1.5}
+  pre code{background:none;border:none;padding:0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:20px 0}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .stat .n{font-size:26px;font-weight:700}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;vertical-align:middle}
+  .b-high{background:rgba(255,107,107,.15);color:var(--high);border:1px solid rgba(255,107,107,.35)}
+  .b-med{background:rgba(255,180,84,.14);color:var(--med);border:1px solid rgba(255,180,84,.35)}
+  .b-low{background:rgba(123,216,143,.13);color:var(--low);border:1px solid rgba(123,216,143,.32)}
+  .b-ok{background:rgba(123,216,143,.13);color:var(--ok);border:1px solid rgba(123,216,143,.32)}
+  .b-info{background:var(--chip);color:var(--muted);border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .item{border-left:3px solid var(--border);padding:2px 0 2px 16px;margin:18px 0}
+  .item.high{border-color:var(--high)}
+  .item.med{border-color:var(--med)}
+  .item.low{border-color:var(--low)}
+  .item.ok{border-color:var(--ok)}
+  .item h3{margin:0 0 4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .item .loc{color:var(--muted);font-size:13px;margin:2px 0 8px}
+  .item .loc code{color:#a9b6c9}
+  .lbl{color:var(--muted);font-weight:600;font-size:13px}
+  .toc{columns:2;column-gap:30px}
+  .toc a{display:block;padding:3px 0;text-decoration:none;color:#cbd5e1}
+  .toc a:hover{color:var(--primary)}
+  .callout{border-radius:10px;padding:14px 16px;margin:14px 0;border:1px solid var(--border);background:var(--surface2)}
+  .callout.ok{border-color:rgba(123,216,143,.3)}
+  .callout.warn{border-color:rgba(255,180,84,.3)}
+  .tag{display:inline-block;background:var(--chip);border:1px solid var(--border);color:var(--muted);
+    border-radius:6px;padding:1px 7px;font-size:12px;margin:0 4px 4px 0}
+  .muted{color:var(--muted)}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+  .footer{color:var(--muted);font-size:13px;margin-top:50px;border-top:1px solid var(--border);padding-top:18px}
+  @media (max-width:640px){.toc{columns:1}.wrap{padding:26px 16px 70px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Clarity — Audit Report <span class="badge b-ok">v2</span></h1>
+  <p class="sub">UI · Security · Features · Performance — re-review of the Node/React + Capacitor app</p>
+  <p class="sub">Repository: <code>deadlyvalentine47/Clarity</code> · v1 reviewed 2026-11-01 · this pass 2026-11-07 against <code>c487c0d</code></p>
+</header>
+
+<div class="callout ok">
+  <strong>Headline:</strong> the v1 audit has been worked through. All three High-severity data bugs are gone
+  (two fixed, one eliminated when Tasks was folded into recurring Events), the five High UI findings are
+  closed or reduced to Low, and the security hardening landed. What remains is a short list of
+  <strong>medium polish/performance items</strong> — plus <strong>five new findings from the Runs work</strong>
+  (history keyboard access, full-track queries, orphan sessions, nested grouping position, overnight recurrence).
+  No XSS/injection surface, no committed secrets beyond the intentional debug key.
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="n" style="color:var(--ok)">0</div><div class="l">Open high-severity (v1: 3)</div></div>
+  <div class="stat"><div class="n" style="color:var(--med)">5</div><div class="l">Open medium findings</div></div>
+  <div class="stat"><div class="n" style="color:var(--low)">12</div><div class="l">Open low findings</div></div>
+  <div class="stat"><div class="n" style="color:var(--primary)">5</div><div class="l">New since v1</div></div>
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="card toc">
+  <a href="#verify">1 · Verification of the v1 findings</a>
+  <a href="#open">2 · Open findings (actionable)</a>
+  <a href="#features">3 · Review of the new features</a>
+  <a href="#security">4 · Security posture</a>
+  <a href="#perf">5 · Performance &amp; maintainability</a>
+  <a href="#plan">6 · Updated action plan</a>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="verify"><span class="num">1</span>Verification of the v1 findings</h2>
+<p class="sub">
+  Each row was re-checked against the current source, not assumed from the commit message. Statuses:
+  <span class="badge b-ok">Fixed</span> closed ·
+  <span class="badge b-info">Obsolete</span> feature removed ·
+  <span class="badge b-low">Partial</span> mostly fixed, detail remains ·
+  <span class="badge b-med">Open</span> still present.
+</p>
+
+<h3>1.1 Bugs — data integrity &amp; logic</h3>
+<table>
+  <thead><tr><th>#</th><th>v1 finding</th><th>Status</th><th>Evidence / note</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td><td>Cascade delete removes an unrelated transaction</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td><code>db/budget.ts:268–301</code>: whole operation is one <code>rw</code> transaction; the card-side row is found by <code>linkedCardTxnId</code> or <code>linkedTransactionId</code> with <code>filter()</code>; balances are only adjusted for the deleted bank row. Self-transfer legs are removed together.</td>
+    </tr>
+    <tr>
+      <td>2</td><td>Monthly recurrence skips months / drifts</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td>Tasks were removed; recurrence is now event-based. <code>db/events.ts:42–49</code> matches the anchor day clamped to the last day of the target month (<code>Math.min(anchorDay, lastDay)</code>).</td>
+    </tr>
+    <tr>
+      <td>3</td><td>Completing a recurring task is not atomic / spawns duplicates</td>
+      <td><span class="badge b-info">Obsolete</span></td>
+      <td>Tasks no longer exist. Event completion (<code>db/events.ts:135–147</code>) is a single <code>update()</code> — no spawned row, no partial state.</td>
+    </tr>
+    <tr>
+      <td>4</td><td><code>toISOString().slice(0,10)</code> off by one</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td>Only remaining use is the export filename (<code>SettingsScreen.tsx:76</code>). Every date field uses <code>toDateKey()</code>; the review found no <code>toISOString</code> date defaults left in budget/credit-card/investment dialogs.</td>
+    </tr>
+    <tr>
+      <td>5</td><td>Calendar day window DST-unsafe / hides multi-day events</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td><code>db/events.ts:70–76</code> now filters by overlap with <code>startOfDay</code>/<code>endOfDay</code>; one-off events span multiple days and appear on each. The calendar grid also uses <code>eventOccursOn</code> for its dots.</td>
+    </tr>
+    <tr>
+      <td>6</td><td>“Overdue” flips at noon</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td><code>db/events.ts:114–121</code> compares <code>toDateKey(due)</code> with <code>toDateKey(now)</code>, so the whole calendar day agrees with Home.</td>
+    </tr>
+    <tr>
+      <td>7</td><td>Export download can be cancelled</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td><code>lib/exportImport.ts:470–481</code>: anchor is appended, clicked, removed; the object URL is revoked on a deferred <code>setTimeout</code>.</td>
+    </tr>
+    <tr>
+      <td>8</td><td>Adding a note image discards keystrokes</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#m1">M1</a>. <code>NoteDetailScreen.tsx:94–108</code> still rebuilds from the <code>editContent</code> captured at click time.</td>
+    </tr>
+    <tr>
+      <td>9</td><td>Missed-day backfill stops at the oldest ~2 years</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#l1">L1</a>. <code>db/habits.ts:244–254</code> still walks forward from creation with <code>guard &lt; 732</code>.</td>
+    </tr>
+    <tr>
+      <td>10</td><td>Pomodoro cross-tab sync / comma-split log</td>
+      <td><span class="badge b-info">Obsolete</span></td>
+      <td>The Pomodoro feature and its store/screens were removed in <code>2cd4bd4</code>.</td>
+    </tr>
+    <tr>
+      <td>11</td><td>“Done” and “Done late” are identical on past days</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#l2">L2</a>. <code>deadlinePassedFor</code> still returns <code>true</code> for any date before today.</td>
+    </tr>
+    <tr>
+      <td>12</td><td>Note-tree transaction hygiene / stale image cache</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#l3">L3</a>. Descendants are still computed before the transaction; <code>urlCache</code> is still module-local and not cleared by import.</td>
+    </tr>
+    <tr>
+      <td>13</td><td>Back-button listener can leak (StrictMode)</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#l4">L4</a>. <code>native.ts:249–268</code> still assigns <code>remove</code> inside an async <code>.then()</code>.</td>
+    </tr>
+    <tr>
+      <td>14</td><td>Card-credit treatment differs Hub vs Metrics</td>
+      <td><span class="badge b-med">Open</span></td>
+      <td>See <a href="#l5">L5</a>. Hub/Home clamp each card at 0; Metrics nets across cards.</td>
+    </tr>
+    <tr>
+      <td>15</td><td><code>getBudgetMetrics</code> double-counts card payments</td>
+      <td><span class="badge b-ok">Fixed</span></td>
+      <td>Deleted in <code>453b8ac</code>; no reference remains.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>1.2 Security</h3>
+<table>
+  <thead><tr><th>v1 finding</th><th>Status</th><th>Evidence / note</th></tr></thead>
+  <tbody>
+    <tr><td>Unbounded import can hang/OOM</td><td><span class="badge b-ok">Fixed</span></td><td><code>exportImport.ts:219–224</code> rejects &gt; 50 MB before <code>JSON.parse</code>.</td></tr>
+    <tr><td>Workflow-level <code>contents: write</code></td><td><span class="badge b-ok">Fixed</span></td><td><code>android.yml</code> defaults to <code>contents: read</code>; only the <code>publish</code> job elevates, and it is skipped for fork PRs.</td></tr>
+    <tr><td>Release keystore left / secret interpolated in <code>run</code></td><td><span class="badge b-ok">Fixed</span></td><td>Keystore is base64-decoded from an <code>env</code> var and removed with <code>if: always()</code>; passwords are env vars.</td></tr>
+    <tr><td>Actions pinned by mutable tag</td><td><span class="badge b-ok">Fixed</span></td><td>All Android/iOS actions use full commit SHAs.</td></tr>
+    <tr><td><code>allowBackup="true"</code></td><td><span class="badge b-ok">Fixed</span></td><td><code>AndroidManifest.xml:5</code> is <code>false</code>.</td></tr>
+    <tr><td>Broad FileProvider paths</td><td><span class="badge b-ok">Fixed</span></td><td><code>file_paths.xml</code> exposes only <code>cache-path</code>.</td></tr>
+    <tr><td>No Content-Security-Policy</td><td><span class="badge b-ok">Fixed</span></td><td><code>vite.config.ts</code> injects a meta CSP into the production build only (dev/e2e keeps inline eval). <code>img-src</code> allows <code>blob: data:</code> for note images/routes.</td></tr>
+    <tr><td><code>dataUrlToBlob</code> trusts backup MIME</td><td><span class="badge b-ok">Fixed</span></td><td>Declared type is matched against <code>SAFE_IMAGE_TYPE</code> and falls back to <code>image/jpeg</code>.</td></tr>
+    <tr><td>Imported rows spread without validation</td><td><span class="badge b-low">Partial</span></td><td>Most tables now default/coerce fields; <code>budgetLimits</code>, <code>goals</code> and <code>events</code> still spread <code>...rest</code> after a couple of guards. No prototype-pollution path exists (explicit field objects), so this is schema hygiene, not RCE.</td></tr>
+    <tr><td>Committed debug keystore / password <code>android</code></td><td><span class="badge b-info">Accepted</span></td><td>Intentional so CI debug builds upgrade in place; documented in the notes. Fine for debug only — never for a Play release.</td></tr>
+    <tr><td>Dev server binds to the LAN</td><td><span class="badge b-info">Accepted</span></td><td><code>vite.config.ts</code> still has <code>host: true</code>; this is how the APK is tested against the LAN. Make it opt-in if the machine is on an untrusted network.</td></tr>
+  </tbody>
+</table>
+
+<h3>1.3 UI / accessibility / cleanup</h3>
+<table>
+  <thead><tr><th>v1 finding</th><th>Status</th><th>Evidence / note</th></tr></thead>
+  <tbody>
+    <tr><td>Light-theme text fails WCAG AA</td><td><span class="badge b-low">Partial</span></td><td>Recalculated from <code>themes.ts</code>: muted text is now 5.32–5.45:1 on surfaces, status tones 4.66–5.70:1, and white on the darkened primary is 4.69–6.15:1. One residual: <strong>Sunset</strong> primary buttons are 4.46:1 (see <a href="#l6">L6</a>).</td></tr>
+    <tr><td>Detail screens clip under the status bar</td><td><span class="badge b-ok">Fixed</span></td><td><code>styles.css:224–227</code>: <code>.content.content-detail</code> adds <code>env(safe-area-inset-top)</code>; <code>Layout.tsx</code> marks every detail route.</td></tr>
+    <tr><td>Dialog &amp; drawer lack focus management</td><td><span class="badge b-low">Partial</span></td><td>Dialog now has a real focus trap, initial focus, restore and nested-dialog scroll counting (<code>ui.tsx:150–240</code>) — and the v1 keyboard bug was fixed by keeping <code>onClose</code> in a ref and depending on <code>[open]</code> only. The drawer gained Escape, scroll-lock and initial focus, but still has no Tab loop (see <a href="#l7">L7</a>).</td></tr>
+    <tr><td>Clickable <code>&lt;div&gt;</code>s not keyboard reachable</td><td><span class="badge b-ok">Fixed</span></td><td>Notes, Accounts and Home rows now have <code>role</code>, <code>tabIndex</code>, an <code>aria-label</code> and Enter/Space handling. One regression in the new Runs list — see <a href="#m3">M3</a>.</td></tr>
+    <tr><td>Destructive actions without confirmation</td><td><span class="badge b-ok">Fixed</span></td><td>Import now opens “Import backup?” with an explicit warning (<code>SettingsScreen.tsx:347–357</code>); subtask deletion disappeared with Tasks.</td></tr>
+    <tr><td>Tap targets &lt; 44 px / unlabeled controls</td><td><span class="badge b-med">Open</span></td><td>See <a href="#m4">M4</a>.</td></tr>
+    <tr><td>Missing loading states / duplicated markup</td><td><span class="badge b-med">Open</span></td><td>See <a href="#m5">M5</a>. Detail screens have “Loading…”, list screens still flash their empty state; 11 hand-rolled <code>.segmented</code> blocks remain.</td></tr>
+    <tr><td>Smaller polish items (toast, aria-pressed, focus-visible, grid-3, theme-color)</td><td><span class="badge b-ok">Mostly fixed</span></td><td>Toast removed with Pomodoro; filter chips carry <code>aria-pressed</code>; a global <code>:focus-visible</code> rule exists; <code>.grid-3</code> has 2-col/1-col breakpoints; <code>theme-color</code> follows the palette. Remaining: habit-metrics day cells expose only <code>title</code> (<a href="#l8">L8</a>) and the calendar “No events” line skips <code>EmptyState</code>.</td></tr>
+    <tr><td>~40 dead exports, 13 dead CSS classes, template tests</td><td><span class="badge b-ok">Fixed</span></td><td>The v1 list (<code>startOfMonth</code>…<code>PRIORITY_COLORS</code>) has zero references; the dead CSS selectors are gone; the <code>com.getcapacitor.myapp</code> test stubs were removed; <code>flattenTree</code> is back to two parameters; scripts no longer hard-code <code>/tmp/opencode</code>.</td></tr>
+  </tbody>
+</table>
+
+<!-- ================================================================= -->
+<h2 id="open"><span class="num">2</span>Open findings</h2>
+<p class="sub">Five medium and twelve low items. New-since-v1 findings are marked <span class="badge b-info">NEW</span>.</p>
+
+<h3>Medium</h3>
+
+<div class="item med" id="m1">
+  <h3><span class="badge b-med">Medium</span> M1 · Adding a note image still discards text typed while it encodes</h3>
+  <div class="loc"><code>src/screens/NoteDetailScreen.tsx:94–108</code> · <code>onPickImage</code></div>
+  <p><code>saveNoteImage()</code> is awaited, then the marker is inserted into the <code>editContent</code> value captured when the picker opened. Anything typed during the image downscale/re-encode is overwritten by <code>setEditContent(next.content)</code>.</p>
+  <p><span class="lbl">Fix:</span> keep the cursor, then merge against the latest state:
+  <code>setEditContent(prev =&gt; insertImageMarker(prev, cursor, imageId).content)</code>. Capture <code>cursor</code> before the await.</p>
+</div>
+
+<div class="item med" id="m2">
+  <h3><span class="badge b-med">Medium</span> M2 · Runs history and Home load every GPS point of every run <span class="badge b-info">NEW</span></h3>
+  <div class="loc"><code>src/screens/RunsScreen.tsx:124–128</code>, <code>src/screens/HomeScreen.tsx:112</code></div>
+  <p>Both queries are <code>db.runs.orderBy('startedAt').toArray()</code>. A run can hold 5 000 point objects (<code>RUN_FILTERS.MAX_POINTS</code>), so a few hundred runs means hundreds of thousands of objects decoded on every live-query emission — and Home only needs this week's totals. Rendering is capped at 400 points per SVG (<code>RouteMap.tsx:7</code>), but the read is not.</p>
+  <p><span class="lbl">Fix (preferred):</span> move <code>points</code> to a separate <code>runPoints</code> table keyed by run id (Dexie v9), so the list/Home query stays small and route maps fetch on demand. A cheaper interim step is to query only the visible period and add a small “summary” projection for Home.</p>
+</div>
+
+<div class="item med" id="m3">
+  <h3><span class="badge b-med">Medium</span> M3 · Run history cards are not keyboard reachable <span class="badge b-info">NEW</span></h3>
+  <div class="loc"><code>src/screens/RunsScreen.tsx:1023–1046</code> · <code>RunCard</code></div>
+  <p>The card is a plain <code>&lt;div onClick={selecting ? onToggle : onOpen}&gt;</code> with no <code>role</code>, <code>tabIndex</code> or <code>onKeyDown</code>. This re-introduces the exact v1 pattern that Notes/Accounts/Home just fixed, on the newest screen. The group header is a real button, so only the run rows are affected.</p>
+  <p><span class="lbl">Fix:</span> make the card body a <code>&lt;button className="run-card-main"&gt;</code> (with the action row outside it), or restore <code>role="button" tabIndex={0}</code> and Enter/Space handling. Keep the nested ↑/↓/remove buttons' <code>stopPropagation</code>.</p>
+</div>
+
+<div class="item med" id="m4">
+  <h3><span class="badge b-med">Medium</span> M4 · Tap targets below 44 px and unnamed search fields</h3>
+  <div class="loc"><code>styles.css:757</code>, <code>:1666</code>; <code>NotesScreen.tsx:154</code>, <code>HabitsScreen.tsx:202</code>; icon buttons in Settings/Notes/Calendar/Goals</div>
+  <ul>
+    <li><code>.checkbox</code> is 24×24 and <code>.tree-toggle</code> 26×26 — both are primary list affordances.</li>
+    <li>Many <code>.icon-btn</code> instances are shrunk inline to 30–34 px (delete/edit actions); the base is 40 px, still under 44.</li>
+    <li>The two remaining search inputs have only a placeholder — no <code>aria-label</code>/<code>&lt;label&gt;</code> (transactions/notes search was removed with Tasks).</li>
+    <li><code>Field</code> still renders a <code>&lt;label&gt;</code> around multi-button chip groups (note tags, budget category/account, transfer target). A label may wrap only one labelable control.</li>
+  </ul>
+  <p><span class="lbl">Fix:</span> 44 px minimum hit area (visual size may stay smaller with padding), <code>aria-label="Search notes"</code>/<code>"Search habits"</code>, and change <code>Field</code> to a <code>&lt;div className="field"&gt;</code> with an explicit <code>htmlFor</code> when it contains a single input.</p>
+</div>
+
+<div class="item med" id="m5">
+  <h3><span class="badge b-med">Medium</span> M5 · Empty-state flash and duplicated markup</h3>
+  <div class="loc">all list screens · <code>SettingsScreen</code> · <code>.segmented</code> usage</div>
+  <p>55 of 84 <code>useLiveQuery</code> calls pass <code>[]</code> as the default, so the screen renders its “nothing here yet” state while Dexie resolves; only four detail screens show a loading line. Separately, <code>Segmented</code> was deleted as dead code but the hand-rolled <code>.segmented</code> markup survives in 11 places, and Settings still writes its own section rows instead of <code>CollapsibleHeader</code>.</p>
+  <p><span class="lbl">Fix:</span> default queries to <code>undefined</code> and render a shared skeleton/“Loading…” above the empty state; reintroduce one <code>Segmented</code> component and use <code>CollapsibleHeader</code> in Settings.</p>
+</div>
+
+<h3>Low</h3>
+
+<div class="item low" id="l1">
+  <h3><span class="badge b-low">Low</span> L1 · Missed-day backfill (and best streak) cap the scan window</h3>
+  <div class="loc"><code>src/db/habits.ts:244–254</code>, <code>:108–124</code></div>
+  <p><code>markMissedDays</code> walks <em>forward</em> from creation with <code>guard &lt; 732</code>, so a habit older than two years fills its oldest two years and stops — the opposite of “fill up to yesterday”. <code>computeBestStreak</code> has the same shape with <code>guard &lt; 3660</code>.</p>
+  <p><span class="lbl">Fix:</span> iterate backwards from <code>today - 1</code> (bounded by creation) and stop when the guard is hit; the recent window is what matters.</p>
+</div>
+
+<div class="item low" id="l2">
+  <h3><span class="badge b-low">Low</span> L2 · “Done” and “Done late” are the same on past days</h3>
+  <div class="loc"><code>src/db/habits.ts:134–143</code></div>
+  <p><code>deadlinePassedFor</code> returns <code>true</code> for any <code>key &lt; todayKey</code>, so checking Done on a past day always writes <code>lateCompletions</code> and renders “done late”. Both chips are indistinguishable for history.</p>
+  <p><span class="lbl">Fix:</span> record an explicit non-late completion (or hide the “Done” chip on past days).</p>
+</div>
+
+<div class="item low" id="l3">
+  <h3><span class="badge b-low">Low</span> L3 · Note delete snapshot and image cache</h3>
+  <div class="loc"><code>src/db/notes.ts:132–142</code>, <code>:167</code>; <code>src/lib/exportImport.ts</code></div>
+  <p><code>deleteNoteWithDescendants</code> reads <code>db.notes.toArray()</code> before opening the transaction, then deletes that snapshot's ids — a concurrent child write can be orphaned. The module-level <code>urlCache</code> also survives <code>importData</code>, so re-importing a backup that reuses a uuid can show the old blob.</p>
+  <p><span class="lbl">Fix:</span> compute descendants inside the <code>rw</code> transaction; export a <code>clearNoteImageCache()</code> and call it after import.</p>
+</div>
+
+<div class="item low" id="l4">
+  <h3><span class="badge b-low">Low</span> L4 · Back-button listener can leak under StrictMode</h3>
+  <div class="loc"><code>src/lib/native.ts:249–268</code></div>
+  <p><code>remove</code> is assigned inside <code>addListener(...).then()</code>; the dev double-mount cleanup runs before the promise resolves, so the first listener is never removed and <code>onExit</code> can fire twice.</p>
+  <p><span class="lbl">Fix:</span> keep the promise/handle and await it in cleanup, or guard with a <code>disposed</code> flag.</p>
+</div>
+
+<div class="item low" id="l5">
+  <h3><span class="badge b-low">Low</span> L5 · Card credit is treated differently by Hub/Home and Metrics</h3>
+  <div class="loc"><code>BudgetScreen.tsx:62</code>, <code>HomeScreen.tsx:153</code> vs <code>budget/MetricsScreen.tsx:80–86</code></div>
+  <p>Hub/Home sum <code>Math.max(0, cardOutstanding(card))</code> per card, so one card at +500 and another at −300 reports ₹500. Metrics nets to ₹200 and adds the credit to net worth. Pick the netting version and share one helper.</p>
+</div>
+
+<div class="item low" id="l6">
+  <h3><span class="badge b-low">Low</span> L6 · Sunset primary buttons are 4.46:1</h3>
+  <div class="loc"><code>src/lib/themes.ts:179</code> · <code>primaryStrong</code></div>
+  <p>The contrast fix works for five themes (4.69–6.15:1 white on <code>--primary-strong</code>). Sunset <code>#D4805A</code> darkened by 20 % gives 4.46:1 — a hair under WCAG AA 4.5. Increase the mix to ~0.24 or use dark text on that palette.</p>
+</div>
+
+<div class="item low" id="l7">
+  <h3><span class="badge b-low">Low</span> L7 · The drawer still has no focus trap</h3>
+  <div class="loc"><code>src/components/Layout.tsx:52–70</code>, <code>:94–101</code></div>
+  <p>Escape, scroll-lock and initial focus are in. Tab can still leave the drawer and reach the page behind it; the scrim remains a bare <code>&lt;div onClick&gt;</code> (fine as a pointer affordance, but not announced). Add the same Tab loop used by <code>Dialog</code>, or use <code>&lt;dialog&gt;</code>.</p>
+</div>
+
+<div class="item low" id="l8">
+  <h3><span class="badge b-low">Low</span> L8 · Habit-metrics day cells expose only <code>title</code></h3>
+  <div class="loc"><code>src/screens/HabitMetricsScreen.tsx:318</code>, <code>:417</code></div>
+  <p>Screen readers do not reliably announce <code>title</code> on a <code>&lt;span&gt;</code>. Add an <code>aria-label</code> with the date and <code>done/scheduled</code> count.</p>
+</div>
+
+<div class="item low" id="l9">
+  <h3><span class="badge b-low">Low</span> L9 · Recurring overnight events collapse to one hour / one day <span class="badge b-info">NEW</span></h3>
+  <div class="loc"><code>src/db/events.ts:92–99</code> · <code>eventOccurrence</code></div>
+  <p>For a repeating event, the occurrence is rebuilt with the start and end clock times on the <em>same</em> day; when the end is earlier than the start it becomes <code>start + 1 h</code>. A series that starts at 22:00 and ends at 02:00 loses both the next-day end and its multi-day span (one-off events are handled correctly by <code>eventOccursOn</code>).</p>
+  <p><span class="lbl">Fix:</span> store the end as a duration from the start (or compare date parts) and carry it into the occurrence, and let <code>eventOccursOn</code> test the start/end overlap for recurring rows too.</p>
+</div>
+
+<div class="item low" id="l10">
+  <h3><span class="badge b-low">Low</span> L10 · Deleting a session's last run leaves an invisible empty session <span class="badge b-info">NEW</span></h3>
+  <div class="loc"><code>src/screens/RunDetailScreen.tsx:268–274</code>; <code>src/screens/RunsScreen.tsx:166–171</code></div>
+  <p>Run deletion is a bare <code>db.runs.delete(id)</code>. <code>runGroups</code> rows are only pruned by session add/move/remove, and the Runs screen filters groups down to those with a visible run. The orphan row is unreachable in the UI (cannot be renamed or deleted) until another run is added to it.</p>
+  <p><span class="lbl">Fix:</span> route deletion through a <code>deleteRun(id)</code> helper that clears/prunes the group, or include empty groups in the list with the existing delete action.</p>
+</div>
+
+<div class="item low" id="l11">
+  <h3><span class="badge b-low">Low</span> L11 · Grouping runs that all sit inside a session inserts the new session at the top <span class="badge b-info">NEW</span></h3>
+  <div class="loc"><code>src/db/runGroups.ts:169–176</code></div>
+  <p><code>insertAt</code> searches only top-level rows; when every selected run is nested in another session, the index is <code>-1</code> and the new session is inserted at position 0 instead of where those runs were. The runs still move correctly — only the visible position is surprising.</p>
+  <p><span class="lbl">Fix:</span> resolve a selected run's containing group and use that group's row index when no top-level run matches.</p>
+</div>
+
+<div class="item low" id="l12">
+  <h3><span class="badge b-low">Low</span> L12 · A fresh <code>new Date()</code> in memo deps defeats the memo</h3>
+  <div class="loc"><code>src/screens/HabitsScreen.tsx:75</code>, <code>:104</code>; <code>src/screens/budget/AccountsScreen.tsx:22</code>, <code>:40</code></div>
+  <p><code>today</code>/<code>now</code> is created every render and passed as a dependency, so the row/filter memo recomputes on every keystroke or toast. This was called out in v1 and survived the cleanup.</p>
+  <p><span class="lbl">Fix:</span> depend on <code>todayKey</code>/<code>year</code> instead of the <code>Date</code> object, or memoize “today” until midnight.</p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="features"><span class="num">3</span>Review of the new features</h2>
+
+<h3>3.1 Runs history — Month/Day/Year filter and sessions</h3>
+<div class="callout ok">
+  <strong>Model is sound.</strong> The period control now matches <em>All transactions</em> (same anchor date, clamping on month change, <code>Today</code>), and the session layer is coherent:
+  <code>sortOrder</code> is explicit position with a null fallback to start time; top-level history is newest-first while a session's runs read oldest-first (walk 7:00 → run 7:30 → walk 8:00);
+  a manual move always wins; <code>createRunGroup</code> renumbers to 10/20/30 and inserts the group where its first run sat; new runs get <code>min − 10</code> once any manual order exists; import/export remaps group ids; and <code>smoke:logic</code> asserts timeline, manual priority, nested move/remove and round-trip.
+</div>
+<p><span class="lbl">Behaviour worth documenting:</span> creating the first session switches the list from “never moved” date mode to explicit positions. That is why a later run still lands on top — and why an imported legacy run with a null position can appear above a manually ordered list.</p>
+<p><span class="lbl">Issues found:</span> <a href="#m2">M2</a> (full-track queries), <a href="#m3">M3</a> (keyboard access), <a href="#l10">L10</a> (orphan session), <a href="#l11">L11</a> (nested grouping position). Touch reordering relies on the ↑/↓ buttons and “Add to session”, which is the right call — HTML5 drag is unreliable on mobile.</p>
+
+<h3>3.2 All transactions ledger</h3>
+<p>Clean. Period math is shared with Budget, day groups only appear in month/year mode, self-transfers are excluded from totals, year mode gets month headers, and bank/card rows reuse the existing edit dialogs. No correctness issues found; the only nit is that <code>cardNameById</code> is rebuilt each render (trivial).</p>
+
+<h3>3.3 Calendar — recurring, task-capable events</h3>
+<p>The Tasks → Events rewrite removed two v1 bugs at the source. One-off events now span days (overlap test), recurring events clamp monthly anchors, and a single occurrence can be skipped or deleted without touching the series. The remaining edge is <a href="#l9">L9</a> (overnight recurring occurrences).</p>
+
+<h3>3.4 Habit groups and Home ordering</h3>
+<p><code>sortOrder</code> is group-scoped, and every flat consumer (Home strip) now flattens <code>buildTopLevelRows</code> instead of a flat <code>compareHabits</code>, so groups no longer interleave. Group create/rename/delete/collapse and drag/↑↓ match the Runs session pattern. Only the memo dependency (<a href="#l12">L12</a>) needs attention.</p>
+
+<h3>3.5 Runs live tracking — GPS, barometer, 3D route</h3>
+<p>Snapshot persistence is throttled (every 5th tick), barometer readings are buffered natively and drained rather than pushed over the bridge, the simulator is behind <code>import.meta.env.DEV</code>, and <code>RouteMap</code> caps rendering at 400 points. No leaks found in the new 3D component; only the list-query cost above.</p>
+
+<!-- ================================================================= -->
+<h2 id="security"><span class="num">4</span>Security posture</h2>
+<div class="callout ok">
+  Still clean: no <code>dangerouslySetInnerHTML</code>, <code>innerHTML</code>, <code>eval</code> or <code>new Function</code> in <code>src/</code>; markdown renders as React elements; the only dynamic URL is a local <code>blob:</code>; the WebView stays on <code>https://localhost</code> with no cleartext or navigation allowance; the production build carries a CSP; imports are size-capped and image MIME-restricted; CI runs least-privilege with SHA-pinned actions and removes the decoded release key.
+</div>
+<p>Two accepted risks remain, both documented: the committed debug keystore (debug-only upgrade convenience) and the LAN-bound dev server (needed for device testing). The only hardening gap is per-field validation for three imported tables, which is schema hygiene rather than an exploit path.</p>
+
+<!-- ================================================================= -->
+<h2 id="perf"><span class="num">5</span>Performance &amp; maintainability</h2>
+<ul>
+  <li><strong>Runs points</strong> — the one query that does not scale (<a href="#m2">M2</a>). Split the track into its own table; list and Home stay small.</li>
+  <li><strong>Memo churn</strong> — <code>new Date()</code> dependencies in Habits/Accounts (<a href="#l12">L12</a>) and a few per-render maps/arrays (e.g. <code>cardNameById</code> in All transactions).</li>
+  <li><strong>Streak scans</strong> — <code>computeBestStreak</code> re-walks history on writes; the stored <code>bestStreak</code> is already kept as a running max, so the full scan can be limited to first computation.</li>
+  <li><strong>Duplication</strong> — 11 hand-rolled <code>.segmented</code> blocks and 5 Settings section headers remain; the budget summary reduce is still open-coded in Budget/Home/Metrics/Cards (v1's <code>summarizeBudget()</code> suggestion was not taken).</li>
+  <li><strong>Dead weight</strong> — <code>src/lib/demoRuns.ts</code> (~250 lines) is only imported by <code>scripts/scenarios.mjs</code>; it is tree-shaken out of the app but would be better placed under <code>scripts/</code>. The remaining unused exports (<code>compareRunOrder</code>, <code>groupStartedAt</code>, geo constants/types) are internal API surface, not the 40-symbol cleanup of v1.</li>
+</ul>
+
+<!-- ================================================================= -->
+<h2 id="plan"><span class="num">6</span>Updated action plan</h2>
+
+<div class="card">
+  <h3 style="margin-top:0">Do first — small, high value</h3>
+  <ol>
+    <li><a href="#m3">M3</a> Restore keyboard access to run cards (<code>role</code>/<code>tabIndex</code>/Enter-Space or a real button).</li>
+    <li><a href="#l10">L10</a> Prune the session when its last run is deleted.</li>
+    <li><a href="#m1">M1</a> Merge the image marker against the latest content.</li>
+    <li><a href="#l4">L4</a> Make the back-button listener cleanup deterministic.</li>
+    <li><a href="#l6">L6</a> Darken Sunset's primary by ~4 % so its buttons clear AA.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Then — data &amp; UX</h3>
+  <ol>
+    <li><a href="#m2">M2</a> Split GPS tracks into <code>runPoints</code> (Dexie v9) or add a light list projection; make Home query only the current week.</li>
+    <li><a href="#m4">M4</a> 44 px hit areas, search labels, and fix <code>Field</code> wrapping multi-button groups.</li>
+    <li><a href="#m5">M5</a> Default list queries to <code>undefined</code>, add one skeleton, reintroduce <code>Segmented</code>.</li>
+    <li><a href="#l9">L9</a> Carry overnight/multi-day spans into recurring occurrences.</li>
+    <li><a href="#l1">L1</a> Walk missed-day backfill backwards from yesterday.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Polish / cleanup</h3>
+  <ul>
+    <li><a href="#l2">L2</a> distinguish explicit on-time completion on past days; <a href="#l3">L3</a> transaction + cache hygiene in notes; <a href="#l5">L5</a> one card-credit convention; <a href="#l7">L7</a> drawer focus trap; <a href="#l8">L8</a> habit-day aria labels; <a href="#l11">L11</a> nested grouping position; <a href="#l12">L12</a> stable memo deps.</li>
+    <li>Consolidate the budget summary reduce and the segmented/section-header markup.</li>
+    <li>Move <code>demoRuns.ts</code> out of <code>src/</code>, or mark it explicitly test-only.</li>
+  </ul>
+</div>
+
+<div class="footer">
+  <p>
+    Re-reviewed 2026-11-07 against commit <code>c487c0d</code> (clean tree): source trace of
+    <code>src/**</code>, <code>android/</code>, <code>ios/</code> and <code>.github/workflows/</code>.
+    <code>typecheck</code>, <code>build</code> and all four browser suites
+    (<code>smoke</code>, <code>smoke:interact</code>, <code>smoke:flows</code>, <code>smoke:logic</code>)
+    were re-run green with 0 console errors.
+    Contrast figures were recalculated from the runtime palette maths in <code>themes.ts</code>.
+    Statuses reflect the current code, not the commit messages.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

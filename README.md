@@ -169,6 +169,7 @@ src/
 ├── screens/     one file per screen; budget/ holds the budget sub-screens
 └── styles.css   design tokens + responsive layout
 scripts/         Puppeteer smoke suites
+docs/            point-in-time audit reports (standalone HTML)
 ```
 
 ## Tests
@@ -187,6 +188,14 @@ npm run smoke:flows     # account/card/investment CRUD, habit day status, child 
 ```
 
 Set `BRAVE_PATH` if your Chromium binary lives somewhere other than `/usr/bin/brave`.
+
+## Audit reports
+
+[`docs/audit-v2-2026-11-07.html`](docs/audit-v2-2026-11-07.html) is a code and
+security review captured on 2026-11-07 — open it in a browser, it is a single
+self-contained file. Findings cite `file:line` and carry a status
+(Fixed/Open/Accepted/Obsolete), so it reads as a snapshot rather than live
+documentation: verify against the current code before acting on an entry.
 
 ## Android APK
 
