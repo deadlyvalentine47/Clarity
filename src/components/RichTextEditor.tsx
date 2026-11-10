@@ -254,8 +254,23 @@ export function RichTextEditor({
     }
     const insert = typeof command.insert === 'function' ? command.insert() : command.insert
     if (!insert) return
+    const source = inputs.current.get(`line:${line}`)
+    const caret = source?.selectionStart ?? 0
+    const slashStart = Math.max(0, caret - menu.query.length - 1)
+    const indent = source ? source.value.slice(0, slashStart) : ''
+    const trailing = source ? source.value.slice(caret) : ''
     const count = block?.kind === 'code' ? block.endLine - block.line + 1 : 1
-    const replacement = insert.split('\n')
+    let replacement: string[]
+    if (insert.includes('\n') || insert === '---') {
+      // Block commands keep any text that followed the slash on a new line.
+      replacement = insert.split('\n')
+      if (trailing.trim() !== '') replacement.push(trailing)
+    } else {
+      // Inline commands keep the rest of the line after the inserted prefix
+      // (e.g. /todo in front of "hi" becomes "- [ ] hi").
+      const gap = trailing !== '' && !insert.endsWith(' ') ? ' ' : ''
+      replacement = [`${indent}${insert}${gap}${trailing}`]
+    }
     const next = replaceLines(value, line, count, replacement)
     onValueChange(next.value)
     const first = replacement[0]?.trim() ?? ''

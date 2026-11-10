@@ -528,7 +528,19 @@ export function EventDialog({
         setMoveChoice({ fields, delta, start: fields.startDate, completionKey })
         return
       }
-      await db.events.put({ ...event, ...fields })
+      if (delta !== 0) {
+        // Notes and skipped days are keyed by occurrence date; move them with
+        // a one-off event (or a repeat-rule change) so the note follows it.
+        const maps = shiftEventDateMaps(event, delta)
+        await db.events.put({
+          ...event,
+          ...fields,
+          skippedDates: maps.skippedDates,
+          eventNotes: maps.eventNotes,
+        })
+      } else {
+        await db.events.put({ ...event, ...fields })
+      }
     } else {
       await db.events.add({
         ...fields,
@@ -566,10 +578,17 @@ export function EventDialog({
     const occurrenceKey = eventCompletionKey(event, date)
     const skippedDates = { ...(event.skippedDates ?? {}), [occurrenceKey]: true }
     const history = { ...(event.completionHistory ?? {}) }
+    const eventNotes = { ...(event.eventNotes ?? {}) }
+    const occurrenceNote = eventNotes[occurrenceKey] ?? ''
     const wasDone = history[occurrenceKey] === true || completed
     delete history[occurrenceKey]
+    delete eventNotes[occurrenceKey]
     await db.transaction('rw', db.events, async () => {
-      await db.events.update(event.id!, { skippedDates, completionHistory: history })
+      await db.events.update(event.id!, {
+        skippedDates,
+        completionHistory: history,
+        eventNotes,
+      })
       await db.events.add({
         ...moveChoice.fields,
         frequency: null,
@@ -581,7 +600,9 @@ export function EventDialog({
         isAllDay: event.isAllDay,
         reminderTime: null,
         skippedDates: {},
-        eventNotes: {},
+        eventNotes: occurrenceNote.trim()
+          ? { [toDateKey(moveChoice.start)]: occurrenceNote }
+          : {},
         createdAt: Date.now(),
       })
     })
