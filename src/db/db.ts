@@ -6,6 +6,7 @@ import type {
   CreditCardTransaction,
   DayJournal,
   Event,
+  FixedDeposit,
   Goal,
   Habit,
   HabitGroup,
@@ -37,6 +38,7 @@ export class ClarityDB extends Dexie {
   creditCards!: Table<CreditCard, number>
   creditCardTransactions!: Table<CreditCardTransaction, number>
   investments!: Table<Investment, number>
+  fixedDeposits!: Table<FixedDeposit, number>
   dayJournals!: Table<DayJournal, string>
   runs!: Table<RunSession, number>
   runTracks!: Table<RunTrack, number>
@@ -282,6 +284,11 @@ export class ClarityDB extends Dexie {
             e.eventNotes ??= {}
           })
       })
+
+    // v14 adds fixed deposits. New table, so no data migration is needed.
+    this.version(14).stores({
+      fixedDeposits: '++id, source, startDate, createdAt',
+    })
   }
 }
 

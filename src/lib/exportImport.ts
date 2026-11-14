@@ -12,6 +12,7 @@ import type {
   CreditCardTransaction,
   DayJournal,
   Event,
+  FixedDeposit,
   Goal,
   GoalStatus,
   Habit,
@@ -26,6 +27,7 @@ import type {
 } from '../db/types'
 import { HOME_SECTIONS, type DistanceUnit, type HomeSection, type ThemeMode } from '../db/types'
 import { eventDefaults } from '../db/events'
+import { fixedDepositDefaults } from '../db/fixedDeposits'
 import { normalizeMilestones } from '../db/goalMilestones'
 import { clearNoteImageCache } from '../db/notes'
 import { saveFileToDevice } from './native'
@@ -71,6 +73,8 @@ export interface AppData {
   creditCards: CreditCard[]
   creditCardTransactions: CreditCardTransaction[]
   investments: Investment[]
+  /** optional: backups from before Fixed Deposits have none */
+  fixedDeposits?: FixedDeposit[]
   dayJournals: DayJournal[]
   /** optional: backups from before the Runs feature have none */
   runs?: RunSession[]
@@ -128,6 +132,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCards,
     creditCardTransactions,
     investments,
+    fixedDeposits,
     dayJournals,
     runs,
     runTracks,
@@ -148,6 +153,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     db.creditCards.toArray(),
     db.creditCardTransactions.toArray(),
     db.investments.toArray(),
+    db.fixedDeposits.toArray(),
     db.dayJournals.toArray(),
     db.runs.toArray(),
     db.runTracks.toArray(),
@@ -173,6 +179,7 @@ export async function exportData(prefs: Preferences): Promise<string> {
     creditCards,
     creditCardTransactions,
     investments,
+    fixedDeposits,
     dayJournals,
     runs: runs.map((run) => ({
       ...run,
@@ -494,6 +501,13 @@ export async function importData(jsonText: string): Promise<ImportResult> {
         createdAt: Number(rest.createdAt ?? Date.now()),
       })
     }
+
+    const importedDeposits = arr<FixedDeposit>(raw.fixedDeposits)
+    for (const deposit of importedDeposits) {
+      const { id: _id, ...rest } = deposit
+      await db.fixedDeposits.add(fixedDepositDefaults(rest))
+    }
+    if (importedDeposits.length > 0) counts.fixedDeposits = importedDeposits.length
 
     for (const journal of arr<DayJournal>(raw.dayJournals)) {
       if (!journal?.date) continue

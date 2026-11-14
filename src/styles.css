@@ -481,6 +481,34 @@ p {
   }
 }
 
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.grid-4 > * {
+  min-width: 0;
+}
+
+.grid-4 .stat-value {
+  font-size: clamp(14px, 2.4vw, 20px);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stat-value {
   font-size: 24px;
   font-weight: 800;

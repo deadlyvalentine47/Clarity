@@ -13,6 +13,7 @@ import AccountDetailScreen from './screens/budget/AccountDetailScreen'
 import CreditCardsScreen from './screens/budget/CreditCardsScreen'
 import CreditCardDetailScreen from './screens/budget/CreditCardDetailScreen'
 import InvestmentsScreen from './screens/budget/InvestmentsScreen'
+import FixedDepositsScreen from './screens/budget/FixedDepositsScreen'
 import BudgetMetricsScreen from './screens/budget/MetricsScreen'
 import ActivityScreen from './screens/budget/ActivityScreen'
 import AllTransactionsScreen from './screens/budget/AllTransactionsScreen'
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="budget/cards" element={<CreditCardsScreen />} />
         <Route path="budget/cards/:cardId" element={<CreditCardDetailScreen />} />
         <Route path="budget/investments" element={<InvestmentsScreen />} />
+        <Route path="budget/fixed-deposits" element={<FixedDepositsScreen />} />
         <Route path="budget/metrics" element={<BudgetMetricsScreen />} />
         <Route path="budget/activity" element={<ActivityScreen />} />
         <Route path="budget/transactions" element={<AllTransactionsScreen />} />

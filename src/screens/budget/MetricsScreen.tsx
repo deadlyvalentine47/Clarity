@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ChevronDown, ChevronUp, CreditCard, Landmark, LineChart } from 'lucide-react'
 import { db } from '../../db/db'
-import { cardPurchasesInCycle, isSelfTransfer, summarizeBudget } from '../../db/budget'
+import { cardPurchasesInCycle, isFdFunding, isSelfTransfer, summarizeBudget } from '../../db/budget'
+import { summarizeFixedDeposits } from '../../db/fixedDeposits'
 import { monthRange } from '../../lib/dates'
 import { formatMoney } from '../../lib/format'
 import { PageHeader, ListSkeleton } from '../../components/ui'
@@ -22,13 +23,14 @@ export default function BudgetMetricsScreen() {
   const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
   const investments = useLiveQuery(async () => db.investments.toArray(), [], [])
+  const fixedDeposits = useLiveQuery(async () => db.fixedDeposits.toArray(), [], [])
   const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
 
   const [start, end] = monthRange(year, month)
   const monthTxns = useMemo(
     () =>
       (transactions ?? []).filter(
-        (t) => t.date >= start && t.date <= end && !isSelfTransfer(t),
+        (t) => t.date >= start && t.date <= end && !isSelfTransfer(t) && !isFdFunding(t),
       ),
     [transactions, start, end],
   )
@@ -72,13 +74,16 @@ export default function BudgetMetricsScreen() {
     [cards, cardTxns, year, month],
   )
 
+  const fdSummary = summarizeFixedDeposits(fixedDeposits ?? [])
   const totals = summarizeBudget({
     sources: sources ?? [],
     cardTxns: cardTxns ?? [],
     investments: investments ?? [],
+    fixedDepositValue: fdSummary.currentValue,
   })
   const totalInvested = (investments ?? []).reduce((s, i) => s + i.units * i.purchasePrice, 0)
   const totalCurrent = totals.investmentValue
+  const fdValue = totals.fixedDepositValue
   const profitLoss = totalCurrent - totalInvested
   const bankBalance = totals.bankBalance
   const ccDebt = totals.cardDebt
@@ -93,6 +98,7 @@ export default function BudgetMetricsScreen() {
     cards === undefined ||
     cardTxns === undefined ||
     investments === undefined ||
+    fixedDeposits === undefined ||
     sources === undefined
   ) {
     return <ListSkeleton rows={6} />
@@ -110,7 +116,7 @@ export default function BudgetMetricsScreen() {
       <div className="hero" style={{ marginBottom: 16 }}>
         <div className="hero-label">Net worth · {monthLabel}</div>
         <div className="big-amount">{formatMoney(netWorth)}</div>
-        <div className="hero-row">
+        <div className="hero-row" style={{ flexWrap: 'wrap' }}>
           <div>
             <div className="hero-label">Bank</div>
             <div className="bold">{formatMoney(bankBalance)}</div>
@@ -118,6 +124,12 @@ export default function BudgetMetricsScreen() {
           <div>
             <div className="hero-label">Investments</div>
             <div className="bold">{formatMoney(totalCurrent)}</div>
+          </div>
+          <div>
+            <div className="hero-label">Fixed deposits</div>
+            <div className="bold" style={{ color: 'var(--warning)' }}>
+              {formatMoney(fdValue)}
+            </div>
           </div>
           <div>
             <div className="hero-label">{ccCredit > 0 ? 'Card credit' : 'Card debt'}</div>

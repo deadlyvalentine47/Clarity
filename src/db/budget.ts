@@ -11,6 +11,12 @@ import { clampDay, formatDate } from '../lib/dates'
 
 export const CREDIT_CARD_PAYMENT_CATEGORY = 'Credit Card Payment'
 export const SELF_TRANSFER_CATEGORY = 'Self_Transfer'
+/** Auto-created bank debit for a Fixed Deposit; a transfer into an asset. */
+export const FD_FUNDING_CATEGORY = 'Fixed Deposit'
+
+export function isFdFunding(txn: Pick<Transaction, 'category'>): boolean {
+  return txn.category === FD_FUNDING_CATEGORY
+}
 
 // ---------------------------------------------------------------- accounts
 
@@ -25,6 +31,7 @@ export interface BudgetTotals {
   cardDebt: number
   cardCredit: number
   investmentValue: number
+  fixedDepositValue: number
   netWorth: number
 }
 
@@ -37,6 +44,8 @@ export function summarizeBudget(input: {
   sources: Source[]
   cardTxns: CreditCardTransaction[]
   investments?: Investment[]
+  /** current value of fixed deposits; computed by db/fixedDeposits */
+  fixedDepositValue?: number
 }): BudgetTotals {
   const bankBalance = totalBankBalance(input.sources)
   const outstanding = cardOutstanding(input.cardTxns)
@@ -46,13 +55,15 @@ export function summarizeBudget(input: {
     (sum, item) => sum + item.units * item.currentPrice,
     0,
   )
+  const fixedDepositValue = input.fixedDepositValue ?? 0
   return {
     bankBalance,
     cardOutstanding: outstanding,
     cardDebt,
     cardCredit,
     investmentValue,
-    netWorth: bankBalance + investmentValue + cardCredit - cardDebt,
+    fixedDepositValue,
+    netWorth: bankBalance + investmentValue + fixedDepositValue + cardCredit - cardDebt,
   }
 }
 
@@ -74,16 +85,17 @@ export async function cardNameExists(name: string, exceptId?: number): Promise<b
   return cards.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === trimmed)
 }
 
-/** Rename an account and cascade the name to every transaction. */
+/** Rename an account and cascade the name to every transaction and FD. */
 export async function renameSource(id: number, newName: string): Promise<void> {
   const source = await db.sources.get(id)
   if (!source) return
   const oldName = source.name
   const name = newName.trim()
-  await db.transaction('rw', db.sources, db.transactions, async () => {
+  await db.transaction('rw', db.sources, db.transactions, db.fixedDeposits, async () => {
     await db.sources.update(id, { name })
     if (oldName !== name) {
       await db.transactions.where('source').equals(oldName).modify({ source: name })
+      await db.fixedDeposits.where('source').equals(oldName).modify({ source: name })
     }
   })
 }
@@ -111,7 +123,7 @@ export async function deleteCategory(id: number): Promise<void> {
 
 // ------------------------------------------------------------ transactions
 
-async function adjustBalance(sourceName: string, delta: number): Promise<void> {
+export async function adjustBalance(sourceName: string, delta: number): Promise<void> {
   const source = await db.sources.where('name').equals(sourceName).first()
   if (!source || source.id == null) return
   await db.sources.update(source.id, { balance: (source.balance || 0) + delta })
@@ -378,7 +390,15 @@ export function spendSummary(
   end: number,
 ): SpendSummary {
   const bank = transactions
-    .filter((t) => t.type === 'Expense' && !isCardPayment(t) && !isSelfTransfer(t) && t.date >= start && t.date <= end)
+    .filter(
+      (t) =>
+        t.type === 'Expense' &&
+        !isCardPayment(t) &&
+        !isSelfTransfer(t) &&
+        !isFdFunding(t) &&
+        t.date >= start &&
+        t.date <= end,
+    )
     .reduce((sum, t) => sum + t.amount, 0)
   const card = cardTransactions
     .filter((t) => t.type === 'Purchase' && t.date >= start && t.date <= end)

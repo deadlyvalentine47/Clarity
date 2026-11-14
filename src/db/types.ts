@@ -104,6 +104,8 @@ export interface Transaction {
   linkedCardTxnId?: number | null
   /** shared id linking the two legs of a self-transfer */
   transferGroupId?: string | null
+  /** links a bank debit created automatically for a Fixed Deposit */
+  fdFundingKey?: string | null
 }
 
 export interface Category {
@@ -216,6 +218,30 @@ export interface Investment {
   createdAt: number
 }
 
+export type FdMode = 'Cumulative' | 'Payout'
+export type FdCompounding = 'Quarterly' | 'Monthly' | 'Annual' | 'Simple'
+
+export interface FixedDeposit {
+  id?: number
+  name: string
+  principal: number
+  /** fixed annual rate, e.g. 7.25 */
+  annualRate: number
+  startDate: number
+  tenureMonths: number
+  /** cumulative = interest reinvested; payout = interest paid out */
+  mode: FdMode
+  compounding: FdCompounding
+  /** bank's stated maturity amount, when it differs from the calculation */
+  maturityAmountOverride: number | null
+  /** bank account the principal was debited from; empty = informational only */
+  source: string
+  /** stable uuid linking this FD to its auto-created bank expense */
+  fundingKey: string | null
+  notes: string
+  createdAt: number
+}
+
 export interface DayJournal {
   /** YYYY-MM-DD (primary key) */
   date: string
@@ -292,7 +318,6 @@ export const HOME_SECTIONS = [
   'Events',
   'Habits',
   'Runs',
-  'Budget',
   'Notes',
   'Goals',
 ] as const

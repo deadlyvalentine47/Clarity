@@ -9,6 +9,7 @@ import {
   CreditCard,
   Landmark,
   LineChart,
+  PiggyBank,
   Plus,
   Settings2,
   TrendingUp,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { db } from '../db/db'
 import { dailySummary, summarizeBudget, transferPair } from '../db/budget'
+import { summarizeFixedDeposits } from '../db/fixedDeposits'
 import type { CreditCardTransaction, Transaction, TransactionType } from '../db/types'
 import { PageHeader, EmptyState, ListSkeleton } from '../components/ui'
 import { formatMoney } from '../lib/format'
@@ -35,6 +37,7 @@ export default function BudgetScreen() {
   const cards = useLiveQuery(async () => db.creditCards.toArray(), [])
   const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [])
   const investments = useLiveQuery(async () => db.investments.toArray(), [])
+  const fixedDeposits = useLiveQuery(async () => db.fixedDeposits.toArray(), [])
   const transactions = useLiveQuery(
     async () => (await db.transactions.toArray()).sort((a, b) => b.date - a.date),
     [],
@@ -53,13 +56,16 @@ export default function BudgetScreen() {
     setEditingTxn({ txn, pair: pair ?? undefined })
   }
 
+  const fdSummary = summarizeFixedDeposits(fixedDeposits ?? [])
   const totals = summarizeBudget({
     sources: sources ?? [],
     cardTxns: cardTxns ?? [],
     investments: investments ?? [],
+    fixedDepositValue: fdSummary.currentValue,
   })
   const bankBalance = totals.bankBalance
   const investmentValue = totals.investmentValue
+  const fixedDepositValue = totals.fixedDepositValue
   const ccDebt = totals.cardDebt
 
   const statCards = [
@@ -76,6 +82,13 @@ export default function BudgetScreen() {
       icon: LineChart,
       tone: 'var(--secondary)',
       to: '/budget/investments',
+    },
+    {
+      label: 'Fixed Deposits',
+      value: formatMoney(fixedDepositValue),
+      icon: PiggyBank,
+      tone: 'var(--warning)',
+      to: '/budget/fixed-deposits',
     },
     {
       label: 'CC Outstanding',
@@ -106,6 +119,12 @@ export default function BudgetScreen() {
       to: '/budget/investments',
     },
     {
+      title: 'Fixed Deposits',
+      subtitle: 'Principal, interest and maturity timeline',
+      icon: PiggyBank,
+      to: '/budget/fixed-deposits',
+    },
+    {
       title: 'Metrics',
       subtitle: 'Monthly bank, card and investment summary',
       icon: BarChart3,
@@ -119,6 +138,7 @@ export default function BudgetScreen() {
     cards === undefined ||
     cardTxns === undefined ||
     investments === undefined ||
+    fixedDeposits === undefined ||
     transactions === undefined
   ) {
     return <ListSkeleton rows={5} />
@@ -128,7 +148,7 @@ export default function BudgetScreen() {
     <>
       <PageHeader
         title="Budget"
-        subtitle="One place for accounts, cards and investments"
+        subtitle="One place for accounts, cards, investments and fixed deposits"
         actions={
           <button className="btn btn-sm btn-outline" onClick={() => setShowManage(true)}>
             <Settings2 size={16} /> Manage
@@ -136,7 +156,7 @@ export default function BudgetScreen() {
         }
       />
 
-      <div className="grid-3" style={{ marginBottom: 16 }}>
+      <div className="grid-4" style={{ marginBottom: 16 }}>
         {statCards.map(({ label, value, icon: Icon, tone, to }) => (
           <div
             key={label}

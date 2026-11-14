@@ -3,7 +3,6 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import {
   Activity,
-  ArrowUpRight,
   CalendarDays,
   Check,
   ChevronRight,
@@ -13,7 +12,6 @@ import {
   Plus,
   Settings,
   StickyNote,
-  Wallet,
 } from 'lucide-react'
 import { db } from '../db/db'
 import { goalProgress, goalStatus } from '../db/goals'
@@ -32,24 +30,19 @@ import {
   toggleEventCompletion,
 } from '../db/events'
 import { noteSnippet } from '../db/notes'
-import { cardPurchasesInCycle, isSelfTransfer, spendSummary, summarizeBudget } from '../db/budget'
 import {
   addDays,
-  endOfDay,
   formatDate,
   formatLongDate,
   formatTime,
   fromDateKey,
   greetingFor,
-  monthRange,
-  startOfDay,
   toDateKey,
 } from '../lib/dates'
-import { formatMoney, plural } from '../lib/format'
+import { plural } from '../lib/format'
 import { distanceLabel, formatClock } from '../lib/geo'
 import { CollapsibleHeader, ProgressBar, ProgressRing } from '../components/ui'
 import { EventDialog } from './CalendarScreen'
-import { TransactionDialog } from './budget/shared'
 
 const COLLAPSE_KEY = 'clarity.home.collapsed'
 
@@ -86,13 +79,9 @@ export default function HomeScreen() {
   const navigate = useNavigate()
   const [collapsed, toggleSection] = useCollapsedSections()
   const [showAddEvent, setShowAddEvent] = useState(false)
-  const [showAddSpend, setShowAddSpend] = useState(false)
 
   const now = new Date()
   const todayKey = toDateKey(now)
-  const dayStart = startOfDay(now.getTime())
-  const dayEnd = endOfDay(now.getTime())
-  const [monthStart, monthEnd] = monthRange(now.getFullYear(), now.getMonth() + 1)
 
   // Monday-based week, matching the Runs screen's "This week" range.
   const weekStart = useMemo(() => {
@@ -106,10 +95,6 @@ export default function HomeScreen() {
   const habits = useLiveQuery(async () => db.habits.toArray(), [], [])
   const habitGroups = useLiveQuery(async () => db.habitGroups.toArray(), [], [])
   const events = useLiveQuery(async () => db.events.toArray(), [], [])
-  const transactions = useLiveQuery(async () => db.transactions.toArray(), [], [])
-  const cardTxns = useLiveQuery(async () => db.creditCardTransactions.toArray(), [], [])
-  const sources = useLiveQuery(async () => db.sources.toArray(), [], [])
-  const cards = useLiveQuery(async () => db.creditCards.toArray(), [], [])
   const notes = useLiveQuery(async () => db.notes.toArray(), [], [])
   const goals = useLiveQuery(async () => db.goals.toArray(), [], [])
   const runs = useLiveQuery(async () => db.runs.orderBy('startedAt').reverse().toArray(), [], [])
@@ -168,23 +153,6 @@ export default function HomeScreen() {
     ),
   )
   const upcomingTotal = tomorrowEvents.length + dayAfterEvents.length
-
-  // --------------------------------------------------------------- money
-  // Bank spending is calendar-month; card spending follows each card's billing
-  // cycle that ends in the current month, like the card detail screen.
-  const bankSpend = spendSummary(transactions ?? [], [], monthStart, monthEnd).bank
-  const cardSpend = (cards ?? []).reduce(
-    (sum, card) =>
-      sum + cardPurchasesInCycle(card, cardTxns ?? [], now.getFullYear(), now.getMonth() + 1),
-    0,
-  )
-  const spend = { bank: bankSpend, card: cardSpend, total: bankSpend + cardSpend }
-  const income = (transactions ?? [])
-    .filter((t) => t.type === 'Income' && !isSelfTransfer(t) && t.date >= monthStart && t.date <= monthEnd)
-    .reduce((sum, t) => sum + t.amount, 0)
-  const totals = summarizeBudget({ sources: sources ?? [], cardTxns: cardTxns ?? [] })
-  const bankBalance = totals.bankBalance
-  const cardDebt = totals.cardDebt
 
   const activeGoals = (goals ?? []).filter((g) => goalStatus(g) !== 'Completed')
   const recentNotes = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -411,53 +379,6 @@ export default function HomeScreen() {
       )
     }
 
-    if (section === 'Budget') {
-      const burn = income > 0 ? spend.total / income : 0
-      return (
-        <SectionCard
-          key={section}
-          icon={<Wallet size={16} />}
-          title="Budget"
-          meta="this month"
-          open={open}
-          onToggle={onToggle}
-          action={<OpenLink onClick={() => navigate('/budget')} />}
-        >
-          <div className="money-grid">
-            <div className="money-cell">
-              <span className="tiny muted">Balance</span>
-              <span className="money-value">{formatMoney(bankBalance)}</span>
-            </div>
-            <div className="money-cell">
-              <span className="tiny muted">In</span>
-              <span className="money-value money-positive">{formatMoney(income)}</span>
-            </div>
-            <div className="money-cell">
-              <span className="tiny muted">Out</span>
-              <span className="money-value money-negative">{formatMoney(spend.total)}</span>
-            </div>
-          </div>
-
-          <div className="money-split tiny muted">
-            Bank {formatMoney(spend.bank)} · Cards {formatMoney(spend.card)}
-            {cardDebt > 0 ? ` · Owed ${formatMoney(cardDebt)}` : ''}
-          </div>
-
-          {income > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <ProgressBar
-                value={burn}
-                color={burn > 0.9 ? 'var(--error)' : burn > 0.7 ? 'var(--warning)' : 'var(--success)'}
-              />
-              <div className="tiny muted" style={{ marginTop: 4 }}>
-                {Math.round(burn * 100)}% of this month&apos;s income spent
-              </div>
-            </div>
-          )}
-        </SectionCard>
-      )
-    }
-
     if (section === 'Notes') {
       return (
         <SectionCard
@@ -623,9 +544,6 @@ export default function HomeScreen() {
         <button className="quick-action primary" onClick={() => setShowAddEvent(true)}>
           <CalendarDays size={16} /> Event
         </button>
-        <button className="quick-action" onClick={() => setShowAddSpend(true)}>
-          <ArrowUpRight size={16} /> Spend
-        </button>
         <button className="quick-action" onClick={() => navigate('/runs/live')}>
           <Footprints size={16} /> Run
         </button>
@@ -653,9 +571,6 @@ export default function HomeScreen() {
       <div className="home-sections">{sections.map(renderSection)}</div>
 
       {showAddEvent && <EventDialog date={now} onClose={() => setShowAddEvent(false)} />}
-      {showAddSpend && (
-        <TransactionDialog type="Expense" onClose={() => setShowAddSpend(false)} />
-      )}
     </div>
   )
 }
